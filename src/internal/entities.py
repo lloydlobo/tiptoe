@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import TYPE_CHECKING
 
+from internal.prelude import EntityKind
 from internal.tilemap import Tilemap
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game
 
 import pygame as pg
-
-
-class EntityKind(Enum):
-    PLAYER = "player"
-    ENEMY = "enemy"
 
 
 class PhysicalEntity:
@@ -37,7 +32,7 @@ class PhysicalEntity:
         return True
 
     def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
-        surf.blit(self.game.assets[EntityKind.PLAYER.value], self.pos)
+        surf.blit(self.game.assets.surface["player"], self.pos - offset)
 
 
 class Enemy(PhysicalEntity):

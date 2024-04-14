@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Final, Sequence, Tuple, Union
 
 import pygame as pg
@@ -33,6 +34,16 @@ WHITE = (255, 255, 255)
 # Note: Ported from pygame source file: _common.py
 RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
+
+
+class TileKind(Enum):
+    GRASS = "grass"
+    STONE = "stone"
+
+
+class EntityKind(Enum):
+    PLAYER = "player"
+    ENEMY = "enemy"
 
 
 @dataclass
