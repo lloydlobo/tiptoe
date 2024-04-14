@@ -1,60 +1,115 @@
+import os
 import sys
 
 import pygame as pg
 
-FPS = 60
-
-SCALE = 0.5
-SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
-SIZE = (SCREEN_WIDTH, SCREEN_HEIGHT)
-SIZE_HALF = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
-
-TILE_SIZE = 16
-
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-TRANSPARENT = (0, 0, 0, 0)
+from internal.assets_util import load_img
+from internal.entities import EntityKind, Player
+# fmt: off
+from internal.prelude import (CAMERA_SCROLL_SPEED, CAPTION, CHARCOAL,
+                              DATA_IMAGES_PATH, DIMENSIONS, DIMENSIONS_HALF,
+                              FPS_CAP, RED, TILE_SIZE, TRANSPARENT, WHITE,
+                              Movement)
+# fmt: on
+from internal.tilemap import Tilemap
 
 
 class Game:
     def __init__(self) -> None:
         pg.init()
 
-        pg.display.set_caption("tiptoe")
-        self.screen = pg.display.set_mode(SIZE)
-        self.display = pg.Surface(SIZE_HALF, pg.SRCALPHA)
-        self.display_outline = pg.Surface(SIZE_HALF)
+        pg.display.set_caption(CAPTION)
+        self.screen = pg.display.set_mode(DIMENSIONS)
+        self.display = pg.Surface(DIMENSIONS_HALF, pg.SRCALPHA)
+        self.display_2 = pg.Surface(DIMENSIONS_HALF)
 
-        self.font = pg.font.SysFont("monospace", TILE_SIZE)
+        self.font = pg.font.SysFont(pg.font.get_default_font() or "monospace", TILE_SIZE)
 
         self.clock = pg.time.Clock()
 
+        self.movement = Movement(left=False, right=False)
+        # ^ or use simpler self.movement = [False, False]
+
+        player_sprite = pg.Surface((8, 15)) or load_img(path=os.path.join(DATA_IMAGES_PATH, "entities", "player.png"), with_alpha=True, colorkey=(0, 0, 0))
+        player_sprite.fill(RED)
+
+        self.assets = {
+            EntityKind.PLAYER.value: player_sprite,
+        }
+
+        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(8, 15))
+
+        self.tilemap = Tilemap(self, TILE_SIZE)
+
+        self.scroll = pg.Vector2(0.0, 0.0)  # or use [0, 0]
+
+        self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
+
     def run(self) -> None:
-        bg = pg.Surface(SIZE)  # TODO: use actual background image
-        bg.fill(BLACK)
+        bg = pg.Surface(DIMENSIONS)  # TODO: use actual background image
+        bg.fill(CHARCOAL)
 
         while True:
             self.display.fill(TRANSPARENT)
-            self.display_outline.blit(bg, (0, 0))
+            self.display_2.blit(bg, (0, 0))
+
+            # camera: update and parallax
+            self.scroll.x += (-self.movement.left + self.movement.right) * CAMERA_SCROLL_SPEED
+            render_scroll = pg.Vector2(int(self.scroll.x), int(self.scroll.y))
+
+            # player: update and render
+            if not self.dead:
+                self.player.update(self.tilemap, pg.Vector2(-self.movement.left + self.movement.right, 0))
+                self.player.render(self.display, render_scroll)
+
+            # mask: before particles!!!
+            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline
+            display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+            for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                self.display_2.blit(display_silhouette, offset)
+
+            # particles:
+            # TODO:
 
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     pg.quit()
                     sys.exit()
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_LEFT:
+                        self.movement.left = True
+                    if event.key == pg.K_RIGHT:
+                        self.movement.right = True
+                if event.type == pg.KEYUP:
+                    if event.key == pg.K_LEFT:
+                        self.movement.left = False
+                    if event.key == pg.K_RIGHT:
+                        self.movement.right = False
 
-            # pixel art effect
-            self.screen.blit(
-                pg.transform.scale(self.display_outline, self.screen.get_size()), (0, 0)
-            )
+            # DISPLAY RENDERING
+
+            # blit display on display_2 and then blit display_2 on
+            # screen for depth effect.
+
+            self.display_2.blit(self.display, (0, 0))
+
+            # TODO: screenshake effect via offset for screen blit
+            # ...
+            self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
+
+            # DEBUG
 
             # show fps
-            text = self.font.render(
-                f"FPS: {self.clock.get_fps():4.0f}", False, WHITE, None
-            )
-            self.screen.blit(text, (TILE_SIZE, TILE_SIZE))
+            text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", False, WHITE, None)
+            self.screen.blit(text, (TILE_SIZE, TILE_SIZE * 1))
+            # show render_scroll
+            text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", False, WHITE, None)
+            self.screen.blit(text, (TILE_SIZE, TILE_SIZE * 2))
+
+            # FINAL DRAWING
 
             pg.display.flip()
-            self.clock.tick(FPS)
+            self.clock.tick(FPS_CAP)
 
 
 if __name__ == "__main__":

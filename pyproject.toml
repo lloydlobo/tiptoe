@@ -1,0 +1,7 @@
+[tool.pyright]
+typeCheckingMode = "strict"
+
+[tool.black]
+line-length = 160
+skip-string-normalization = true
+
