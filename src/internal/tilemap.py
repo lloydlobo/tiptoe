@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 import pygame as pg
 
-from internal.prelude import NEIGHBOR_OFFSETS, PHYSICS_TILES, TILE_SIZE, TileKind, calc_pos_to_loc
+from internal.prelude import (NEIGHBOR_OFFSETS, PHYSICS_TILES, TILE_SIZE,
+                              TileKind, calc_pos_to_loc)
 
 
 @dataclass
@@ -38,8 +39,10 @@ class Tilemap:
         # print(f"{self.tilemap =}")
 
     @lru_cache(maxsize=None)
-    def calc_tile_loc(self, x: int, y: int) -> tuple[int, int]:
+    # HACK: passing float as x,y param to see if perf decreases
+    def calc_tile_loc(self, x: int | float, y: int | float) -> tuple[int, int]:
         """calc_tile_loc avoids pixel bordering zero to round to 1."""
+        # HACK: or round this?
         return (int(x // self.tile_size), int(y // self.tile_size))
 
     @lru_cache(maxsize=None)
@@ -78,15 +81,20 @@ class Tilemap:
     #     ]
 
     def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
+        blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
         for tile in self.offgrid_tiles:
-            surf.blit(
-                self.game.assets.surfaces[tile.kind.value][tile.variant],
-                (int(tile.pos.x) - offset[0], int(tile.pos.y) - offset[1]),
-            )
+            blit(self.game.assets.surfaces[tile.kind.value][tile.variant], tile.pos - offset)
 
-        for loc in self.tilemap:
-            tile = self.tilemap[loc]
-            surf.blit(
-                self.game.assets.surfaces[tile.kind.value][tile.variant],
-                (int(tile.pos.x) * self.tile_size - offset[0], int(tile.pos.y) * self.tile_size - offset[1]),
-            )
+        blit = surf.blit
+        xlo, ylo = self.calc_tile_loc(offset.x, offset.y)
+        xhi, yhi = self.calc_tile_loc(offset.x + surf.get_width(), offset.y + surf.get_height())
+        for x in range(xlo, xhi + 1):
+            for y in range(ylo, yhi + 1):
+                if (loc := calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
+                    tile = self.tilemap[loc]
+                    blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
+
+        # blit = surf.blit
+        # for loc in self.tilemap:
+        #     tile = self.tilemap[loc]
+        #     blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)

@@ -97,9 +97,11 @@ class Collisions:
 
 
 @lru_cache(maxsize=None)
-def calc_pos_to_loc(x: int, y: int, offset: tuple[int, int]) -> str:
+def calc_pos_to_loc(x: int, y: int, offset: tuple[int, int] | None) -> str:
     """
     calc_pos_to_loc convert position with offset to json serializable key for game level map
     Returns a string with `_lru_cache_wrapper` that is a 'Constants shared by all lru cache instances'
     """
-    return f"{ x-offset[0] };{ y-offset[1] }"
+    if offset:
+        return f"{ x-offset[0] };{ y-offset[1] }"
+    return f"{ x };{ y }"
