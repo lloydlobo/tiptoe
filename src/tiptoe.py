@@ -138,6 +138,10 @@ class Game:
                         self.movement.left = True
                     if event.key == pg.K_RIGHT:
                         self.movement.right = True
+                    if event.key == pg.K_UP:
+                        if self.player.jump():
+                            # TODO: play jump sfx
+                            pass
                 if event.type == pg.KEYUP:
                     if event.key == pg.K_LEFT:
                         self.movement.left = False

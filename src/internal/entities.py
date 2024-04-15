@@ -59,11 +59,16 @@ class PhysicalEntity:
                         self.collisions.up = True
                     self.pos.y = entity_rect.y  # update y pos as int
 
-        self.velocity.y = min(
-            self._terminal_velocity_y, self.velocity.y + 0.1
-        )  # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
+        # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
+        self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + 0.1)
 
-        # TODO: 1:25:58 ... if self.col...
+        if (_experimental_free_fall := True) and not _experimental_free_fall:
+            if not self.collisions.down and self.velocity.y >= self._terminal_velocity_y:
+                self.velocity.y *= 0.1  # smooth freefall
+        else:
+            if self.collisions.down or self.collisions.up:
+                self.velocity.y = 0  # if you run into the ground it should stop you. if you go up or jump head first to the roof it should stop you
+                # ^ PERF: can add bounce if hit head on roof
 
         return True
 
@@ -87,9 +92,20 @@ class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, EntityKind.PLAYER, pos, size)
 
+        self._jump_thrust: Final = 3
+
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         super().update(tilemap, movement)
         return True
 
     def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
         super().render(surf, offset)
+
+    def jump(self) -> bool:
+        """returns True if successful jump"""
+
+        if (_tmp_impl := True) and _tmp_impl:  # HACK: temp jump impl
+            self.velocity.y = -self._jump_thrust  # -y dir: go up
+            return True
+
+        return False
