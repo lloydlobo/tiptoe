@@ -23,6 +23,7 @@ class EntityKind(Enum):
 class TileKind(Enum):
     GRASS = "grass"
     STONE = "stone"
+    PORTAL = "portal"
 
 
 @dataclass
@@ -272,11 +273,14 @@ SPRITESHEET_PATH    = None
 # fmt: on
 
 
+BG_DARKER = hsl_to_rgb(234, 0.1618, 0.0328)
 BG_DARK = hsl_to_rgb(234, 0.1618, 0.0618)
 BLACK = (0, 0, 0)
+MIDNIGHT = (2, 2, 3)
+YELLOW = hsl_to_rgb(60, 0.6, 0.3)
 CHARCOAL = (10, 10, 10)
 CREAM = hsl_to_rgb(0, 0.1618, 0.618)  # awesome color for player
-DARK_AYU_NAVY = (15, 20, 25)
+BEIGE = (15, 20, 25)
 GRAY = hsl_to_rgb(0, 0, 0.5)
 GREEN = hsl_to_rgb(120, 1, 0.25)
 RED = hsl_to_rgb(0, 0.618, 0.328)
@@ -295,3 +299,7 @@ NEIGHBOR_OFFSETS = {
 LEN_NEIGHBOR_OFFSETS = 9
 
 PHYSICS_TILES = {TileKind.GRASS, TileKind.STONE}
+
+# FLAGS
+
+DEBUG_HUD: Final[bool] = False

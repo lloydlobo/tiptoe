@@ -30,13 +30,21 @@ class Tilemap:
         self.tilemap: dict[str, TileItem] = {}
         self.offgrid_tiles: list[TileItem] = []
 
-        for i in range(10):
-            self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.GRASS, variant=0, pos=pg.Vector2(3 + i, 10))  # vertical contiguous tiles
-            self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  # horizontal contiguous tiles
+        for i in range(20):
+            self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(3 + i, 10))  # horizontal contiguous tiles
+            self.tilemap[f"{3+i};{11}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(3 + i, 11))
 
-            # print(self.tiles_around(tuple(pg.Vector2((3 + i) * TILE_SIZE, 10 * TILE_SIZE))))
-            # print(self.tiles_around(tuple(pg.Vector2(10 * TILE_SIZE, (5 + i) * TILE_SIZE))))
-        # print(f"{self.tilemap =}")
+        for i in range(6):
+            self.tilemap[f"{7+i};{8}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(7 + i, 8))
+
+        for i in range(3):
+            self.tilemap[f"{16+i};{7}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(16 + i, 7))
+            # self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  vertical contiguous tiles
+
+        for i in range(2):
+            self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
+            self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
+            # self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  vertical contiguous tiles
 
     @lru_cache(maxsize=None)
     def calc_tile_loc(self, x: int | float, y: int | float) -> tuple[int, int]:
@@ -86,8 +94,8 @@ class Tilemap:
             (
                 surf := pg.Surface(size),
                 surf.set_colorkey(colorkey),
-                surf.fill(fill),
                 surf.set_alpha(alpha),
+                surf.fill(fill),
             )[0]
             # ^ after processing pipeline, select first [0] Surface in tuple
             for _ in range(count)

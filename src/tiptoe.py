@@ -3,8 +3,8 @@ import sys
 import pygame as pg
 
 import internal.prelude as pre
-from internal.entities import Action, Player
-from internal.tilemap import Tilemap
+from internal.entities import Player
+from internal.tilemap import TileItem, Tilemap
 
 
 class Game:
@@ -24,25 +24,29 @@ class Game:
         self.movement = pre.Movement(left=False, right=False)
 
         # need these for reference for animation workaround
-        player_size = (8, pre.TILE_SIZE)
-        enemy_size = (8, pre.TILE_SIZE)
-        player_color = pre.RED
-        player_alpha = 255 // 2
+        player_size = (8, pre.TILE_SIZE - 1)
+        enemy_size = (8, pre.TILE_SIZE - 1)
+        player_color = pre.YELLOW
+        player_alpha = 255 // 1
         player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
         enemy_surf = Tilemap.generate_surf(1, pre.CREAM, size=enemy_size, alpha=(255 // 2))[0]
+
         self.assets = pre.Assets(
             surface=dict(
                 # entity
-                player=player_surf.copy(),
+                background=pg.Surface(pre.DIMENSIONS),  # TODO: use actual background image
                 enemy=enemy_surf.copy(),
+                player=player_surf.copy(),
+                portal=Tilemap.generate_surf(1, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255)[0],
+                # tbd
                 gun=pg.Surface((14, 7)),
                 projectile=pg.Surface((5, 2)),
-                background=pg.Surface(pre.DIMENSIONS),  # TODO: use actual background image
             ),
             surfaces=dict(
                 # tiles: on grid
-                grass=(Tilemap.generate_surf(9, color=pre.GRAY, alpha=64)),
-                stone=Tilemap.generate_surf(9, color=pre.SILVER, alpha=64),
+                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
+                grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=255),
+                # grass=(Tilemap.generate_surf(9, color=pre.GRAY, alpha=64)),
                 # tiles: off grid
                 #    offgrid (plant,box,..)
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
@@ -52,7 +56,7 @@ class Game:
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
                     idle=pre.Animation(
-                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1] - 1), alpha=player_alpha), img_dur=6
+                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha), img_dur=6
                     ),
                     run=pre.Animation(
                         Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4
@@ -83,6 +87,10 @@ class Game:
         # print(self.player.animation.copy())
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
+        # self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(21, 4)))
+
+        self.portal = self.assets.surface["portal"]
+        self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
 
         self.level = 0
         # TODO: self.load_level(self.level)
@@ -115,6 +123,13 @@ class Game:
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
+            # portal: render
+            """
+            self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
+            self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
+            """
+            self.display.blit(self.portal, self.portal_pos - render_scroll)
+
             # enemy: update and render
             # TODO:
 
@@ -126,6 +141,10 @@ class Game:
                 # debug: collission detection
                 #   ta = self.tilemap.tiles_around(tuple(self.player.pos))
                 #   pra = self.tilemap.physics_rects_around(tuple(self.player.pos))
+
+            if self.player.rect().collidepoint(self.portal_pos):
+                print(f"CLEARED {self.level}")
+            # print(f"{self.player.pos/self.tilemap.tile_size, (self.portal.get_rect().x,self.portal.get_locked) = }")
 
             # mask: before particles!!!
             display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
@@ -168,32 +187,32 @@ class Game:
 
             # DEBUG: HUD
 
-            antialias = True
-
-            # HUD: show fps
-            text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
-            # HUD: show self.scroll
-            text = self.font.render(f"SCROLL {str(self.scroll).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
-            # HUD: show render_scroll
-            text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
-            # HUD: show self.movement
-            text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
-            # HUD: show self.player.pos
-            text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
-            # HUD: show self.player.velocity
-            text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
-            # HUD: show self.player.action
-            text = self.font.render(f"{str(self.player.action).ljust(4).upper()}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
-            # HUD: show self.player.flip
-            text = self.font.render(f"FLIP {str(self.player.flip).ljust(4).upper()}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
+            if pre.DEBUG_HUD:
+                antialias = True  # for text
+                # HUD: show fps
+                text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
+                # HUD: show self.scroll
+                text = self.font.render(f"SCROLL {str(self.scroll).ljust(4)}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
+                # HUD: show render_scroll
+                text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
+                # HUD: show self.movement
+                text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
+                # HUD: show self.player.pos
+                text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
+                # HUD: show self.player.velocity
+                text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
+                # HUD: show self.player.action
+                text = self.font.render(f"{str(self.player.action).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
+                # HUD: show self.player.flip
+                text = self.font.render(f"FLIP {str(self.player.flip).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
 
             # FINAL DRAWING
 
