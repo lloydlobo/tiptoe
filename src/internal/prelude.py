@@ -24,6 +24,8 @@ class TileKind(Enum):
     GRASS = "grass"
     STONE = "stone"
     PORTAL = "portal"
+    DECOR = "decor"
+    LARGE_DECOR = "large_decor"
 
 
 @dataclass
@@ -32,8 +34,8 @@ class Movement:
 
     left: bool
     right: bool
-    top: bool | None
-    bottom: bool | None
+    top: bool
+    bottom: bool
 
 
 @dataclass
@@ -107,7 +109,7 @@ class Assets:
                     raise ValueError(f"expected valid AnimationAssets key. got {key}")
 
     surface: dict[str, pg.Surface]
-    surfaces: dict[str, list[pg.Surface]]
+    tiles: dict[str, list[pg.Surface]]
     animations_entity: AnimationEntityAssets
     animations_misc: AnimationMiscAssets
 
@@ -306,3 +308,7 @@ PHYSICS_TILES = {TileKind.GRASS, TileKind.STONE}
 # FLAGS
 
 DEBUG_HUD: Final[bool] = False
+
+# EDITOR
+
+RENDER_SCALE = 2

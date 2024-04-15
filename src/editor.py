@@ -4,7 +4,7 @@ import sys
 import pygame as pg
 
 import internal.prelude as pre
-from internal.tilemap import Tilemap
+from internal.tilemap import TileItem, Tilemap
 
 
 class Editor:
@@ -14,7 +14,7 @@ class Editor:
         pg.display.set_caption(pre.CAPTION)
         self.screen = pg.display.set_mode(pre.DIMENSIONS)
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
-        self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
+        # self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
         self.font_size = 18
         self.font = pg.font.SysFont(name=(pg.font.get_default_font() or "monospace"), size=self.font_size, bold=False)
@@ -42,31 +42,17 @@ class Editor:
                 gun=pg.Surface((14, 7)),
                 projectile=pg.Surface((5, 2)),
             ),
-            surfaces=dict(
+            tiles=dict(
                 # tiles: on grid
                 stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
-                grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=255),
+                grass=Tilemap.generate_surf(9, color=pre.GREEN, colorkey=None, alpha=255),
                 portal=Tilemap.generate_surf(3, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255),
                 # tiles: off grid
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
             ),
-            animations_entity=pre.Assets.AnimationEntityAssets(
-                player=dict(
-                    idle=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha), img_dur=6),
-                    run=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4),
-                    jump=pre.Animation(Tilemap.generate_surf(count=5, color=player_color, size=(player_size[0] - 1, player_size[1] + 1), alpha=player_alpha)),
-                    # slide=pre.Animation(),
-                    # wall_slide=pre.Animation(),
-                ),
-                enemy=dict(
-                    idle=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),
-                    run=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1)), img_dur=4),
-                ),
-            ),
-            animations_misc=pre.Assets.AnimationMiscAssets(
-                particle=dict(),
-            ),
+            animations_entity=pre.Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
+            animations_misc=pre.Assets.AnimationMiscAssets(particle=dict()),
         )
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -80,24 +66,18 @@ class Editor:
         if False:
             self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
 
-        self.enemies = []
-        self.portals = []
-        if False:
-            for spawner in self.tilemap.extract([("spawners", 0), ("spawners", 1), ("spawners,2")]):  # spawn player[1] and enemy[1] and portal[2]
-                match spawner["variant"]:
-                    case 0:  # player
-                        self.player.pos = list(spawner["pos"])
-                        self.player.air_time = 0  # reset time to avoid multiple spawning after falling down
-                    case 1:  # enemy
-                        self.enemies.append(Enemy(self, spawner["pos"], (8, 16)))
-                    case 2:  # portal
-                        self.portals.append((pg.Surface((8, 16)), pg.Vector2(spawner["pos"])))
-                        pass
-                    case _:
-                        raise ValueError(f'expect a valid spawners variant. got {spawner["variant"]}')
-
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
         self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
+
+        self.tile_list = list(self.assets.tiles.keys())
+        assert set(self.tile_list) == set(x.value for x in pre.TileKind)
+        self.tile_group = 0
+        self.tile_variant = 0
+
+        self.clicking = False
+        self.right_clicking = False
+        self.shift = False
+        self.ongrid = True
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
@@ -107,21 +87,16 @@ class Editor:
         self.transition = -30
 
     def run(self) -> None:
-        bg = self.assets.surface["background"]
-        bg.set_colorkey(pre.BLACK)
-        bg.fill(pre.BG_DARK)
+        # bg = self.assets.surface["background"]
+        # bg.set_colorkey(pre.BLACK)
+        # bg.fill(pre.BG_DARK)
 
         while True:
-            self.display.fill(pre.TRANSPARENT)
-            self.display_2.blit(bg, (0, 0))
+            # self.display.fill(pre.TRANSPARENT)
+            # self.display_2.blit(bg, (0, 0))
+            self.display.fill(pre.BG_DARK)
 
             # camera: update and parallax
-            #
-            # 'where we want camera to be' - 'where we are or what we have' / '20', so further player is faster camera moves and vice-versa
-            # we can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing by thirty
-            # if camera is off by 1px not an issue, but rendering tiles could be.
-            # self.scroll.x += round((self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x, 2)
-            # self.scroll.y += round((self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y, 2)
             self.scroll.x += round(self.movement.right - self.movement.left) * pre.CAMERA_SPEED
             self.scroll.y += round(self.movement.bottom - self.movement.top) * pre.CAMERA_SPEED
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -129,62 +104,94 @@ class Editor:
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
-            # portal: render
-            """
-            self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
-            self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
-            """
-            # self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(21, 4)))
-            self.portal = self.assets.surface["portal"]
-            self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
-            self.display.blit(self.portal, self.portal_pos - render_scroll)
+            cur_tile_img: pg.Surface = self.assets.tiles[self.tile_list[self.tile_group]][self.tile_variant].copy()
+            cur_tile_img.set_alpha(100)
 
-            # enemy: update and render
-            # TODO:
+            mpos = pg.Vector2(pg.mouse.get_pos())
+            mpos = mpos / pre.RENDER_SCALE
+            tile_pos = pg.Vector2(tuple(map(int, (mpos + self.scroll) // self.tilemap.tile_size)))
 
-            # player: update and render
-            # if not self.dead:
-            # self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
-            # self.player.render(self.display, render_scroll)
-            # self.display.blit(self.assets.animations_entity.player[Action.IDLE.value].copy().img(), (50, 50) or render_scroll)
-            # debug: collission detection
-            #   ta = self.tilemap.tiles_around(tuple(self.player.pos))
-            #   pra = self.tilemap.physics_rects_around(tuple(self.player.pos))
+            # preview: at cursor the next tile to be placed
+            if self.ongrid:
+                self.display.blit(cur_tile_img, tile_pos * self.tilemap.tile_size - self.scroll)
+            else:  # notice smooth off grid preview
+                self.display.blit(cur_tile_img, mpos)
 
-            # if self.player.rect().collidepoint(self.portal_pos):
-            #     print(f"CLEARED {self.level}")
-            # print(f"{self.player.pos/self.tilemap.tile_size, (self.portal.get_rect().x,self.portal.get_locked) = }")
+            if self.clicking and self.ongrid:
+                self.tilemap.tilemap[f"{int(tile_pos[0])};{int(tile_pos[1])}"] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
+            if self.right_clicking:  # remove tile
+                tile_loc = f"{int(tile_pos[0])};{int(tile_pos[1])}"
+                if tile_loc in self.tilemap.tilemap:
+                    del self.tilemap.tilemap[tile_loc]
 
-            # mask: before particles!!!
-            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
-            display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-            for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                self.display_2.blit(display_silhouette, offset)
+                for tile in self.tilemap.offgrid_tiles.copy():
+                    t_pos = tuple(tile.pos)
+                    t_img = self.assets.tiles[tile.kind.value][tile.variant]
+                    tile_r = pg.Rect(t_pos[0] - self.scroll[0], t_pos[1] - self.scroll[1], t_img.get_width(), t_img.get_height())
+                    if tile_r.collidepoint(mpos):
+                        self.tilemap.offgrid_tiles.remove(tile)
 
-            # particles:
-            # TODO:
+            self.display.blit(cur_tile_img, ((pre.DIMENSIONS[0] // 2 - pre.TILE_SIZE * 2), 5))  # preview current tile
 
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     pg.quit()
                     sys.exit()
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        self.clicking = True
+                        if not self.ongrid:
+                            self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll))
+                    if event.button == 3:  # 2 is when you click down on the mice
+                        self.right_clicking = True
+                if event.type == pg.MOUSEBUTTONUP:
+                    if event.button == 1:
+                        self.clicking = False
+                    if event.button == 3:
+                        self.right_clicking = False
+                    if self.shift:
+                        if event.button == 4:
+                            self.tile_variant -= 1
+                            self.tile_variant %= len(self.assets.tiles[self.tile_list[self.tile_group]])
+                        if event.button == 5:
+                            self.tile_variant += 1
+                            self.tile_variant %= len(self.assets.tiles[self.tile_list[self.tile_group]])
+                    else:
+                        if event.button == 4:
+                            self.tile_group -= 1
+                            self.tile_group %= len(self.tile_list)
+                            self.tile_variant = 0
+                        if event.button == 5:
+                            self.tile_group += 1
+                            self.tile_group %= len(self.tile_list)
+                            self.tile_variant = 0
                 if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_LEFT:
+                    if event.key == pg.K_a:
                         self.movement.left = True
-                    if event.key == pg.K_RIGHT:
+                    if event.key == pg.K_d:
                         self.movement.right = True
-                    if event.key == pg.K_UP:
+                    if event.key == pg.K_w:
                         self.movement.top = True
-                    if event.key == pg.K_DOWN:
+                    if event.key == pg.K_s:
                         self.movement.bottom = True
+                    if event.key == pg.K_g:
+                        self.ongrid = not self.ongrid
+                    if event.key == pg.K_t:
+                        if False:
+                            self.tilemap.autotile()
+                    if event.key == pg.K_o:  # o: output
+                        if False:
+                            self.tilemap.save("map.json")
+                    if event.key == pg.K_LSHIFT:
+                        self.shift = not self.shift
                 if event.type == pg.KEYUP:
-                    if event.key == pg.K_LEFT:
+                    if event.key == pg.K_a:
                         self.movement.left = False
-                    if event.key == pg.K_RIGHT:
+                    if event.key == pg.K_d:
                         self.movement.right = False
-                    if event.key == pg.K_UP:
+                    if event.key == pg.K_w:
                         self.movement.top = False
-                    if event.key == pg.K_DOWN:
+                    if event.key == pg.K_s:
                         self.movement.bottom = False
 
             # DISPLAY RENDERING
@@ -192,15 +199,17 @@ class Editor:
             # blit display on display_2 and then blit display_2 on
             # screen for depth effect.
 
-            self.display_2.blit(self.display, (0, 0))
-
-            # TODO: screenshake effect via offset for screen blit
-            # ...
-            self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
+            # self.display_2.blit(self.display, (0, 0))
+            #
+            # # TODO: screenshake effect via offset for screen blit
+            # # ...
+            # self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
 
             # DEBUG: HUD
 
-            if pre.DEBUG_HUD:
+            self.screen.blit(pg.transform.scale(self.display, self.screen.get_size()), (0, 0))
+
+            if not pre.DEBUG_HUD:
                 antialias = True  # for text
                 # HUD: show fps
                 text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
@@ -214,20 +223,18 @@ class Editor:
                 # HUD: show self.movement
                 text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
                 self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
-                # # HUD: show self.player.pos
-                # text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
-                # self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
-                # # HUD: show self.player.velocity
-                # text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
-                # self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
-                # # HUD: show self.player.action
-                # text = self.font.render(f"{str(self.player.action).ljust(4).upper()}", antialias, pre.GREEN, None)
-                # self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
-                # # HUD: show self.player.flip
-                # text = self.font.render(f"FLIP {str(self.player.flip).ljust(4).upper()}", antialias, pre.GREEN, None)
-                # self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
-
-            # FINAL DRAWING
+                # HUD: show mouse pos
+                text = self.font.render(f"MPOS {str(mpos).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
+                # HUD: show tile pos
+                text = self.font.render(f"TILEPOS {str(tile_pos).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
+                # HUD: show shift
+                text = self.font.render(f"SHIFT {str(self.shift).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
+                # HUD: show if ongrid
+                text = self.font.render(f"ONGRID {str(self.ongrid).ljust(4).upper()}", antialias, pre.GREEN, None)
+                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
 
             pg.display.flip()  # update whole screen
             self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)

@@ -31,22 +31,23 @@ class Tilemap:
         self.tilemap: dict[str, TileItem] = {}
         self.offgrid_tiles: list[TileItem] = []
 
-        for i in range(20):
-            self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(3 + i, 10))  # horizontal contiguous tiles
-            self.tilemap[f"{3+i};{11}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(3 + i, 11))
+        if False:
+            for i in range(20):
+                self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(3 + i, 10))  # horizontal contiguous tiles
+                self.tilemap[f"{3+i};{11}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(3 + i, 11))
 
-        for i in range(6):
-            self.tilemap[f"{7+i};{8}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(7 + i, 8))
+            for i in range(6):
+                self.tilemap[f"{7+i};{8}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(7 + i, 8))
 
-        for i in range(3):
-            self.tilemap[f"{16+i};{7}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(16 + i, 7))
-            # self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  vertical contiguous tiles
+            for i in range(3):
+                self.tilemap[f"{16+i};{7}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(16 + i, 7))
+                # self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  vertical contiguous tiles
 
-        for i in range(2):
-            self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
-            self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
+            for i in range(2):
+                self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
+                self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
 
-        self.tilemap[f"{20};{5}"] = TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(20, 5))
+            self.tilemap[f"{20};{5}"] = TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(20, 5))
 
     @lru_cache(maxsize=None)
     def calc_tile_loc(self, x: int | float, y: int | float) -> tuple[int, int]:
@@ -92,7 +93,7 @@ class Tilemap:
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
         for tile in self.offgrid_tiles:
-            blit(self.game.assets.surfaces[tile.kind.value][tile.variant], tile.pos - offset)
+            blit(self.game.assets.tiles[tile.kind.value][tile.variant], tile.pos - offset)
 
         blit = surf.blit
         xlo, ylo = self.calc_tile_loc(offset[0], offset[1])
@@ -101,7 +102,7 @@ class Tilemap:
             for y in range(ylo, yhi + 1):  # only draw tiles whose position is found on the screen camera offset range
                 if (loc := pre.calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
                     tile = self.tilemap[loc]
-                    blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
+                    blit(self.game.assets.tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
 
         # blit = surf.blit
         # for loc in self.tilemap:

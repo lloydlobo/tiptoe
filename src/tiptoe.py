@@ -22,7 +22,7 @@ class Game:
 
         self.clock = pg.time.Clock()
 
-        self.movement = pre.Movement(left=False, right=False, top=None, bottom=None)  # figure how to make it optional. have to assign regardless of None
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # figure how to make it optional. have to assign regardless of None
 
         # need these for reference for animation workaround
         player_size = (8, pre.TILE_SIZE - 1)
@@ -43,7 +43,7 @@ class Game:
                 gun=pg.Surface((14, 7)),
                 projectile=pg.Surface((5, 2)),
             ),
-            surfaces=dict(
+            tiles=dict(
                 # tiles: on grid
                 stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
                 grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=255),
