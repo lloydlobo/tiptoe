@@ -1,19 +1,3 @@
-import os
-from dataclasses import dataclass
-from typing import Union
-
-import pygame as pg
-
-from internal.prelude import TILE_SIZE, ColorValue, EntityKind, TileKind
-
-
-@dataclass
-class Assets:
-    surface: dict[str, pg.Surface]
-    surfaces: dict[str, list[pg.Surface]]
-    animation: None  # TODO
-
-
 # @dataclass
 # class Assets:
 #     player: pg.Surface
@@ -43,23 +27,3 @@ class Assets:
 #             return self.grass
 #         elif key == TileKind.STONE:
 #             return self.stone
-
-
-def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
-    """Load and return a pygame Surface image. Note: Ported from DaFluffyPotato's pygpen lib"""
-    img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
-    if colorkey is not None:
-        img.set_colorkey(colorkey)
-    return img
-
-
-def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
-    """listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces"""
-    return [
-        load_img(
-            os.path.join(path, img_name),
-            with_alpha,
-            colorkey,
-        )
-        for img_name in sorted(os.listdir(path))
-    ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from random import randint
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
@@ -10,75 +11,87 @@ from dataclasses import dataclass
 
 import pygame as pg
 
-from internal.prelude import (NEIGHBOR_OFFSETS, PHYSICS_TILES, TILE_SIZE,
-                              TileKind, calc_pos_to_loc)
+import internal.prelude as pre
 
 
 @dataclass
 class TileItem:
     """TODO: create a parser to convert this data type to be json serializable"""
 
-    kind: TileKind  # use an enum or verify with field()
+    kind: pre.TileKind  # use an enum or verify with field()
     variant: int
     pos: pg.Vector2  # | list[int | float] | tuple[int | float, ...]
 
 
 class Tilemap:
-    def __init__(self, game: Game, tile_size: int = TILE_SIZE) -> None:
+    def __init__(self, game: Game, tile_size: int = pre.TILE_SIZE) -> None:
         self.game = game
         self.tile_size = tile_size
         self.tilemap: dict[str, TileItem] = {}
         self.offgrid_tiles: list[TileItem] = []
 
         for i in range(10):
-            self.tilemap[f"{3+i};{10}"] = TileItem(kind=TileKind.GRASS, variant=0, pos=pg.Vector2(3 + i, 10))  # vertical contiguous tiles
-            self.tilemap[f"{10};{5+i}"] = TileItem(kind=TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  # horizontal contiguous tiles
+            self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.GRASS, variant=0, pos=pg.Vector2(3 + i, 10))  # vertical contiguous tiles
+            self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  # horizontal contiguous tiles
 
             # print(self.tiles_around(tuple(pg.Vector2((3 + i) * TILE_SIZE, 10 * TILE_SIZE))))
             # print(self.tiles_around(tuple(pg.Vector2(10 * TILE_SIZE, (5 + i) * TILE_SIZE))))
         # print(f"{self.tilemap =}")
 
     @lru_cache(maxsize=None)
-    # HACK: passing float as x,y param to see if perf decreases
     def calc_tile_loc(self, x: int | float, y: int | float) -> tuple[int, int]:
         """calc_tile_loc avoids pixel bordering zero to round to 1."""
+
+        # HACK: passing float as x,y param to see if perf decreases
         # HACK: or round this?
         return (int(x // self.tile_size), int(y // self.tile_size))
 
     @lru_cache(maxsize=None)
     def tiles_around(self, pos: tuple[int, int]) -> list[TileItem]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
+
         loc_x, loc_y = self.calc_tile_loc(pos[0], pos[1])
         return [
             self.tilemap[seen_location]
-            for offset in NEIGHBOR_OFFSETS
-            if (seen_location := calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap
+            for offset in pre.NEIGHBOR_OFFSETS
+            if (seen_location := pre.calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap
         ]
 
     @lru_cache(maxsize=None)
     def physics_rects_around(self, pos: tuple[int, int]) -> list[pg.Rect]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
+
         return [
             pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size)
             for tile in self.tiles_around(pos)
-            if tile.kind in PHYSICS_TILES
+            if tile.kind in pre.PHYSICS_TILES
         ]
 
-    #
-    # def tiles_around(self, pos: list[int | float] | tuple[int | float, int | float]) -> list[TileItem]:
-    #     tile_loc = self.calc_tile_loc(int(pos[0]), int(pos[1]))
-    #     return [
-    #         self.tilemap[check_loc]
-    #         for offset in NEIGHBOR_OFFSETS
-    #         if (check_loc := calc_pos_to_loc(tile_loc[0], tile_loc[1], offset)) and check_loc in self.tilemap
-    #     ]
-    #
-    # def physics_rects_around(self, pos: tuple[int, int]) -> list[pg.Rect]:
-    #     return [
-    #         pg.Rect(int(tile.pos.x) * self.tile_size, int(tile.pos.y) * self.tile_size, self.tile_size, self.tile_size)
-    #         for tile in self.tiles_around(pos)
-    #         if tile.kind in PHYSICS_TILES
-    #     ]
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def generate_tiles(
+        count: int,
+        base_color: tuple[int, int, int] = pre.BLACK,
+        size: tuple[int, int] = (pre.TILE_SIZE, pre.TILE_SIZE),
+        colorkey: pre.ColorValue = pre.BLACK,
+        alpha: int = 255,
+        variance: int = 0,  # (0==base_color) && (>0 == random colors)
+    ) -> list[pg.Surface]:
+        """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
+
+        alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
+        fill = [max(0, min(255, base + randint(-variance, variance))) for base in base_color] if variance else base_color
+
+        return [
+            (
+                surf := pg.Surface(size),
+                surf.set_colorkey(colorkey),
+                surf.fill(fill),
+                surf.set_alpha(alpha),
+            )[0]
+            # ^ after processing pipeline, select first [0] Surface in tuple
+            for _ in range(count)
+        ]
 
     def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
         blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
@@ -90,7 +103,8 @@ class Tilemap:
         xhi, yhi = self.calc_tile_loc(offset.x + surf.get_width(), offset.y + surf.get_height())
         for x in range(xlo, xhi + 1):
             for y in range(ylo, yhi + 1):
-                if (loc := calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
+                # only draw tiles whose position is found on the screen camera offset range
+                if (loc := pre.calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
                     tile = self.tilemap[loc]
                     blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
 

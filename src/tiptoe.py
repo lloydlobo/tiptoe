@@ -1,107 +1,63 @@
-import math
-import os
 import sys
-from functools import lru_cache
-from random import randint
 
 import pygame as pg
 
-from internal.assets_util import Assets, load_img, load_imgs
+import internal.prelude as pre
 from internal.entities import Player
-# fmt: off
-from internal.prelude import (BG_VIOLET, BLACK, CAPTION, CHARCOAL, CREAM,
-                              DARK_AYU_NAVY, DIMENSIONS, DIMENSIONS_HALF,
-                              FPS_CAP, GRAY, IMAGES_PATH, RED, SILVER,
-                              TILE_SIZE, TRANSPARENT, WHITE, ColorValue,
-                              EntityKind, Movement)
-# fmt: on
 from internal.tilemap import Tilemap
-
-# fmt: off
-# fmt: on
-
-
-@lru_cache(maxsize=8)
-def generate_tiles(
-    count: int,
-    base_color: tuple[int, int, int] = BLACK,
-    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
-    colorkey: ColorValue = BLACK,
-    alpha: int = 255,
-    variance: int = 0,  # (0==base_color) && (>0 == random colors)
-) -> list[pg.Surface]:
-    """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
-
-    alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
-    fill = [max(0, min(255, base + randint(-variance, variance))) for base in base_color] if variance else base_color
-
-    return [
-        (
-            surf := pg.Surface(size),
-            surf.set_colorkey(colorkey),
-            surf.fill(fill),
-            surf.set_alpha(alpha),
-        )[0]
-        # ^ after processing pipeline, select first [0] Surface in tuple
-        for _ in range(count)
-    ]
 
 
 class Game:
     def __init__(self) -> None:
         pg.init()
 
-        pg.display.set_caption(CAPTION)
-        self.screen = pg.display.set_mode(DIMENSIONS)
-        self.display = pg.Surface(DIMENSIONS_HALF, pg.SRCALPHA)
-        self.display_2 = pg.Surface(DIMENSIONS_HALF)
+        pg.display.set_caption(pre.CAPTION)
+        self.screen = pg.display.set_mode(pre.DIMENSIONS)
+        self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
+        self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
-        self.font = pg.font.SysFont(pg.font.get_default_font() or "monospace", TILE_SIZE)
+        self.font_size = 18
+        self.font = pg.font.SysFont(name=(pg.font.get_default_font() or "monospace"), size=self.font_size, bold=False)
 
         self.clock = pg.time.Clock()
 
-        self.movement = Movement(left=False, right=False)
-        # ^ or use simpler self.movement = [False, False]
+        self.movement = pre.Movement(left=False, right=False)
 
-        self.assets = Assets(
+        self.assets = pre.Assets(
             surface=dict(
                 # entity
-                player=generate_tiles(1, RED, size=(8, TILE_SIZE - 1), alpha=(255 // 2))[0],
-                enemy=generate_tiles(1, CREAM, size=(8, TILE_SIZE - 1), alpha=(255 // 2))[0],
+                player=Tilemap.generate_tiles(1, pre.RED, size=(8, pre.TILE_SIZE - 1), alpha=(255 // 2))[0],
+                enemy=Tilemap.generate_tiles(1, pre.CREAM, size=(8, pre.TILE_SIZE - 1), alpha=(255 // 2))[0],
             ),
             surfaces=dict(
-                # tiles: on_grid
-                grass=(
-                    generate_tiles(9, base_color=GRAY, alpha=64)
-                    or load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
-                    #  ^  used as placeholder, if we decide to use spritesheet
-                ),
-                stone=generate_tiles(9, base_color=SILVER, alpha=64),
-                # tiles: off_grid
-                decor=generate_tiles(4, base_color=WHITE, size=(TILE_SIZE // 2, TILE_SIZE // 2)),  # offgrid (plant,box,..)
-                large_decor=generate_tiles(4, base_color=BLACK, size=(TILE_SIZE * 2, TILE_SIZE * 2)),  # offgrid (tree,boulder,bush..)
+                # tiles: on grid
+                grass=(Tilemap.generate_tiles(9, base_color=pre.GRAY, alpha=64)),
+                stone=Tilemap.generate_tiles(9, base_color=pre.SILVER, alpha=64),
+                # tiles: off grid
+                decor=Tilemap.generate_tiles(4, base_color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),  # offgrid (plant,box,..)
+                large_decor=Tilemap.generate_tiles(4, base_color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),  # offgrid (tree,boulder,bush..)
             ),
             animation=None,  # TODO:
         )
 
-        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(self.assets.surface[EntityKind.PLAYER.value].get_size()))
-        # self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(16, 16))
+        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(self.assets.surface[pre.EntityKind.PLAYER.value].get_size()))
 
-        self.tilemap = Tilemap(self, TILE_SIZE)
+        self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
-        self.scroll = pg.Vector2(0.0, 0.0)  # or use [0, 0]
+        self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
 
         self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
 
     def run(self) -> None:
-        bg = pg.Surface(DIMENSIONS)  # TODO: use actual background image
-        bg.fill(BG_VIOLET)
+        bg = pg.Surface(pre.DIMENSIONS)  # TODO: use actual background image
+        bg.fill(pre.BG_DARK)
         _camera_parallax_factor = 0.05  # or 1/20
 
         while True:
-            self.display.fill(TRANSPARENT)
+            self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
 
+            # TODO: 1:30:29 - camera
             # camera: update and parallax
             self.scroll.x += self.movement.right - self.movement.left  # * camera_parallax_factor
             self.scroll.y += 0
@@ -159,19 +115,30 @@ class Game:
             # ...
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
 
-            # DEBUG
+            # DEBUG: HUD
 
-            # show fps
-            text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", False, WHITE, None)
-            self.screen.blit(text, (TILE_SIZE, TILE_SIZE * 1))
-            # show render_scroll
-            text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", False, WHITE, None)
-            self.screen.blit(text, (TILE_SIZE, TILE_SIZE * 2))
+            antialias = True
+
+            # HUD: show fps
+            text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
+            # HUD: show render_scroll
+            text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
+            # HUD: show self.movement
+            text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
+            # HUD: show self.player.pos
+            text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
+            # HUD: show self.player.velocity
+            text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
 
             # FINAL DRAWING
 
-            pg.display.flip()
-            self.clock.tick(FPS_CAP)
+            pg.display.flip()  # update whole screen
+            _ = self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)
 
 
 if __name__ == "__main__":

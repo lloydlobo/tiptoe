@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from internal.prelude import Collisions, EntityKind
+import internal.prelude as pre
 from internal.tilemap import Tilemap
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
@@ -12,7 +12,7 @@ import pygame as pg
 
 
 class PhysicalEntity:
-    def __init__(self, game: Game, entity_kind: EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
+    def __init__(self, game: Game, entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
         self.game = game
         self.kind = entity_kind
         self.pos = pos.copy()
@@ -20,14 +20,14 @@ class PhysicalEntity:
 
         self.velocity = pg.Vector2(0, 0)
         self._terminal_velocity_y: Final = 5
-        self.collisions = Collisions(up=False, down=False, left=False, right=False)
+        self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
 
     def rect(self) -> pg.Rect:
         """Using position as top left of the entity"""
         return pg.Rect(int(self.pos.x), int(self.pos.y), int(self.size.x), int(self.size.y))
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
-        self.collisions = Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
+        self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
 
         frame_movement = movement + self.velocity
 
@@ -78,7 +78,7 @@ class PhysicalEntity:
 
 class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
-        super().__init__(game, EntityKind.ENEMY, pos, size)
+        super().__init__(game, pre.EntityKind.ENEMY, pos, size)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         super().update(tilemap, movement)
@@ -90,7 +90,7 @@ class Enemy(PhysicalEntity):
 
 class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
-        super().__init__(game, EntityKind.PLAYER, pos, size)
+        super().__init__(game, pre.EntityKind.PLAYER, pos, size)
 
         self._jump_thrust: Final = 3
 
