@@ -32,6 +32,8 @@ class Movement:
 
     left: bool
     right: bool
+    top: bool | None
+    bottom: bool | None
 
 
 @dataclass
@@ -267,6 +269,7 @@ CAPTION_EDITOR      = "tiptoe level editor"
 IMAGES_PATH         = os.path.join("src", "data", "images")
 ENTITY_PATH         = os.path.join("src", "data", "images", "entities")
 FONT_PATH           = None
+MAP_PATH            = os.path.join("src", "data", "maps")
 INPUT_PATH          = None  # InputState
 SOUNDS_PATH         = None
 SPRITESHEET_PATH    = None

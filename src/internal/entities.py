@@ -50,9 +50,7 @@ class PhysicalEntity:
             # | frame created only when animation has changed. This avoids animation being stuck at 0th frame
             # ===
             self.action = action
-            self.animation = self.game.assets.animations_entity[self.kind.value][
-                self.action.value
-            ].copy()  # or self._animation_assets[self.action.value].copy()
+            self.animation = self.game.assets.animations_entity[self.kind.value][self.action.value].copy()  # or self._animation_assets[self.action.value].copy()
             # print(self.animation)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:

@@ -1,10 +1,11 @@
+import os
 import sys
 
 import pygame as pg
 
 import internal.prelude as pre
 from internal.entities import Player
-from internal.tilemap import TileItem, Tilemap
+from internal.tilemap import Tilemap
 
 
 class Game:
@@ -21,7 +22,7 @@ class Game:
 
         self.clock = pg.time.Clock()
 
-        self.movement = pre.Movement(left=False, right=False)
+        self.movement = pre.Movement(left=False, right=False, top=None, bottom=None)  # figure how to make it optional. have to assign regardless of None
 
         # need these for reference for animation workaround
         player_size = (8, pre.TILE_SIZE - 1)
@@ -46,61 +47,67 @@ class Game:
                 # tiles: on grid
                 stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
                 grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=255),
-                # grass=(Tilemap.generate_surf(9, color=pre.GRAY, alpha=64)),
+                portal=Tilemap.generate_surf(3, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255),
                 # tiles: off grid
-                #    offgrid (plant,box,..)
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                #   offgrid (tree,boulder,bush..)
                 large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(
-                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha), img_dur=6
-                    ),
-                    run=pre.Animation(
-                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4
-                    ),
+                    idle=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha), img_dur=6),
+                    run=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4),
                     jump=pre.Animation(Tilemap.generate_surf(count=5, color=player_color, size=(player_size[0] - 1, player_size[1] + 1), alpha=player_alpha)),
-                    # run=pre.Animation(), # img_dur=4,
-                    # jump=pre.Animation(),
                     # slide=pre.Animation(),
                     # wall_slide=pre.Animation(),
                 ),
                 enemy=dict(
-                    idle=pre.Animation(
-                        Tilemap.generate_surf(
-                            count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1), variance=2, alpha=enemy_surf.get_alpha()
-                        ).copy(),
-                        img_dur=6,
-                    ),
-                    # run=pre.Animation(), # img_dur=4,
+                    idle=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),
+                    run=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1)), img_dur=4),
                 ),
             ),
             animations_misc=pre.Assets.AnimationMiscAssets(
                 particle=dict(),
             ),
         )
-        # print(f'{self.assets.animations_entity.player["idle"] = }')
 
         self.player: Player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
-        # print(self.player.animation.copy())
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
-        # self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(21, 4)))
-
-        self.portal = self.assets.surface["portal"]
-        self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
 
         self.level = 0
-        # TODO: self.load_level(self.level)
+        self.load_level(self.level)
 
         self.screenshake = 0
+
+    def load_level(self, map_id: int) -> None:
+        if False:
+            self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+
+        self.enemies = []
+        self.portals = []
+        if False:
+            for spawner in self.tilemap.extract([("spawners", 0), ("spawners", 1), ("spawners,2")]):  # spawn player[1] and enemy[1] and portal[2]
+                match spawner["variant"]:
+                    case 0:  # player
+                        self.player.pos = list(spawner["pos"])
+                        self.player.air_time = 0  # reset time to avoid multiple spawning after falling down
+                    case 1:  # enemy
+                        self.enemies.append(Enemy(self, spawner["pos"], (8, 16)))
+                    case 2:  # portal
+                        self.portals.append((pg.Surface((8, 16)), pg.Vector2(spawner["pos"])))
+                        pass
+                    case _:
+                        raise ValueError(f'expect a valid spawners variant. got {spawner["variant"]}')
 
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
         self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
-        self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
+        # tracks if the player died -> 'reloads level' - which than resets this counter to zero
+        self.dead = 0
+
+        # note: abs(self.transition) == 30 => opaque screen see nothing
+        # abs(self.transition) == 0 see eeverything; load level when completely black
+        self.transition = -30
 
     def run(self) -> None:
         bg = self.assets.surface["background"]
@@ -128,6 +135,9 @@ class Game:
             self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
             self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
             """
+            # self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(21, 4)))
+            self.portal = self.assets.surface["portal"]
+            self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
             self.display.blit(self.portal, self.portal_pos - render_scroll)
 
             # enemy: update and render
