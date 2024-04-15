@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -11,6 +12,12 @@ if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hi
 import pygame as pg
 
 
+class Action(Enum):
+    IDLE = "idle"
+    JUMP = "jump"
+    RUN = "run"
+
+
 class PhysicalEntity:
     def __init__(self, game: Game, entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
         self.game = game
@@ -18,13 +25,35 @@ class PhysicalEntity:
         self.pos = pos.copy()
         self.size = size
 
+        self.animation_assets = self.game.assets.animations_entity[self.kind.value]  # note: initialized once at __init__ for performance reasons
+
         self.velocity = pg.Vector2(0, 0)
-        self._terminal_velocity_y: Final = 5
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
+        self._terminal_velocity_y: Final = 5
+
+        self.anim_offset = pg.Vector2(-1, -1) or pg.Vector2(-3, -3)  # should be an int
+        # ^ workaround for padding used in animated sprites states like run
+        # | jump to avoid collisions or rendering overflows outside of hit-box for entity
+        # ---
+        self.action: Action | None = None  # actual state. # HACK: figure out how to set a None default state without triggering linters
+        self.set_action(Action.IDLE)
+
+        self.flip = False
 
     def rect(self) -> pg.Rect:
         """Using position as top left of the entity"""
         return pg.Rect(int(self.pos.x), int(self.pos.y), int(self.size.x), int(self.size.y))
+
+    def set_action(self, action: Action):
+        if action != self.action:  # quick check to see if a new action is set. grab animation if changed
+            # ^ see 2:14:00... Do not fully understand this | if called every single frame, this avoids sticking to 0th frame
+            # | frame created only when animation has changed. This avoids animation being stuck at 0th frame
+            # ===
+            self.action = action
+            self.animation = self.game.assets.animations_entity[self.kind.value][
+                self.action.value
+            ].copy()  # or self._animation_assets[self.action.value].copy()
+            # print(self.animation)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
@@ -59,8 +88,14 @@ class PhysicalEntity:
                         self.collisions.up = True
                     self.pos.y = entity_rect.y  # update y pos as int
 
+        if movement.x < 0:
+            self.flip = True
+        if movement.x > 0:  # ideally sprites are right facing images by default
+            self.flip = False
+
         # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
-        self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + 0.1)
+        terminal_limiter_air_friction = 0.1 or (pre.TILE_SIZE / pre.FPS_CAP)
+        self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + terminal_limiter_air_friction)
 
         if (_experimental_free_fall := True) and not _experimental_free_fall:
             if not self.collisions.down and self.velocity.y >= self._terminal_velocity_y:
@@ -73,7 +108,9 @@ class PhysicalEntity:
         return True
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
-        surf.blit(self.game.assets.surface["player"], self.pos - offset)
+        surf.blit(pg.transform.flip(self.animation.img(), self.flip, False), (self.pos - offset + self.anim_offset))
+        # old: =>
+        # surf.blit(self.game.assets.surface["player"], self.pos - offset)
 
 
 class Enemy(PhysicalEntity):
@@ -93,9 +130,34 @@ class Player(PhysicalEntity):
         super().__init__(game, pre.EntityKind.PLAYER, pos, size)
 
         self._jump_thrust: Final = 3
+        self._jumps: Final = 1
+        self._max_air_time: Final = 5
+
+        self.air_time = 0
+        self.jumps = self._jumps
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         super().update(tilemap, movement)
+
+        self.air_time += 1
+
+        # death: by air fall
+        if self.air_time > 120:  # 2 secs (2 * FPS_CAP)
+            if not self.game.dead:
+                self.game.screenshake = max(pre.TILE_SIZE, self.game.screenshake - 1)
+            self.game.dead += 1  # incr dead timer
+
+        if self.collisions.down:  # reset times when touch ground
+            self.air_time = 0
+            self.jumps = self._jumps
+
+        if self.air_time > self._max_air_time - 1:
+            self.set_action(Action.JUMP)
+        elif movement.x != 0:
+            self.set_action(Action.RUN)
+        elif self.velocity.y >= 0 and self.collisions.down:
+            self.set_action(Action.IDLE)
+
         return True
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
@@ -104,8 +166,10 @@ class Player(PhysicalEntity):
     def jump(self) -> bool:
         """returns True if successful jump"""
 
-        if (_tmp_impl := True) and _tmp_impl:  # HACK: temp jump impl
+        if self.jumps:  # HACK: temp jump impl
             self.velocity.y = -self._jump_thrust  # -y dir: go up
+            self.jumps -= 1
+            self.air_time = self._max_air_time
             return True
 
         return False

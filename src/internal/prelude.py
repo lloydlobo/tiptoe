@@ -44,14 +44,69 @@ class Collisions:
 
 
 ##########
+# ANIMATION #
+
+
+class Animation:
+    def __init__(self, images: list[pg.Surface], img_dur: int = 5, loop: bool = True) -> None:
+        self.images = images  # this is not copied
+        self._img_duration: Final = img_dur
+        self._total_frames: Final = self._img_duration * len(self.images)
+
+        self.done = True
+        self.frame = 0
+        self.loop = loop
+
+    def copy(self) -> "Animation":
+        return Animation(self.images, self._img_duration, self.loop)
+
+    def update(self) -> None:
+        """Increment frames like a movie screen roll or a marque"""
+        if self.loop:
+            self.frame += 1
+            self.frame %= self._total_frames
+        else:
+            self.frame = min(self.frame + 1, self._total_frames - 1)
+
+            if self.frame >= self._total_frames - 1:
+                self.done = True
+
+    def img(self) -> pg.Surface:
+        """
+        Returns current image to render in animation cycle.
+        Similar to render phase in the '__init__ -> update -> render' cycle
+        """
+        return self.images[int(self.frame / self._img_duration)]
+
+
+##########
 # ASSETS #
 
 
 @dataclass
 class Assets:
+    @dataclass
+    class AnimationMiscAssets:
+        particle: dict[str, Animation]
+
+    @dataclass
+    class AnimationEntityAssets:
+        player: dict[str, Animation]
+        enemy: dict[str, Animation]
+
+        def __getitem__(self, key: str) -> dict[str, Animation]:
+            match key:
+                case EntityKind.PLAYER.value:
+                    return self.player
+                case EntityKind.ENEMY.value:
+                    return self.enemy
+                case _:
+                    raise ValueError(f"expected valid AnimationAssets key. got {key}")
+
     surface: dict[str, pg.Surface]
     surfaces: dict[str, list[pg.Surface]]
-    animation: None  # TODO
+    animations_entity: AnimationEntityAssets
+    animations_misc: AnimationMiscAssets
 
 
 def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:

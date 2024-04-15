@@ -3,7 +3,7 @@ import sys
 import pygame as pg
 
 import internal.prelude as pre
-from internal.entities import Player
+from internal.entities import Action, Player
 from internal.tilemap import Tilemap
 
 
@@ -23,35 +23,81 @@ class Game:
 
         self.movement = pre.Movement(left=False, right=False)
 
+        # need these for reference for animation workaround
+        player_size = (8, pre.TILE_SIZE)
+        enemy_size = (8, pre.TILE_SIZE)
+        player_color = pre.RED
+        player_alpha = 255 // 2
+        player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
+        enemy_surf = Tilemap.generate_surf(1, pre.CREAM, size=enemy_size, alpha=(255 // 2))[0]
         self.assets = pre.Assets(
             surface=dict(
                 # entity
-                player=Tilemap.generate_tiles(1, pre.RED, size=(8, pre.TILE_SIZE - 1), alpha=(255 // 2))[0],
-                enemy=Tilemap.generate_tiles(1, pre.CREAM, size=(8, pre.TILE_SIZE - 1), alpha=(255 // 2))[0],
+                player=player_surf.copy(),
+                enemy=enemy_surf.copy(),
+                gun=pg.Surface((14, 7)),
+                projectile=pg.Surface((5, 2)),
+                background=pg.Surface(pre.DIMENSIONS),  # TODO: use actual background image
             ),
             surfaces=dict(
                 # tiles: on grid
-                grass=(Tilemap.generate_tiles(9, base_color=pre.GRAY, alpha=64)),
-                stone=Tilemap.generate_tiles(9, base_color=pre.SILVER, alpha=64),
+                grass=(Tilemap.generate_surf(9, color=pre.GRAY, alpha=64)),
+                stone=Tilemap.generate_surf(9, color=pre.SILVER, alpha=64),
                 # tiles: off grid
-                decor=Tilemap.generate_tiles(4, base_color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),  # offgrid (plant,box,..)
-                large_decor=Tilemap.generate_tiles(4, base_color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),  # offgrid (tree,boulder,bush..)
+                #    offgrid (plant,box,..)
+                decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                #   offgrid (tree,boulder,bush..)
+                large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
             ),
-            animation=None,  # TODO:
+            animations_entity=pre.Assets.AnimationEntityAssets(
+                player=dict(
+                    idle=pre.Animation(
+                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1] - 1), alpha=player_alpha), img_dur=6
+                    ),
+                    run=pre.Animation(
+                        Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4
+                    ),
+                    jump=pre.Animation(Tilemap.generate_surf(count=5, color=player_color, size=(player_size[0] - 1, player_size[1] + 1), alpha=player_alpha)),
+                    # run=pre.Animation(), # img_dur=4,
+                    # jump=pre.Animation(),
+                    # slide=pre.Animation(),
+                    # wall_slide=pre.Animation(),
+                ),
+                enemy=dict(
+                    idle=pre.Animation(
+                        Tilemap.generate_surf(
+                            count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1), variance=2, alpha=enemy_surf.get_alpha()
+                        ).copy(),
+                        img_dur=6,
+                    ),
+                    # run=pre.Animation(), # img_dur=4,
+                ),
+            ),
+            animations_misc=pre.Assets.AnimationMiscAssets(
+                particle=dict(),
+            ),
         )
+        # print(f'{self.assets.animations_entity.player["idle"] = }')
 
-        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(self.assets.surface[pre.EntityKind.PLAYER.value].get_size()))
+        self.player: Player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
+        # print(self.player.animation.copy())
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
+        self.level = 0
+        # TODO: self.load_level(self.level)
+
+        self.screenshake = 0
+
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
+        self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
         self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
 
     def run(self) -> None:
-        bg = pg.Surface(pre.DIMENSIONS)  # TODO: use actual background image
+        bg = self.assets.surface["background"]
+        bg.set_colorkey(pre.BLACK)
         bg.fill(pre.BG_DARK)
-        _camera_parallax_factor = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
         while True:
             self.display.fill(pre.TRANSPARENT)
@@ -59,13 +105,11 @@ class Game:
 
             # camera: update and parallax
             #
-            # 'where we want camera to be' - 'where we are or what we have' / '20',
-            # so further player is faster camera moves and vice-versa
-            # we can use round on scroll increment to smooth out jumper scrolling & also
-            # multiplying by point zero thirty two instead of dividing by thirty
+            # 'where we want camera to be' - 'where we are or what we have' / '20', so further player is faster camera moves and vice-versa
+            # we can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing by thirty
             # if camera is off by 1px not an issue, but rendering tiles could be.
-            self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * _camera_parallax_factor.x
-            self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * _camera_parallax_factor.y
+            self.scroll.x += round((self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x, 2)
+            self.scroll.y += round((self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y, 2)
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
             # tilemap: render
@@ -78,12 +122,13 @@ class Game:
             if not self.dead:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
+                # self.display.blit(self.assets.animations_entity.player[Action.IDLE.value].copy().img(), (50, 50) or render_scroll)
                 # debug: collission detection
                 #   ta = self.tilemap.tiles_around(tuple(self.player.pos))
                 #   pra = self.tilemap.physics_rects_around(tuple(self.player.pos))
 
             # mask: before particles!!!
-            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline
+            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
             display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
             for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 self.display_2.blit(display_silhouette, offset)
@@ -143,11 +188,17 @@ class Game:
             # HUD: show self.player.velocity
             text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
             self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
+            # HUD: show self.player.action
+            text = self.font.render(f"{str(self.player.action).ljust(4).upper()}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
+            # HUD: show self.player.flip
+            text = self.font.render(f"FLIP {str(self.player.flip).ljust(4).upper()}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
 
             # FINAL DRAWING
 
             pg.display.flip()  # update whole screen
-            _ = self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)
+            self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)
 
 
 if __name__ == "__main__":

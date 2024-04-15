@@ -68,10 +68,10 @@ class Tilemap:
         ]
 
     @staticmethod
-    @lru_cache(maxsize=8)
-    def generate_tiles(
+    @lru_cache(maxsize=None)
+    def generate_surf(
         count: int,
-        base_color: tuple[int, int, int] = pre.BLACK,
+        color: tuple[int, int, int] = pre.BLACK,
         size: tuple[int, int] = (pre.TILE_SIZE, pre.TILE_SIZE),
         colorkey: pre.ColorValue = pre.BLACK,
         alpha: int = 255,
@@ -80,7 +80,7 @@ class Tilemap:
         """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
 
         alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
-        fill = [max(0, min(255, base + randint(-variance, variance))) for base in base_color] if variance else base_color
+        fill = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
 
         return [
             (
