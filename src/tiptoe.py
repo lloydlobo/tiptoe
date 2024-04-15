@@ -1,17 +1,50 @@
+import math
 import os
 import sys
+from functools import lru_cache
+from random import randint
 
 import pygame as pg
 
 from internal.assets_util import Assets, load_img, load_imgs
 from internal.entities import Player
 # fmt: off
-from internal.prelude import (CAMERA_SCROLL_SPEED, CAPTION, CHARCOAL,
-                              DATA_IMAGES_PATH, DIMENSIONS, DIMENSIONS_HALF,
-                              FPS_CAP, RED, TILE_SIZE, TRANSPARENT, WHITE,
-                              Movement)
+from internal.prelude import (BG_VIOLET, BLACK, CAPTION, CHARCOAL, CREAM,
+                              DARK_AYU_NAVY, DIMENSIONS, DIMENSIONS_HALF,
+                              FPS_CAP, GRAY, IMAGES_PATH, RED, SILVER,
+                              TILE_SIZE, TRANSPARENT, WHITE, ColorValue,
+                              EntityKind, Movement)
 # fmt: on
 from internal.tilemap import Tilemap
+
+# fmt: off
+# fmt: on
+
+
+@lru_cache(maxsize=8)
+def generate_tiles(
+    count: int,
+    base_color: tuple[int, int, int] = BLACK,
+    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
+    colorkey: ColorValue = BLACK,
+    alpha: int = 255,
+    variance: int = 0,  # (0==base_color) && (>0 == random colors)
+) -> list[pg.Surface]:
+    """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
+
+    alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
+    fill = [max(0, min(255, base + randint(-variance, variance))) for base in base_color] if variance else base_color
+
+    return [
+        (
+            surf := pg.Surface(size),
+            surf.set_colorkey(colorkey),
+            surf.fill(fill),
+            surf.set_alpha(alpha),
+        )[0]
+        # ^ after processing pipeline, select first [0] Surface in tuple
+        for _ in range(count)
+    ]
 
 
 class Game:
@@ -30,33 +63,29 @@ class Game:
         self.movement = Movement(left=False, right=False)
         # ^ or use simpler self.movement = [False, False]
 
-        player_sprite = pg.Surface((8, 15)) or load_img(path=os.path.join(DATA_IMAGES_PATH, "entities", "player.png"), with_alpha=True, colorkey=(0, 0, 0))
-        player_sprite.fill(RED)
-        enemy_sprite = pg.Surface((8, 15)) or load_img(path=os.path.join(DATA_IMAGES_PATH, "entities", "enemy.png"), with_alpha=True, colorkey=(0, 0, 0))
-        enemy_sprite.fill(WHITE)
-
-        grass_sprites = load_imgs(path=os.path.join(DATA_IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=(0, 0, 0))
-        stone_sprites = load_imgs(path=os.path.join(DATA_IMAGES_PATH, "tiles", "stone"), with_alpha=True, colorkey=(0, 0, 0))
-        decor_sprites = load_imgs(path=os.path.join(DATA_IMAGES_PATH, "tiles", "decor"), with_alpha=True, colorkey=(0, 0, 0))
-        large_decor_sprites = load_imgs(path=os.path.join(DATA_IMAGES_PATH, "tiles", "large_decor"), with_alpha=True, colorkey=(0, 0, 0))
-
         self.assets = Assets(
             surface=dict(
                 # entity
-                player=player_sprite,
-                enemy=enemy_sprite,
+                player=generate_tiles(1, RED, size=(8, TILE_SIZE - 1), alpha=(255 // 2))[0],
+                enemy=generate_tiles(1, CREAM, size=(8, TILE_SIZE - 1), alpha=(255 // 2))[0],
             ),
             surfaces=dict(
-                # tiles
-                grass=grass_sprites,
-                stone=stone_sprites,
-                decor=decor_sprites,
-                large_decor=large_decor_sprites,
+                # tiles: on_grid
+                grass=(
+                    generate_tiles(9, base_color=GRAY, alpha=64)
+                    or load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
+                    #  ^  used as placeholder, if we decide to use spritesheet
+                ),
+                stone=generate_tiles(9, base_color=SILVER, alpha=64),
+                # tiles: off_grid
+                decor=generate_tiles(4, base_color=WHITE, size=(TILE_SIZE // 2, TILE_SIZE // 2)),  # offgrid (plant,box,..)
+                large_decor=generate_tiles(4, base_color=BLACK, size=(TILE_SIZE * 2, TILE_SIZE * 2)),  # offgrid (tree,boulder,bush..)
             ),
-            animation=None,
+            animation=None,  # TODO:
         )
 
-        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(8, 15))
+        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(self.assets.surface[EntityKind.PLAYER.value].get_size()))
+        # self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(16, 16))
 
         self.tilemap = Tilemap(self, TILE_SIZE)
 
@@ -66,15 +95,16 @@ class Game:
 
     def run(self) -> None:
         bg = pg.Surface(DIMENSIONS)  # TODO: use actual background image
-        bg.fill(CHARCOAL)
-        _camera_parallax_factor = 1 / 20
+        bg.fill(BG_VIOLET)
+        _camera_parallax_factor = 0.05  # or 1/20
 
         while True:
             self.display.fill(TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
 
             # camera: update and parallax
-            self.scroll.x += -self.movement.left + self.movement.right  # * camera_parallax_factor
+            self.scroll.x += self.movement.right - self.movement.left  # * camera_parallax_factor
+            self.scroll.y += 0
             render_scroll = pg.Vector2(int(self.scroll.x), int(self.scroll.y))
 
             self.tilemap.render(self.display, render_scroll)
@@ -84,8 +114,11 @@ class Game:
 
             # player: update and render
             if not self.dead:
-                self.player.update(self.tilemap, pg.Vector2(-self.movement.left + self.movement.right, 0))
+                self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
+                # debug: collission detection
+                #   ta = self.tilemap.tiles_around(tuple(self.player.pos))
+                #   pra = self.tilemap.physics_rects_around(tuple(self.player.pos))
 
             # mask: before particles!!!
             display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline

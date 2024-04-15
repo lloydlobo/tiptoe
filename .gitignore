@@ -1,1 +1,10 @@
+# .gitignore
+
+# DIST
+
+# TODO: add dist or binary files here
+
+# DRAFTS
+
 notes.md
+src/data/images

@@ -2,14 +2,27 @@ import sys
 
 import pygame as pg
 
-from internal.prelude import BLACK, CAMERA_SCROLL_SPEED, CAPTION, DIMENSIONS, DIMENSIONS_HALF, FPS_CAP, TILE_SIZE, TRANSPARENT, WHITE, Movement
+from internal.prelude import (
+    BG_VIOLET,
+    BLACK,
+    CAMERA_SPEED,
+    CAPTION,
+    CAPTION_EDITOR,
+    DIMENSIONS,
+    DIMENSIONS_HALF,
+    FPS_CAP,
+    TILE_SIZE,
+    TRANSPARENT,
+    WHITE,
+    Movement,
+)
 
 
 class Editor:
     def __init__(self) -> None:
         pg.init()
 
-        pg.display.set_caption(CAPTION)
+        pg.display.set_caption(CAPTION_EDITOR)
         self.screen = pg.display.set_mode(DIMENSIONS)
         self.display = pg.Surface(DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_outline = pg.Surface(DIMENSIONS_HALF)
@@ -19,19 +32,18 @@ class Editor:
         self.clock = pg.time.Clock()
 
         self.movement = Movement(left=False, right=False)
-        # ^ or use simpler self.movement = [False, False]
 
-        self.scroll = pg.Vector2(0.0, 0.0)  # or use [0, 0]
+        self.scroll = pg.Vector2(0.0, 0.0)
 
     def run(self) -> None:
         bg = pg.Surface(DIMENSIONS)  # TODO: use actual background image
-        bg.fill(BLACK)
+        bg.fill(BG_VIOLET)
 
         while True:
             self.display.fill(TRANSPARENT)
             self.display_outline.blit(bg, (0, 0))
 
-            self.scroll.x += (-self.movement.left + self.movement.right) * CAMERA_SCROLL_SPEED
+            self.scroll.x += (-self.movement.left + self.movement.right) * CAMERA_SPEED
             render_scroll = (int(self.scroll.x), int(self.scroll.y))
 
             for event in pg.event.get():
