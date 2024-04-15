@@ -51,18 +51,24 @@ class Game:
     def run(self) -> None:
         bg = pg.Surface(pre.DIMENSIONS)  # TODO: use actual background image
         bg.fill(pre.BG_DARK)
-        _camera_parallax_factor = 0.05  # or 1/20
+        _camera_parallax_factor = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
         while True:
             self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
 
-            # TODO: 1:30:29 - camera
             # camera: update and parallax
-            self.scroll.x += self.movement.right - self.movement.left  # * camera_parallax_factor
-            self.scroll.y += 0
-            render_scroll = pg.Vector2(int(self.scroll.x), int(self.scroll.y))
+            #
+            # 'where we want camera to be' - 'where we are or what we have' / '20',
+            # so further player is faster camera moves and vice-versa
+            # we can use round on scroll increment to smooth out jumper scrolling & also
+            # multiplying by point zero thirty two instead of dividing by thirty
+            # if camera is off by 1px not an issue, but rendering tiles could be.
+            self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * _camera_parallax_factor.x
+            self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * _camera_parallax_factor.y
+            render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
+            # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
             # enemy: update and render
@@ -122,18 +128,21 @@ class Game:
             # HUD: show fps
             text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
             self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
+            # HUD: show self.scroll
+            text = self.font.render(f"SCROLL {str(self.scroll).ljust(4)}", antialias, pre.GREEN, None)
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
             # HUD: show render_scroll
             text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
             # HUD: show self.movement
             text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
             # HUD: show self.player.pos
             text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
             # HUD: show self.player.velocity
             text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
-            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
+            self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
 
             # FINAL DRAWING
 

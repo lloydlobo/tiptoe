@@ -72,7 +72,7 @@ class PhysicalEntity:
 
         return True
 
-    def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
+    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         surf.blit(self.game.assets.surface["player"], self.pos - offset)
 
 
@@ -84,7 +84,7 @@ class Enemy(PhysicalEntity):
         super().update(tilemap, movement)
         return False  # enemy: alive
 
-    def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
+    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         super().render(surf, offset)
 
 
@@ -98,7 +98,7 @@ class Player(PhysicalEntity):
         super().update(tilemap, movement)
         return True
 
-    def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
+    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         super().render(surf, offset)
 
     def jump(self) -> bool:

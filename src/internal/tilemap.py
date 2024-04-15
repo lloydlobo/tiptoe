@@ -93,14 +93,14 @@ class Tilemap:
             for _ in range(count)
         ]
 
-    def render(self, surf: pg.Surface, offset: pg.Vector2 = pg.Vector2(0, 0)) -> None:
+    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
         for tile in self.offgrid_tiles:
             blit(self.game.assets.surfaces[tile.kind.value][tile.variant], tile.pos - offset)
 
         blit = surf.blit
-        xlo, ylo = self.calc_tile_loc(offset.x, offset.y)
-        xhi, yhi = self.calc_tile_loc(offset.x + surf.get_width(), offset.y + surf.get_height())
+        xlo, ylo = self.calc_tile_loc(offset[0], offset[1])
+        xhi, yhi = self.calc_tile_loc(offset[0] + surf.get_width(), offset[1] + surf.get_height())
         for x in range(xlo, xhi + 1):
             for y in range(ylo, yhi + 1):
                 # only draw tiles whose position is found on the screen camera offset range
