@@ -57,6 +57,11 @@ class Editor:
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
+        try:
+            self.tilemap.load("map.json")
+        except FileNotFoundError:
+            pass
+
         self.level = 0
         self.load_level(self.level)
 
@@ -180,8 +185,7 @@ class Editor:
                         if False:
                             self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
-                        if False:
-                            self.tilemap.save("map.json")
+                        self.tilemap.save("map.json")
                     if event.key == pg.K_LSHIFT:
                         self.shift = not self.shift
                 if event.type == pg.KEYUP:
