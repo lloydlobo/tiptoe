@@ -1,10 +1,11 @@
 import os
 import sys
+import time
 
 import pygame as pg
 
 import internal.prelude as pre
-from internal.tilemap import TileItem, Tilemap
+from internal.tilemap import TileItem, Tilemap, calc_pos_to_loc
 
 
 class Editor:
@@ -14,7 +15,6 @@ class Editor:
         pg.display.set_caption(pre.CAPTION)
         self.screen = pg.display.set_mode(pre.DIMENSIONS)
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
-        # self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
         self.font_size = pre.TILE_SIZE - 4
         self.font = pg.font.SysFont(name=("monospace" or pg.font.get_default_font()), size=self.font_size, bold=True)
@@ -23,7 +23,7 @@ class Editor:
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
-        # need these for reference for animation workaround
+        # note: need these for reference for animation workaround
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
         player_color = pre.YELLOW
@@ -57,24 +57,25 @@ class Editor:
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
-        try:
-            self.tilemap.load("map.json")
-        except FileNotFoundError:
-            pass
+        self.save_generation: int = 0
+        self.last_save_time: None | float = None
+        self.last_save_time_readable: None | str = None
 
         self.level = 0
         self.load_level(self.level)
 
-        self.screenshake = 0
-
     def load_level(self, map_id: int) -> None:
-        self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+        try:
+            self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+        except FileNotFoundError:
+            pass
 
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
         self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
         self.tile_list = list(self.assets.tiles.keys())
-        assert set(self.tile_list) == set(x.value for x in pre.TileKind)
+        if pre.DEBUG_EDITOR_ASSERTS:
+            assert set(self.tile_list) == set(x.value for x in pre.TileKind)
         self.tile_group = 0
         self.tile_variant = 0
 
@@ -83,21 +84,8 @@ class Editor:
         self.shift = False
         self.ongrid = True
 
-        # tracks if the player died -> 'reloads level' - which than resets this counter to zero
-        self.dead = 0
-
-        # note: abs(self.transition) == 30 => opaque screen see nothing
-        # abs(self.transition) == 0 see eeverything; load level when completely black
-        self.transition = -30
-
     def run(self) -> None:
-        # bg = self.assets.surface["background"]
-        # bg.set_colorkey(pre.BLACK)
-        # bg.fill(pre.BG_DARK)
-
         while True:
-            # self.display.fill(pre.TRANSPARENT)
-            # self.display_2.blit(bg, (0, 0))
             self.display.fill(pre.BG_DARK)
 
             # camera: update and parallax
@@ -121,17 +109,15 @@ class Editor:
             else:  # notice smooth off grid preview
                 self.display.blit(cur_tile_img, mpos)
 
-            if self.clicking and self.ongrid:
-                self.tilemap.tilemap[f"{int(tile_pos[0])};{int(tile_pos[1])}"] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
-            if self.right_clicking:  # remove tile
-                tile_loc = f"{int(tile_pos[0])};{int(tile_pos[1])}"
-                if tile_loc in self.tilemap.tilemap:
+            if self.clicking and self.ongrid:  # tile: add
+                self.tilemap.tilemap[calc_pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
+            if self.right_clicking:  # tile: remove
+                if (tile_loc := calc_pos_to_loc(tile_pos.x, tile_pos.y, None)) and tile_loc in self.tilemap.tilemap:
                     del self.tilemap.tilemap[tile_loc]
 
                 for tile in self.tilemap.offgrid_tiles.copy():
-                    t_pos = tuple(tile.pos)
                     t_img = self.assets.tiles[tile.kind.value][tile.variant]
-                    tile_r = pg.Rect(t_pos[0] - self.scroll[0], t_pos[1] - self.scroll[1], t_img.get_width(), t_img.get_height())
+                    tile_r = pg.Rect(tile.pos.x - self.scroll.x, tile.pos.y - self.scroll.y, t_img.get_width(), t_img.get_height())
                     if tile_r.collidepoint(mpos):
                         self.tilemap.offgrid_tiles.remove(tile)
 
@@ -183,7 +169,12 @@ class Editor:
                     if event.key == pg.K_t:
                         self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
-                        self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
+                        if not self.last_save_time or (t := time.time(), dt := t - self.last_save_time) and dt >= 0.12:
+                            self.save_generation += 1
+                            self.last_save_time_readable = time.asctime()
+                            self.last_save_time = self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
+                        else:
+                            raise ValueError(f"Something went wrong. Saving too fast. Please debounce. {t, dt}")
                     if event.key == pg.K_LSHIFT:
                         self.shift = not self.shift
                 if event.type == pg.KEYUP:
@@ -196,42 +187,37 @@ class Editor:
                     if event.key == pg.K_s:
                         self.movement.bottom = False
 
-            # DISPLAY RENDERING
-
-            # blit display on display_2 and then blit display_2 on
-            # screen for depth effect.
-
-            # self.display_2.blit(self.display, (0, 0))
-            #
-            # # TODO: screenshake effect via offset for screen blit
-            # # ...
-            # self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
-
-            # DEBUG: HUD
+            # DISPLAY: RENDERING
 
             self.screen.blit(pg.transform.scale(self.display, self.screen.get_size()), (0, 0))
 
-            if not pre.DEBUG_HUD:
+            # DEBUG: HUD
+
+            if pre.DEBUG_EDITOR_HUD:
                 antialias = True
-                key_w = 7  # TILEPOS len==7
-                val_w = 24  # MOVE len==24
+                key_w = 11  # TILEVARMODE key
+                val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
                 key_fillchar = ":"
                 val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
                 hud_elements = [
                     (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
                     for text in [
                         f"FPS.{self.clock.get_fps():2.0f}",
+                        f"GRIDMODE.{str(self.ongrid).upper()}",
                         f"LEVEL.{str(self.level)}",
-                        f"MOVE.{str([str(k[0:1]+str(int(v))) for k, v in self.movement.__dict__.items()]).upper()}",
                         f"MPOS.{str(mpos)}",
-                        f"ONGRID.{str(self.ongrid).upper()}",
                         f"RSCROLL.{str(render_scroll)}",
+                        f"SAVES.{str(self.save_generation).rjust(2,'0')}",
+                        f"SAVETIME.{str(self.last_save_time)}",
+                        f"SAVETIMELOC.{str(self.last_save_time_readable)}",
                         f"SCROLL.{str(self.scroll)}",
-                        f"SHIFT.{str(self.shift).upper()}",
+                        f"TILEGRP.{str(self.tile_group).upper()}",
                         f"TILEPOS.{str(tile_pos).upper()}",
+                        f"TILEVAR.{str(self.tile_variant).upper()}",
+                        f"TILEVARMODE.{str(self.shift).upper()}",
                     ]
                 ]
-                blit_text, line_height = self.screen.blit, pre.TILE_SIZE
+                blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
                 for index, text in enumerate(hud_elements):
                     blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from functools import lru_cache
 from random import randint
 from typing import TYPE_CHECKING, TypedDict, Union
@@ -25,8 +26,8 @@ def calc_pos_to_loc(x: int, y: int, offset: Union[tuple[int, int], None]) -> str
     # NOTE!: named params will not work with this lru function. maybe due to adding generic like `None` to handle multiple cases
     """
     if offset:
-        return f"{x-offset[0]};{y-offset[1]}"
-    return f"{x};{y}"
+        return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}"
+    return f"{int(x)};{int(y)}"
 
 
 @dataclass
@@ -137,9 +138,10 @@ class Tilemap:
     def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]) -> list[TileItem]:
         return [TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data]
 
-    def save(self, path: str) -> None:
+    def save(self, path: str) -> float:
         with open(path, "w") as f:
             json.dump(dict(tile_size=self.tile_size, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()), f)
+            return time.time()
 
     def load(self, path: str) -> None:
         with open(path, "r") as f:
@@ -176,23 +178,3 @@ class Tilemap:
             # ^ after processing pipeline, select first [0] Surface in tuple
             for _ in range(count)
         ]
-
-    """
-    def autotile(self) -> None:
-        for tile in self.tilemap.values():
-            if tile["kind"] not in AUTOTILE_TYPES:
-                continue
-
-            neighbors: set[tuple[int, int]] = set()
-            t_pos = tile["pos"]
-
-            for shift in [(1, 0), (-1, 0), (0, -1), (0, 1)]:
-                if (check_loc := self.point2_to_str((t_pos[0] + shift[0], t_pos[1] + shift[1]))) and check_loc in self.tilemap:
-                    # note: don't worry if the tile is of a different variant
-                    if self.tilemap[check_loc]["kind"] == tile["kind"]:
-                        neighbors.add(shift)
-
-            if (ngbrs := tuple(sorted(neighbors))) and ngbrs in AUTOTILE_MAP:
-                tile["variant"] = AUTOTILE_MAP[ngbrs]
-
-    """

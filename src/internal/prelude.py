@@ -9,6 +9,7 @@ import pygame as pg
 #########
 # TYPES #
 
+
 # This typehint is used when a function would return an RGBA table.
 # note: ported from pygame source file: _common.py
 RGBAOutput = Tuple[int, int, int, int]
@@ -42,10 +43,10 @@ class Movement:
 class Collisions:
     """False == 0 and True == 1"""
 
-    up: bool
-    down: bool
     left: bool
     right: bool
+    up: bool
+    down: bool
 
 
 ##########
@@ -77,10 +78,8 @@ class Animation:
                 self.done = True
 
     def img(self) -> pg.Surface:
-        """
-        Returns current image to render in animation cycle.
-        Similar to render phase in the '__init__ -> update -> render' cycle
-        """
+        """Returns current image to render in animation cycle. Similar to
+        render phase in the '__init__ -> update -> render' cycle"""
         return self.images[int(self.frame / self._img_duration)]
 
 
@@ -125,17 +124,9 @@ def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, No
 def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
     """
     listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
-        @example:
-            load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
+        @example:   load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
     """
-    return [
-        load_img(
-            os.path.join(path, img_name),
-            with_alpha,
-            colorkey,
-        )
-        for img_name in sorted(os.listdir(path))
-    ]
+    return [load_img(os.path.join(path, img_name), with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
 
 
 ##########
@@ -235,6 +226,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 #############
 # CONSTANTS #
 
+
 # fmt: off
 CAMERA_SPEED        = 2  # use with editor camera move fast around the world
 FPS_CAP             = 60
@@ -253,8 +245,11 @@ DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
 
 
 # flags: debugging, etc
+
 # fmt: off
-DEBUG_HUD: Final    = False
+DEBUG_EDITOR_ASSERTS: Final     = False
+DEBUG_EDITOR_HUD: Final         = True
+DEBUG_GAME_HUD: Final           = True
 # fmt: on
 
 
@@ -287,8 +282,24 @@ TRANSPARENT = (0, 0, 0, 0)
 WHITE = (255, 255, 255)
 YELLOW = hsl_to_rgb(60, 0.6, 0.3)
 
+# fmt: off
+NEIGHBOR_OFFSETS        = {
+    (-1,-1), ( 0,-1), ( 1,-1),
+    (-1, 0), ( 0, 0), ( 1, 0),
+    (-1, 1), ( 0, 1), ( 1, 1),
+}
+LEN_NEIGHBOR_OFFSETS    = 9
+# fmt: on
 
-# Autotiling: over engineered
+
+# fmt: off
+PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
+AUTOTILE_TYPES      = { TileKind.STONE, TileKind.GRASS, }
+# fmt: on
+
+
+##############
+# AUTOTILING #
 
 
 # fmt: off
@@ -322,30 +333,14 @@ tiles:
 """
 # fmt: off
 AUTOTILE_MAP = {
-    tuple(sorted([( 1,  0), ( 0,  1)                   ])): AutotileID.TOPLEFT.value      or 0,  # ES
-    tuple(sorted([( 1,  0), ( 0,  1), (-1,  0)         ])): AutotileID.TOPCENTER.value    or 1,  # ESW
-    tuple(sorted([(-1,  0), ( 0,  1)                   ])): AutotileID.TOPRIGHT.value     or 2,  # WS
-    tuple(sorted([(-1,  0), ( 0, -1), ( 0,  1)         ])): AutotileID.MIDDLERIGHT.value  or 3,  # WSN
-    tuple(sorted([(-1,  0), ( 0, -1)                   ])): AutotileID.BOTTOMRIGHT.value  or 4,  # WN
-    tuple(sorted([(-1,  0), ( 0, -1), ( 1,  0)         ])): AutotileID.BOTTOMCENTER.value or 5,  # WNE
-    tuple(sorted([( 1,  0), ( 0, -1)                   ])): AutotileID.BOTTOMLEFT.value   or 6,  # EN
-    tuple(sorted([( 1,  0), ( 0, -1), ( 0,  1)         ])): AutotileID.MIDDLELEFT.value   or 7,  # ENS
-    tuple(sorted([( 1,  0), (-1,  0), ( 0,  1), (0, -1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
+    tuple(sorted([( 1, 0), ( 0, 1)                 ])): AutotileID.TOPLEFT.value      or 0,  # ES
+    tuple(sorted([( 1, 0), ( 0, 1), (-1, 0)        ])): AutotileID.TOPCENTER.value    or 1,  # ESW
+    tuple(sorted([(-1, 0), ( 0, 1)                 ])): AutotileID.TOPRIGHT.value     or 2,  # WS
+    tuple(sorted([(-1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLERIGHT.value  or 3,  # WSN
+    tuple(sorted([(-1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMRIGHT.value  or 4,  # WN
+    tuple(sorted([(-1, 0), ( 0,-1), ( 1, 0)        ])): AutotileID.BOTTOMCENTER.value or 5,  # WNE
+    tuple(sorted([( 1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMLEFT.value   or 6,  # EN
+    tuple(sorted([( 1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLELEFT.value   or 7,  # ENS
+    tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
 }
-# fmt: on
-
-
-# fmt: off
-NEIGHBOR_OFFSETS        = {
-    (-1,-1), ( 0,-1), ( 1,-1),
-    (-1, 0), ( 0, 0), ( 1, 0),
-    (-1, 1), ( 0, 1), ( 1, 1),
-}
-LEN_NEIGHBOR_OFFSETS    = 9
-# fmt: on
-
-
-# fmt: off
-PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
-AUTOTILE_TILES      = { TileKind.STONE, TileKind.GRASS, }
 # fmt: on

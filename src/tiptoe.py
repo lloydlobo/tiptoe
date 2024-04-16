@@ -17,8 +17,8 @@ class Game:
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
-        self.font_size = 18
-        self.font = pg.font.SysFont(name=(pg.font.get_default_font() or "monospace"), size=self.font_size, bold=False)
+        self.font_size = pre.TILE_SIZE - 4
+        self.font = pg.font.SysFont(name=("monospace" or pg.font.get_default_font()), size=self.font_size, bold=True)
 
         self.clock = pg.time.Clock()
 
@@ -70,6 +70,8 @@ class Game:
             ),
         )
 
+        self.sfx = {}
+
         self.player: Player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -99,7 +101,12 @@ class Game:
                         raise ValueError(f'expect a valid spawners variant. got {spawner["variant"]}')
 
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
-        self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
+        self._scroll_ease = pg.Vector2(1 / 30, 1 / 16)
+        # | 1/16 or 0.0625 is a perfect square   ^
+        # | 1/16 on y axis make camera less choppy and also does'not hide player
+        # | falling off the screen at free fall. 1/30 for x axis, gives fast
+        # | horizontal slinky camera motion!
+        ###
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
@@ -119,22 +126,18 @@ class Game:
 
             # camera: update and parallax
             #
-            # 'where we want camera to be' - 'where we are or what we have' / '20', so further player is faster camera moves and vice-versa
+            # 'where we want camera to be' - 'where we are or what we have' / '30', so further player is faster camera moves and vice-versa
             # we can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing by thirty
             # if camera is off by 1px not an issue, but rendering tiles could be.
-            self.scroll.x += round((self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x, 2)
-            self.scroll.y += round((self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y, 2)
+            # note: use 0 round off for smooth camera
+            self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
+            self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
             # portal: render
-            """
-            self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
-            self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
-            """
-            # self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(21, 4)))
             self.portal = self.assets.surface["portal"]
             self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
             self.display.blit(self.portal, self.portal_pos - render_scroll)
@@ -196,32 +199,31 @@ class Game:
 
             # DEBUG: HUD
 
-            if pre.DEBUG_HUD:
-                antialias = True  # for text
-                # HUD: show fps
-                text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
-                # HUD: show self.scroll
-                text = self.font.render(f"SCROLL {str(self.scroll).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
-                # HUD: show render_scroll
-                text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
-                # HUD: show self.movement
-                text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
-                # HUD: show self.player.pos
-                text = self.font.render(f"POS {str(self.player.pos).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
-                # HUD: show self.player.velocity
-                text = self.font.render(f"VELOCITY {str(self.player.velocity).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
-                # HUD: show self.player.action
-                text = self.font.render(f"{str(self.player.action).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
-                # HUD: show self.player.flip
-                text = self.font.render(f"FLIP {str(self.player.flip).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
+            if pre.DEBUG_GAME_HUD:
+                antialias = True
+                key_w = 8  # VELOCITY key
+                val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
+                key_fillchar = ":"
+                val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
+                movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
+                player_action = val.value.upper() if (val := self.player.action) and val else None
+                hud_elements = [
+                    (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+                    for text in [
+                        f"ACTION.{player_action }",
+                        f"FLIP.{str(self.player.flip).upper()}",
+                        f"FPS.{self.clock.get_fps():2.0f}",
+                        f"LEVEL.{str(self.level)}",
+                        f"MVMNT.{movement_bitmap_str}",
+                        f"POS.{self.player.pos.__round__(0)}",
+                        f"RSCROLL.{render_scroll.__str__()}",
+                        f"SCROLL.{self.scroll.__round__(0)}",
+                        f"VELOCITY.{str(self.player.velocity.__round__(0))}",
+                    ]
+                ]
+                blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
+                for index, text in enumerate(hud_elements):
+                    blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
 
             # FINAL DRAWING
 
