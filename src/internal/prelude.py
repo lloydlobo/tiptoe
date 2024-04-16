@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
 from functools import lru_cache
 from typing import Final, Sequence, Tuple, Union
 
@@ -138,21 +138,6 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
     ]
 
 
-###############
-# COORDINATES #     (px and grid systems)
-
-
-@lru_cache(maxsize=None)
-def calc_pos_to_loc(x: int, y: int, offset: tuple[int, int] | None) -> str:
-    """
-    calc_pos_to_loc convert position with offset to json serializable key for game level map
-    Returns a string with `_lru_cache_wrapper` that is a 'Constants shared by all lru cache instances'
-    """
-    if offset:
-        return f"{ x-offset[0] };{ y-offset[1] }"
-    return f"{ x };{ y }"
-
-
 ##########
 # COLORS #
 
@@ -253,15 +238,23 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # fmt: off
 CAMERA_SPEED        = 2  # use with editor camera move fast around the world
 FPS_CAP             = 60
+RENDER_SCALE        = 2  # for editor
 SCALE               = 0.5
 TILE_SIZE           = 16
 # fmt: on
+
 
 # fmt: off
 SCREEN_WIDTH        = 640
 SCREEN_HEIGHT       = 480
 DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)
 DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
+# fmt: on
+
+
+# flags: debugging, etc
+# fmt: off
+DEBUG_HUD: Final    = False
 # fmt: on
 
 
@@ -278,37 +271,81 @@ SPRITESHEET_PATH    = None
 # fmt: on
 
 
-BG_DARKER = hsl_to_rgb(234, 0.1618, 0.0328)
-BG_DARK = hsl_to_rgb(234, 0.1618, 0.0618)
-BLACK = (0, 0, 0)
-MIDNIGHT = (2, 2, 3)
-YELLOW = hsl_to_rgb(60, 0.6, 0.3)
-CHARCOAL = (10, 10, 10)
-CREAM = hsl_to_rgb(0, 0.1618, 0.618)  # awesome color for player
+# colors:
 BEIGE = (15, 20, 25)
+BG_DARK = hsl_to_rgb(234, 0.1618, 0.0618)
+BG_DARKER = hsl_to_rgb(234, 0.1618, 0.0328)
+BLACK = (0, 0, 0)
+CHARCOAL = (10, 10, 10)
+CREAM = hsl_to_rgb(0, 0.1618, 0.618)
 GRAY = hsl_to_rgb(0, 0, 0.5)
 GREEN = hsl_to_rgb(120, 1, 0.25)
+MIDNIGHT = (2, 2, 3)
 RED = hsl_to_rgb(0, 0.618, 0.328)
 SILVER = hsl_to_rgb(0, 0, 0.75)
 TRANSPARENT = (0, 0, 0, 0)
 WHITE = (255, 255, 255)
+YELLOW = hsl_to_rgb(60, 0.6, 0.3)
 
 
-NEIGHBOR_OFFSETS = {
-    # fmt: off
+# Autotiling: over engineered
+
+
+# fmt: off
+class AutotileID(Enum):
+    """
+    >>> assert list(range(0, 8 + 1)) == [x.value for x in AutoTileVariant]
+    """
+
+    TOPLEFT         = auto(0)   # 0
+    TOPCENTER       = auto()    # 1
+    TOPRIGHT        = auto()    # 2
+    MIDDLERIGHT     = auto()    # 3
+    BOTTOMRIGHT     = auto()    # 4
+    BOTTOMCENTER    = auto()    # 5
+    BOTTOMLEFT      = auto()    # 6
+    MIDDLELEFT      = auto()    # 7
+    MIDDLECENTER    = auto()    # 8
+# fmt: on
+
+
+"""
+offsets:
+    [ (-1,-1) ( 0,-1) ( 1,-1 )
+      (-1, 0) ( 0, 0) ( 1, 0 )
+      (-1, 1) ( 0, 1) ( 1, 1 ) ]
+
+tiles:
+    { 0   1   2 
+      7   8   3
+      6   5   4 }
+"""
+# fmt: off
+AUTOTILE_MAP = {
+    tuple(sorted([( 1,  0), ( 0,  1)                   ])): AutotileID.TOPLEFT.value      or 0,  # ES
+    tuple(sorted([( 1,  0), ( 0,  1), (-1,  0)         ])): AutotileID.TOPCENTER.value    or 1,  # ESW
+    tuple(sorted([(-1,  0), ( 0,  1)                   ])): AutotileID.TOPRIGHT.value     or 2,  # WS
+    tuple(sorted([(-1,  0), ( 0, -1), ( 0,  1)         ])): AutotileID.MIDDLERIGHT.value  or 3,  # WSN
+    tuple(sorted([(-1,  0), ( 0, -1)                   ])): AutotileID.BOTTOMRIGHT.value  or 4,  # WN
+    tuple(sorted([(-1,  0), ( 0, -1), ( 1,  0)         ])): AutotileID.BOTTOMCENTER.value or 5,  # WNE
+    tuple(sorted([( 1,  0), ( 0, -1)                   ])): AutotileID.BOTTOMLEFT.value   or 6,  # EN
+    tuple(sorted([( 1,  0), ( 0, -1), ( 0,  1)         ])): AutotileID.MIDDLELEFT.value   or 7,  # ENS
+    tuple(sorted([( 1,  0), (-1,  0), ( 0,  1), (0, -1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
+}
+# fmt: on
+
+
+# fmt: off
+NEIGHBOR_OFFSETS        = {
     (-1,-1), ( 0,-1), ( 1,-1),
     (-1, 0), ( 0, 0), ( 1, 0),
     (-1, 1), ( 0, 1), ( 1, 1),
-    # fmt: on
 }
-LEN_NEIGHBOR_OFFSETS = 9
+LEN_NEIGHBOR_OFFSETS    = 9
+# fmt: on
 
-PHYSICS_TILES = {TileKind.GRASS, TileKind.STONE}
 
-# FLAGS
-
-DEBUG_HUD: Final[bool] = False
-
-# EDITOR
-
-RENDER_SCALE = 2
+# fmt: off
+PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
+AUTOTILE_TILES      = { TileKind.STONE, TileKind.GRASS, }
+# fmt: on

@@ -16,8 +16,8 @@ class Editor:
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         # self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
-        self.font_size = 18
-        self.font = pg.font.SysFont(name=(pg.font.get_default_font() or "monospace"), size=self.font_size, bold=False)
+        self.font_size = pre.TILE_SIZE - 4
+        self.font = pg.font.SysFont(name=("monospace" or pg.font.get_default_font()), size=self.font_size, bold=True)
 
         self.clock = pg.time.Clock()
 
@@ -68,8 +68,7 @@ class Editor:
         self.screenshake = 0
 
     def load_level(self, map_id: int) -> None:
-        if False:
-            self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+        self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
 
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
         self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
@@ -182,10 +181,9 @@ class Editor:
                     if event.key == pg.K_g:
                         self.ongrid = not self.ongrid
                     if event.key == pg.K_t:
-                        if False:
-                            self.tilemap.autotile()
+                        self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
-                        self.tilemap.save("map.json")
+                        self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
                     if event.key == pg.K_LSHIFT:
                         self.shift = not self.shift
                 if event.type == pg.KEYUP:
@@ -214,31 +212,28 @@ class Editor:
             self.screen.blit(pg.transform.scale(self.display, self.screen.get_size()), (0, 0))
 
             if not pre.DEBUG_HUD:
-                antialias = True  # for text
-                # HUD: show fps
-                text = self.font.render(f"FPS {self.clock.get_fps():4.0f}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 1))
-                # HUD: show self.scroll
-                text = self.font.render(f"SCROLL {str(self.scroll).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 2))
-                # HUD: show render_scroll
-                text = self.font.render(f"RSCROLL {str(render_scroll).ljust(4)}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 3))
-                # HUD: show self.movement
-                text = self.font.render(f"{str(self.movement).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 4))
-                # HUD: show mouse pos
-                text = self.font.render(f"MPOS {str(mpos).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 5))
-                # HUD: show tile pos
-                text = self.font.render(f"TILEPOS {str(tile_pos).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 6))
-                # HUD: show shift
-                text = self.font.render(f"SHIFT {str(self.shift).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 7))
-                # HUD: show if ongrid
-                text = self.font.render(f"ONGRID {str(self.ongrid).ljust(4).upper()}", antialias, pre.GREEN, None)
-                self.screen.blit(text, (pre.TILE_SIZE, pre.TILE_SIZE * 8))
+                antialias = True
+                key_w = 7  # TILEPOS len==7
+                val_w = 24  # MOVE len==24
+                key_fillchar = ":"
+                val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
+                hud_elements = [
+                    (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+                    for text in [
+                        f"FPS.{self.clock.get_fps():2.0f}",
+                        f"LEVEL.{str(self.level)}",
+                        f"MOVE.{str([str(k[0:1]+str(int(v))) for k, v in self.movement.__dict__.items()]).upper()}",
+                        f"MPOS.{str(mpos)}",
+                        f"ONGRID.{str(self.ongrid).upper()}",
+                        f"RSCROLL.{str(render_scroll)}",
+                        f"SCROLL.{str(self.scroll)}",
+                        f"SHIFT.{str(self.shift).upper()}",
+                        f"TILEPOS.{str(tile_pos).upper()}",
+                    ]
+                ]
+                blit_text, line_height = self.screen.blit, pre.TILE_SIZE
+                for index, text in enumerate(hud_elements):
+                    blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
 
             pg.display.flip()  # update whole screen
             self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)

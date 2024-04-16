@@ -80,8 +80,7 @@ class Game:
         self.screenshake = 0
 
     def load_level(self, map_id: int) -> None:
-        if False:
-            self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+        self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
 
         self.enemies = []
         self.portals = []

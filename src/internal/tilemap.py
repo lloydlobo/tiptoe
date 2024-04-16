@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from random import randint
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, Union
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game  # from editor import Editor
@@ -14,6 +14,19 @@ from dataclasses import dataclass
 import pygame as pg
 
 import internal.prelude as pre
+
+
+@lru_cache(maxsize=None)
+def calc_pos_to_loc(x: int, y: int, offset: Union[tuple[int, int], None]) -> str:
+    # FIXME: named params have issue: either reduce maxsize or remove None, or change param names
+    """
+    calc_pos_to_loc convert position with offset to json serializable key for game level map
+    Returns a string with `_lru_cache_wrapper` that is a 'Constants shared by all lru cache instances'
+    # NOTE!: named params will not work with this lru function. maybe due to adding generic like `None` to handle multiple cases
+    """
+    if offset:
+        return f"{x-offset[0]};{y-offset[1]}"
+    return f"{x};{y}"
 
 
 @dataclass
@@ -60,13 +73,35 @@ class Tilemap:
     def tiles_around(self, pos: tuple[int, int]) -> list[TileItem]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
         loc_x, loc_y = self.calc_tile_loc(pos[0], pos[1])
-        return [self.tilemap[seen_location] for offset in pre.NEIGHBOR_OFFSETS if (seen_location := pre.calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap]
+        return [self.tilemap[seen_location] for offset in pre.NEIGHBOR_OFFSETS if (seen_location := calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap]
 
     @lru_cache(maxsize=None)
     def physics_rects_around(self, pos: tuple[int, int]) -> list[pg.Rect]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
 
         return [pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size) for tile in self.tiles_around(pos) if tile.kind in pre.PHYSICS_TILES]
+
+    # PERF: Implement flood filling feature
+
+    def autotile(self) -> None:  # 3:04:00
+        for tile in self.tilemap.values():
+            if tile.kind not in pre.AUTOTILE_TYPES:
+                continue
+
+            neighbors: set[tuple[int, int]] = set()
+
+            for shift in {(-1, 0), (1, 0), (0, -1), (0, 1)}:
+                if (
+                    # NOTE: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`
+                    loc := tile.pos + shift,
+                    # PERF: can use -shift in offset param
+                    check_loc := calc_pos_to_loc(loc.x, loc.y, None),
+                ) and check_loc in self.tilemap:
+                    if self.tilemap[check_loc].kind == tile.kind:  # no worry if a different variant
+                        neighbors.add(shift)
+
+            if (sorted_ngbrs := tuple(sorted(neighbors))) and sorted_ngbrs in pre.AUTOTILE_MAP:
+                tile.variant = pre.AUTOTILE_MAP[sorted_ngbrs]
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
@@ -78,10 +113,11 @@ class Tilemap:
         xhi, yhi = self.calc_tile_loc(offset[0] + surf.get_width(), offset[1] + surf.get_height())
         for x in range(xlo, xhi + 1):
             for y in range(ylo, yhi + 1):  # only draw tiles whose position is found on the screen camera offset range
-                if (loc := pre.calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
+                if (loc := calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
                     tile = self.tilemap[loc]
                     blit(self.game.assets.tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
 
+        # simple algorithm
         # blit = surf.blit
         # for loc in self.tilemap:
         #     tile = self.tilemap[loc]
@@ -140,3 +176,23 @@ class Tilemap:
             # ^ after processing pipeline, select first [0] Surface in tuple
             for _ in range(count)
         ]
+
+    """
+    def autotile(self) -> None:
+        for tile in self.tilemap.values():
+            if tile["kind"] not in AUTOTILE_TYPES:
+                continue
+
+            neighbors: set[tuple[int, int]] = set()
+            t_pos = tile["pos"]
+
+            for shift in [(1, 0), (-1, 0), (0, -1), (0, 1)]:
+                if (check_loc := self.point2_to_str((t_pos[0] + shift[0], t_pos[1] + shift[1]))) and check_loc in self.tilemap:
+                    # note: don't worry if the tile is of a different variant
+                    if self.tilemap[check_loc]["kind"] == tile["kind"]:
+                        neighbors.add(shift)
+
+            if (ngbrs := tuple(sorted(neighbors))) and ngbrs in AUTOTILE_MAP:
+                tile["variant"] = AUTOTILE_MAP[ngbrs]
+
+    """
