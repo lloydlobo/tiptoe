@@ -1,10 +1,11 @@
 import os
 import sys
+from typing import Final
 
 import pygame as pg
 
 import internal.prelude as pre
-from internal.entities import Player
+from internal.entities import Enemy, Player
 from internal.tilemap import Tilemap
 
 
@@ -28,9 +29,13 @@ class Game:
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
         player_color = pre.YELLOW
-        player_alpha = 255 // 1
+        # NOTE: IDEA: player IDLE state blends into the nearby color and can't be seen by enemies
+        player_alpha = 222
         player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
-        enemy_surf = Tilemap.generate_surf(1, pre.CREAM, size=enemy_size, alpha=(255 // 2))[0]
+        enemy_surf = Tilemap.generate_surf(1, pre.CREAM, size=enemy_size, alpha=(255))[0]
+        tiles_alpha = 255 // 2
+        portal_surf = Tilemap.generate_surf(1, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=pre.BLACK, alpha=255)[0]
+        portal_surf.fill(pre.WHITE)
 
         self.assets = pre.Assets(
             surface=dict(
@@ -38,25 +43,30 @@ class Game:
                 background=pg.Surface(pre.DIMENSIONS),  # TODO: use actual background image
                 enemy=enemy_surf.copy(),
                 player=player_surf.copy(),
-                portal=Tilemap.generate_surf(1, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255)[0],
+                portal=portal_surf,
                 # tbd
                 gun=pg.Surface((14, 7)),
                 projectile=pg.Surface((5, 2)),
             ),
             tiles=dict(
                 # tiles: on grid
-                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
-                grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=255),
-                portal=Tilemap.generate_surf(3, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255),
+                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=tiles_alpha),
+                grass=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=tiles_alpha),
+                portal=Tilemap.generate_surf(3, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=pre.BLACK, alpha=255),
                 # tiles: off grid
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
                 large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
+                # high variance leads to easy detection. lower in idle state is ideal for being camoflauged in surroundings
                 player=dict(
-                    idle=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha), img_dur=6),
-                    run=pre.Animation(Tilemap.generate_surf(count=8, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha), img_dur=4),
-                    jump=pre.Animation(Tilemap.generate_surf(count=5, color=player_color, size=(player_size[0] - 1, player_size[1] + 1), alpha=player_alpha)),
+                    idle=pre.Animation(
+                        # TODO: increase variance in middle of idle animation frames by a hair
+                        Tilemap.generate_surf(count=9, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha, variance=0),
+                        img_dur=6,
+                    ),
+                    run=pre.Animation(Tilemap.generate_surf(count=9, color=player_color, size=(player_size[0] - 1, player_size[1]), alpha=player_alpha, variance=12), img_dur=4),
+                    jump=pre.Animation(Tilemap.generate_surf(count=9, color=player_color, size=(player_size[0] - 1, player_size[1] + 1), alpha=player_alpha, variance=20)),
                     # slide=pre.Animation(),
                     # wall_slide=pre.Animation(),
                 ),
@@ -76,6 +86,16 @@ class Game:
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
+        self._dead_lo: Final = 0
+        self._dead_mid: Final = 10
+        self._dead_hi: Final = 40
+
+        # transition: abs(self.transition) == 30 => opaque screen see nothing | abs(self.transition) == 0 see eeverything; load level when completely black
+        self._transition_lo: Final = -30
+        self._transition_mid: Final = 0
+        self._transition_hi: Final = 30
+
+        # load_level: declares and initializes level specific members
         self.level = 0
         self.load_level(self.level)
 
@@ -84,52 +104,80 @@ class Game:
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
 
-        self.enemies = []
-        self.portals = []
-        if False:
-            for spawner in self.tilemap.extract([("spawners", 0), ("spawners", 1), ("spawners,2")]):  # spawn player[1] and enemy[1] and portal[2]
-                match spawner["variant"]:
-                    case 0:  # player
-                        self.player.pos = list(spawner["pos"])
-                        self.player.air_time = 0  # reset time to avoid multiple spawning after falling down
-                    case 1:  # enemy
-                        self.enemies.append(Enemy(self, spawner["pos"], (8, 16)))
-                    case 2:  # portal
-                        self.portals.append((pg.Surface((8, 16)), pg.Vector2(spawner["pos"])))
-                        pass
-                    case _:
-                        raise ValueError(f'expect a valid spawners variant. got {spawner["variant"]}')
+        # HACK: to avoid resetting the level when `not len(self.enemies)` triggers transition to change level.
+        # have to implement enemy spawning and all that jazz
+        self.enemies: list[Enemy] = []
+        self.enemies.append(Enemy(self, pg.Vector2(50, 50), pg.Vector2(8, 16)))  # FIXME: TEMPORARY HACK
 
+        self.portals = []  # unimplemented
+
+        # TODO: (A) Implement this to avoid infinite spawns when nowhere to fall aka free fall
+        if (_tmp_todo := True) and _tmp_todo:  # NOTE: unimplemented
+            for spawner in self.tilemap.extract([("spawners", 0), ("spawners", 1), ("spawners", 2)]):  # spawn player[1] and enemy[1] and portal[2]
+                match spawner.variant:
+                    case 0:  # player
+                        self.player.pos = spawner.pos.copy()
+                        # NOTE: reset time to avoid multiple spawning after falling down
+                        self.player.air_time = 0
+                    case 1:  # enemy
+                        self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(8, 16)))
+                    # case 2:  # portal
+                    #     self.portals.append((pg.Surface((8, 16)), pg.Vector2(spawner["pos"])))
+                    #     pass
+                    case _:
+                        raise ValueError(f'expect a valid spawners variant. got {spawner.variant}')
+
+        """
+        1/16 on y axis make camera less choppy and also does'not hide player
+        falling off the screen at free fall. 1/30 for x axis, gives fast
+        horizontal slinky camera motion! also 16 is a perfect square.
+        """
         self.scroll = pg.Vector2(0.0, 0.0)  # camera origin is top-left of screen
         self._scroll_ease = pg.Vector2(1 / 30, 1 / 16)
-        # | 1/16 or 0.0625 is a perfect square   ^
-        # | 1/16 on y axis make camera less choppy and also does'not hide player
-        # | falling off the screen at free fall. 1/30 for x axis, gives fast
-        # | horizontal slinky camera motion!
-        ###
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
 
-        # note: abs(self.transition) == 30 => opaque screen see nothing
-        # abs(self.transition) == 0 see eeverything; load level when completely black
-        self.transition = -30
+        self.transition = self._transition_lo  # -30
 
     def run(self) -> None:
-        bg = self.assets.surface["background"]
+
+        bg: pg.Surface = self.assets.surface["background"]
         bg.set_colorkey(pre.BLACK)
-        bg.fill(pre.BG_DARK)
+        _ = bg.fill(pre.BG_DARK)
 
         while True:
-            self.display.fill(pre.TRANSPARENT)
-            self.display_2.blit(bg, (0, 0))
+            _ = self.display.fill(pre.TRANSPARENT)
+            _ = self.display_2.blit(bg, (0, 0))
+
+            self.screenshake = max(0, self.screenshake - 1)
+
+            # transitions: game level
+            if not len(self.enemies):
+                self.transition += 1
+                if self.transition > self._transition_hi:
+                    # TODO:(A): add more maps via level editor
+                    # TODO:(C): push it `len...` out of loop
+                    self.level = min(self.level + 1, len(os.listdir(pre.MAP_PATH)) - 1)
+                    self.load_level(self.level)
+            if self.transition < self._transition_mid:
+                self.transition += 1
+
+            if self.dead:
+                self.dead += 1
+                if self.dead >= self._dead_mid:  # ease into incrementing for level change till _hi
+                    self.transition = min(self._transition_hi, self.transition + 1)
+                if self.dead >= self._dead_hi:
+                    self.load_level(self.level)
 
             # camera: update and parallax
-            #
-            # 'where we want camera to be' - 'where we are or what we have' / '30', so further player is faster camera moves and vice-versa
-            # we can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing by thirty
-            # if camera is off by 1px not an issue, but rendering tiles could be.
-            # note: use 0 round off for smooth camera
+            """
+
+                'where we want camera to be' - 'where we are or what we have' / '30', so further player is faster camera moves and vice-versa
+                we can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing by thirty
+                if camera is off by 1px not an issue, but rendering tiles could be.
+                note: use 0 round off for smooth camera
+            """
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -154,8 +202,10 @@ class Game:
                 #   ta = self.tilemap.tiles_around(tuple(self.player.pos))
                 #   pra = self.tilemap.physics_rects_around(tuple(self.player.pos))
 
-            if self.player.rect().collidepoint(self.portal_pos):
+            if self.player.rect().collidepoint(self.portal_pos):  # FIXME: Temporary game over hack
                 print(f"CLEARED {self.level}")
+                if len(self.enemies):
+                    self.enemies.pop()
             # print(f"{self.player.pos/self.tilemap.tile_size, (self.portal.get_rect().x,self.portal.get_locked) = }")
 
             # mask: before particles!!!

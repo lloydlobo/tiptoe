@@ -27,6 +27,7 @@ class TileKind(Enum):
     PORTAL = "portal"
     DECOR = "decor"
     LARGE_DECOR = "large_decor"
+    SPAWNERS = "spawners"
 
 
 @dataclass

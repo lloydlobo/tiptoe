@@ -125,8 +125,10 @@ class Enemy(PhysicalEntity):
 
 class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
+        # NOTE: allow entity kind to be passed to Player class, to use switchable player mid games
         super().__init__(game, pre.EntityKind.PLAYER, pos, size)
 
+        self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
         self._jump_thrust: Final = 3
         self._jumps: Final = 1
         self._max_air_time: Final = 5
@@ -140,21 +142,23 @@ class Player(PhysicalEntity):
         self.air_time += 1
 
         # death: by air fall
-        if self.air_time > 120:  # 2 secs (2 * FPS_CAP)
+        # note: should this apply to enemy too? what if they fall accidently?
+        if self.air_time > self._air_time_freefall_death:
             if not self.game.dead:
-                self.game.screenshake = max(pre.TILE_SIZE, self.game.screenshake - 1)
+                self.game.screenshake = max(self.game.tilemap.tile_size, self.game.screenshake - 1)
             self.game.dead += 1  # incr dead timer
 
         if self.collisions.down:  # reset times when touch ground
             self.air_time = 0
             self.jumps = self._jumps
 
-        if self.air_time > self._max_air_time - 1:
-            self.set_action(Action.JUMP)
-        elif movement.x != 0:
-            self.set_action(Action.RUN)
-        elif self.velocity.y >= 0 and self.collisions.down:
-            self.set_action(Action.IDLE)
+        if (_tmp_not_self_wall_slide := True) and _tmp_not_self_wall_slide:
+            if self.air_time > self._max_air_time - 1:
+                self.set_action(Action.JUMP)
+            elif movement.x != 0:
+                self.set_action(Action.RUN)
+            else:
+                self.set_action(Action.IDLE)
 
         return True
 

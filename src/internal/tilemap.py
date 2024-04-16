@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from functools import lru_cache
 from random import randint
@@ -52,24 +53,6 @@ class Tilemap:
         self.tilemap: dict[str, TileItem] = {}
         self.offgrid_tiles: list[TileItem] = []
 
-        if False:
-            for i in range(20):
-                self.tilemap[f"{3+i};{10}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(3 + i, 10))  # horizontal contiguous tiles
-                self.tilemap[f"{3+i};{11}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(3 + i, 11))
-
-            for i in range(6):
-                self.tilemap[f"{7+i};{8}"] = TileItem(kind=pre.TileKind.STONE, variant=1, pos=pg.Vector2(7 + i, 8))
-
-            for i in range(3):
-                self.tilemap[f"{16+i};{7}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(16 + i, 7))
-                # self.tilemap[f"{10};{5+i}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(10, 5 + i))  vertical contiguous tiles
-
-            for i in range(2):
-                self.tilemap[f"{20+i};{6}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 6))
-                self.tilemap[f"{20+i};{5}"] = TileItem(kind=pre.TileKind.STONE, variant=0, pos=pg.Vector2(20 + i, 5))
-
-            self.tilemap[f"{20};{5}"] = TileItem(kind=pre.TileKind.PORTAL, variant=0, pos=pg.Vector2(20, 5))
-
     @lru_cache(maxsize=None)
     def tiles_around(self, pos: tuple[int, int]) -> list[TileItem]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
@@ -83,6 +66,10 @@ class Tilemap:
         return [pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size) for tile in self.tiles_around(pos) if tile.kind in pre.PHYSICS_TILES]
 
     # PERF: Implement flood filling feature
+
+    def extract(self, spawners: list[tuple[str, int]]) -> list[TileItem]:
+        print(f"{ __class__, spawners =}")
+        return [TileItem(pre.TileKind.SPAWNERS, 0, pg.Vector2(0)) for _ in range(4)]
 
     def autotile(self) -> None:  # 3:04:00
         for tile in self.tilemap.values():
@@ -166,6 +153,7 @@ class Tilemap:
         """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
         # variance (0==base_color) && (>0 == random colors)
         alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
+        # fill = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
         fill = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
 
         return [
@@ -173,8 +161,15 @@ class Tilemap:
                 surf := pg.Surface(size),
                 surf.set_colorkey(colorkey),
                 surf.set_alpha(alpha),
-                surf.fill(fill),
+                # surf.fill((color[0] // (1 + i), int(color[1] * i * variance) % 255, color[2])),
+                surf.fill(
+                    pre.hsl_to_rgb(
+                        h=(30 + pg.math.lerp(0.0328 * i * (1 + variance), 5, abs(math.sin(i)))),
+                        s=0.045 * (0.0318 + variance),
+                        l=max(0.02, (0.03 + min(0.01,(1 / (variance + 1)))) - (0.001618 * i)),
+                    )
+                ),
             )[0]
             # ^ after processing pipeline, select first [0] Surface in tuple
-            for _ in range(count)
+            for i in range(count)
         ]
