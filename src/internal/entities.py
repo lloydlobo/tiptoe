@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import timeit
 from enum import Enum
+from functools import cache
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -21,7 +21,6 @@ class Action(Enum):
 
 class PhysicalEntity:
     def __init__(self, game: Game, entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
-        start = timeit.timeit()
         self.game = game
         self.kind = entity_kind
         self.pos = pos.copy()
@@ -44,14 +43,19 @@ class PhysicalEntity:
         self.set_action(Action.IDLE)
 
         self.flip = False
-        end = timeit.timeit()
-        delta_start_end = end - start
-        print(f"{entity_kind.value,delta_start_end=}")
 
+    # @cache
     def rect(self) -> pg.Rect:
         """Using position as top left of the entity"""
 
         return pg.Rect(int(self.pos.x), int(self.pos.y), int(self.size.x), int(self.size.y))
+
+    # def __eq__(self, value: object, /) -> bool:
+    #     print(f"{self.kind,value=}")
+    #     return self.pos==value.pos and self.collisions==value.collisions
+    #
+    # def __hash__(self) -> int:
+    #     return hash(tuple(self.pos))
 
     def set_action(self, action: Action):
 

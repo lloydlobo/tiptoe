@@ -123,9 +123,14 @@ class Tilemap:
     def offgrid_tiles_to_json(self) -> list[TileItemJSON]:
         return [TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for tile in self.offgrid_tiles]
 
+    # @staticmethod
+    # def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]) -> dict[str, TileItem]:
+    #     # PERF: can optimize dictcomp
+    #     return {key: TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for key, tile in data.items()}
+
     @staticmethod
     def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]) -> dict[str, TileItem]:
-        return {key: TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for key, tile in data.items()}
+        return dict((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
 
     @staticmethod
     def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]) -> list[TileItem]:
@@ -152,7 +157,7 @@ class Tilemap:
         return (int(x // self.tile_size), int(y // self.tile_size))
 
     @staticmethod
-    @lru_cache(maxsize=None)
+    # @lru_cache(maxsize=None)
     def generate_surf(
         count: int,
         color: tuple[int, int, int] = pre.BLACK,
