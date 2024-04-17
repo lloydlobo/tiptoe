@@ -26,22 +26,17 @@ class Editor:
         ######
         # note: need these for reference for animation workaround
         ######
+
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
-        tiles_alpha = 255 // 2
-
         player_color = pre.YELLOW
         enemy_color = pre.CREAM
-        player_alpha = 255 // 1
-
         player_surf = pg.Surface(player_size).convert()
         player_surf.set_colorkey(pre.BLACK)
         player_surf.fill(player_color)
-
         enemy_surf = pg.Surface(enemy_size).convert()
         enemy_surf.set_colorkey(pre.BLACK)
         enemy_surf.fill(enemy_color)
-
         portal_surf = pg.Surface((pre.TILE_SIZE, pre.TILE_SIZE)).convert()
         portal_surf.set_colorkey(pre.BLACK)
         portal_surf.fill(pre.WHITE)
@@ -50,8 +45,8 @@ class Editor:
             entity=dict(),
             tiles=dict(
                 # tiles: on grid
-                grass=Tilemap.generate_surf(9, color=pre.GREEN, colorkey=None, alpha=255),
-                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
+                grass=Tilemap.generate_surf(9, color=pre.GREEN, alpha=255),
+                stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=200),
                 # tiles: off grid
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
                 large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
@@ -177,9 +172,10 @@ class Editor:
                         self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
                         if not self.last_save_time or (t := time.time(), dt := t - self.last_save_time) and dt >= 0.12:
-                            self.save_generation += 1
+                            self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
+                            self.last_save_time = time.time()
                             self.last_save_time_readable = time.asctime()
-                            self.last_save_time = self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
+                            self.save_generation += 1
                         else:
                             raise ValueError(f"Something went wrong. Saving too fast. Please debounce. {t, dt}")
                     if event.key == pg.K_LSHIFT:
