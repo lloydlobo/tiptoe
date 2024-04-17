@@ -79,8 +79,15 @@ class Animation:
     def copy(self) -> "Animation":
         return Animation(self.images, self._img_duration, self.loop)
 
+    # @lru_cache()
     def update(self) -> None:
         """Increment frames like a movie screen roll or a marque"""
+        """
+    View the cache statistics named tuple (hits, misses, maxsize, currsize)
+    with f.cache_info().  Clear the cache and statistics with f.cache_clear().
+    Access the underlying function with f.__wrapped__.
+
+        """
 
         if self.loop:
             self.frame += 1

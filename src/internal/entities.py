@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import timeit
 from enum import Enum
-from time import time
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -21,6 +21,7 @@ class Action(Enum):
 
 class PhysicalEntity:
     def __init__(self, game: Game, entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
+        start = timeit.timeit()
         self.game = game
         self.kind = entity_kind
         self.pos = pos.copy()
@@ -30,7 +31,10 @@ class PhysicalEntity:
 
         self.velocity = pg.Vector2(0, 0)
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
+
+        # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
         self._terminal_velocity_y: Final = 5
+        self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))  # 0.1333333333.. (makes jumping possible to 3x player height)
 
         self.anim_offset = pg.Vector2(-1, -1) or pg.Vector2(-3, -3)  # should be an int
         # ^ workaround for padding used in animated sprites states like run
@@ -40,12 +44,17 @@ class PhysicalEntity:
         self.set_action(Action.IDLE)
 
         self.flip = False
+        end = timeit.timeit()
+        delta_start_end = end - start
+        print(f"{entity_kind.value,delta_start_end=}")
 
     def rect(self) -> pg.Rect:
         """Using position as top left of the entity"""
+
         return pg.Rect(int(self.pos.x), int(self.pos.y), int(self.size.x), int(self.size.y))
 
     def set_action(self, action: Action):
+
         if action != self.action:  # quick check to see if a new action is set. grab animation if changed
             # ^ see 2:14:00... Do not fully understand this | if called every single frame, this avoids sticking to 0th frame
             # | frame created only when animation has changed. This avoids animation being stuck at 0th frame
@@ -56,52 +65,46 @@ class PhysicalEntity:
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
 
-        frame_movement = movement + self.velocity
+        frame_movement: pg.Vector2 = movement + self.velocity
 
         # physics: movement via collision detection 2 part axis method
         # handle one axis at a time for predictable resolution
         # also pygame-ce allows calculating floats with Rects
 
-        if not False:
-            self.pos.x += frame_movement.x
-            entity_rect = self.rect()
-            for rect in tilemap.physics_rects_around((int(self.pos.x), int(self.pos.y))):
-                if entity_rect.colliderect(rect):
-                    if frame_movement.x > 0:  # traveling right
-                        entity_rect.right = rect.left
-                        self.collisions.right = True
-                    if frame_movement.x < 0:  # traveling left
-                        entity_rect.left = rect.right
-                        self.collisions.left = True
-                    self.pos.x = entity_rect.x  # update x pos as int
-            self.pos.y += frame_movement.y
-            entity_rect = self.rect()  # !!!Important to re-calculate this since pos.x changes rect.
-            for rect in tilemap.physics_rects_around((int(self.pos.x), int(self.pos.y))):
-                if entity_rect.colliderect(rect):
-                    if frame_movement.y > 0:  # traveling down
-                        entity_rect.bottom = rect.top
-                        self.collisions.down = True
-                    if frame_movement.y < 0:  # traveling up
-                        entity_rect.top = rect.bottom
-                        self.collisions.up = True
-                    self.pos.y = entity_rect.y  # update y pos as int
+        self.pos.x += frame_movement.x
+        entity_rect = self.rect()
+        for rect in tilemap.physics_rects_around((int(self.pos.x), int(self.pos.y))):
+            if entity_rect.colliderect(rect):
+                if frame_movement.x > 0:  # traveling right
+                    entity_rect.right = rect.left
+                    self.collisions.right = True
+                if frame_movement.x < 0:  # traveling left
+                    entity_rect.left = rect.right
+                    self.collisions.left = True
+                self.pos.x = entity_rect.x  # update x pos as int
+
+        self.pos.y += frame_movement.y
+        entity_rect = self.rect()  # !!!Important to re-calculate this since pos.x changes rect.
+        for rect in tilemap.physics_rects_around((int(self.pos.x), int(self.pos.y))):
+            if entity_rect.colliderect(rect):
+                if frame_movement.y > 0:  # traveling down
+                    entity_rect.bottom = rect.top
+                    self.collisions.down = True
+                if frame_movement.y < 0:  # traveling up
+                    entity_rect.top = rect.bottom
+                    self.collisions.up = True
+                self.pos.y = entity_rect.y  # update y pos as int
 
         if movement.x < 0:
             self.flip = True
         if movement.x > 0:  # ideally sprites are right facing images by default
             self.flip = False
 
-        # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
-        terminal_limiter_air_friction = 0.1 or (pre.TILE_SIZE / pre.FPS_CAP)
-        self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + terminal_limiter_air_friction)
+        self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + self._terminal_limiter_air_friction)
 
-        if (_experimental_free_fall := True) and not _experimental_free_fall:
-            if not self.collisions.down and self.velocity.y >= self._terminal_velocity_y:
-                self.velocity.y *= 0.1  # smooth freefall
-        else:
-            if self.collisions.down or self.collisions.up:
-                self.velocity.y = 0  # if you run into the ground it should stop you. if you go up or jump head first to the roof it should stop you
-                # ^ PERF: can add bounce if hit head on roof
+        # stop: if run into ground. stop if travel up or jump head first to ceiling
+        if self.collisions.down or self.collisions.up:
+            self.velocity.y = 0
 
         self.animation.update()
 

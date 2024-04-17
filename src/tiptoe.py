@@ -297,6 +297,8 @@ class Game:
             # DEBUG: HUD
 
             if pre.DEBUG_GAME_HUD:
+                # print(f"{self.player.animation.update.cache_info()}")
+
                 antialias = True
                 key_w = 8  # VELOCITY key
                 val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
