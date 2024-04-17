@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import math
 import time
+from copy import deepcopy
 from functools import lru_cache
 from random import randint
-from typing import TYPE_CHECKING, TypedDict, Union
+from typing import TYPE_CHECKING, Final, TypedDict, Union
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game  # from editor import Editor
@@ -53,6 +54,14 @@ class Tilemap:
         self.tilemap: dict[str, TileItem] = {}
         self.offgrid_tiles: list[TileItem] = []
 
+        self._enable_safety_guard_if_bug_fixed_in_extract_spawners: Final = False
+        # ^ HACK: temporary workaround to learn extract func with spawners
+        # |
+        # | - workaround to stop panic when spawners key asset not found in assets.tiles.
+        # | - to fix editors "spawners" asset that is not used in game.assets.tiles
+        # | - is to use self.extract to remove spawners tiles from self.offgrid_tiles, before this render func is triggered
+        # ==
+
     @lru_cache(maxsize=None)
     def tiles_around(self, pos: tuple[int, int]) -> list[TileItem]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
@@ -65,11 +74,28 @@ class Tilemap:
 
         return [pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size) for tile in self.tiles_around(pos) if tile.kind in pre.PHYSICS_TILES]
 
-    # PERF: Implement flood filling feature
+    # perf: Implement flood filling feature
 
-    def extract(self, spawners: list[tuple[str, int]]) -> list[TileItem]:
-        print(f"{ __class__, spawners =}")
-        return [TileItem(pre.TileKind.SPAWNERS, 0, pg.Vector2(0)) for _ in range(4)]
+    @lru_cache(maxsize=None)
+    def extract(self, id_pairs: tuple[tuple[str, int], ...], keep_tile: bool = False) -> list[TileItem]:
+        matches: list[TileItem] = []
+
+        for tile in self.offgrid_tiles.copy():
+            if (tile.kind.value, tile.variant) in id_pairs:
+                matches.append(deepcopy(tile))
+                if not keep_tile:
+                    self.offgrid_tiles.remove(tile)
+
+        for loc, tile in self.tilemap.items():
+            if (tile.kind.value, tile.variant) in id_pairs:
+                matches.append(deepcopy(tile))
+                matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
+                matches[-1].pos *= self.tile_size
+
+                if not keep_tile:
+                    del self.tilemap[loc]
+
+        return matches
 
     def autotile(self) -> None:  # 3:04:00
         for tile in self.tilemap.values():
@@ -90,26 +116,6 @@ class Tilemap:
 
             if (sorted_ngbrs := tuple(sorted(neighbors))) and sorted_ngbrs in pre.AUTOTILE_MAP:
                 tile.variant = pre.AUTOTILE_MAP[sorted_ngbrs]
-
-    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
-        blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
-        for tile in self.offgrid_tiles:
-            blit(self.game.assets.tiles[tile.kind.value][tile.variant], tile.pos - offset)
-
-        blit = surf.blit
-        xlo, ylo = self.calc_tile_loc(offset[0], offset[1])
-        xhi, yhi = self.calc_tile_loc(offset[0] + surf.get_width(), offset[1] + surf.get_height())
-        for x in range(xlo, xhi + 1):
-            for y in range(ylo, yhi + 1):  # only draw tiles whose position is found on the screen camera offset range
-                if (loc := calc_pos_to_loc(x, y, None)) and loc in self.tilemap:
-                    tile = self.tilemap[loc]
-                    blit(self.game.assets.tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
-
-        # simple algorithm
-        # blit = surf.blit
-        # for loc in self.tilemap:
-        #     tile = self.tilemap[loc]
-        #     blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
 
     def tilemap_to_json(self) -> dict[str, TileItemJSON]:
         return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
@@ -148,13 +154,19 @@ class Tilemap:
     @staticmethod
     @lru_cache(maxsize=None)
     def generate_surf(
-        count: int, color: tuple[int, int, int] = pre.BLACK, size: tuple[int, int] = (pre.TILE_SIZE, pre.TILE_SIZE), colorkey: pre.ColorValue = pre.BLACK, alpha: int = 255, variance: int = 0
+        count: int,
+        color: tuple[int, int, int] = pre.BLACK,
+        size: tuple[int, int] = (pre.TILE_SIZE, pre.TILE_SIZE),
+        colorkey: pre.ColorValue = pre.BLACK,
+        alpha: int = 255,
+        variance: int = 0,
     ) -> list[pg.Surface]:
         """Tip: use lesser alpha to blend with the background fill for a cohesive theme"""
+        # high variance leads to easy detection. lower in idle state is ideal for being camoflauged in surroundings
         # variance (0==base_color) && (>0 == random colors)
         alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
         # fill = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
-        fill = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
+        _ = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
 
         return [
             (
@@ -166,10 +178,44 @@ class Tilemap:
                     pre.hsl_to_rgb(
                         h=(30 + pg.math.lerp(0.0328 * i * (1 + variance), 5, abs(math.sin(i)))),
                         s=0.045 * (0.0318 + variance),
-                        l=max(0.02, (0.03 + min(0.01,(1 / (variance + 1)))) - (0.001618 * i)),
+                        l=max(0.02, (0.03 + min(0.01, (1 / (variance + 1)))) - (0.001618 * i)),
                     )
                 ),
             )[0]
             # ^ after processing pipeline, select first [0] Surface in tuple
             for i in range(count)
         ]
+
+    def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
+        blit = surf.blit  # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
+        for tile in self.offgrid_tiles:
+
+            if self._enable_safety_guard_if_bug_fixed_in_extract_spawners:
+                if tile.kind.value in {pre.TileKind.SPAWNERS.value, pre.TileKind.PORTAL.value}:
+                    self.offgrid_tiles.remove(tile)
+                    continue
+
+            blit(self.game.assets.tiles[tile.kind.value][tile.variant], tile.pos - offset)
+
+        xlo, ylo = self.calc_tile_loc(offset[0], offset[1])
+        xhi, yhi = self.calc_tile_loc(offset[0] + surf.get_width(), offset[1] + surf.get_height())
+
+        blit = surf.blit
+        for x in range(xlo, xhi + 1):
+            for y in range(ylo, yhi + 1):  # only draw tiles whose position is found on the screen camera offset range
+                if (loc := calc_pos_to_loc(x, y, None)) in self.tilemap:
+                    tile = self.tilemap[loc]
+
+                    if self._enable_safety_guard_if_bug_fixed_in_extract_spawners:
+                        if tile.kind.value in {pre.TileKind.SPAWNERS.value, pre.TileKind.PORTAL.value}:
+                            del self.tilemap[calc_pos_to_loc(tile.pos.x, tile.pos.y, None)]
+                            continue
+
+                    blit(self.game.assets.tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
+
+        # simple algorithm
+        #
+        # blit = surf.blit
+        # for loc in self.tilemap:
+        #     tile = self.tilemap[loc]
+        #     blit(self.game.assets.surfaces[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)

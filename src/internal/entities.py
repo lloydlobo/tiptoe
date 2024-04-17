@@ -158,7 +158,7 @@ class Player(PhysicalEntity):
             elif movement.x != 0:
                 self.set_action(Action.RUN)
             else:
-                self.set_action(Action.IDLE)
+                self.set_action(Action.IDLE)  # note: player IDLE state blends into the nearby color and can't be seen by enemies
 
         return True
 

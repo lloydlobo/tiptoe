@@ -23,36 +23,43 @@ class Editor:
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
+        ######
         # note: need these for reference for animation workaround
+        ######
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
+        tiles_alpha = 255 // 2
+
         player_color = pre.YELLOW
+        enemy_color = pre.CREAM
         player_alpha = 255 // 1
-        player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
-        enemy_surf = Tilemap.generate_surf(1, pre.CREAM, size=enemy_size, alpha=(255 // 2))[0]
+
+        player_surf = pg.Surface(player_size).convert()
+        player_surf.set_colorkey(pre.BLACK)
+        player_surf.fill(player_color)
+
+        enemy_surf = pg.Surface(enemy_size).convert()
+        enemy_surf.set_colorkey(pre.BLACK)
+        enemy_surf.fill(enemy_color)
+
+        portal_surf = pg.Surface((pre.TILE_SIZE, pre.TILE_SIZE)).convert()
+        portal_surf.set_colorkey(pre.BLACK)
+        portal_surf.fill(pre.WHITE)
 
         self.assets = pre.Assets(
-            surface=dict(
-                # entity
-                background=pg.Surface(pre.DIMENSIONS),  # TODO: use actual background image
-                enemy=enemy_surf.copy(),
-                player=player_surf.copy(),
-                portal=Tilemap.generate_surf(1, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255)[0],
-                # tbd
-                gun=pg.Surface((14, 7)),
-                projectile=pg.Surface((5, 2)),
-            ),
+            entity=dict(),
             tiles=dict(
                 # tiles: on grid
-                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
                 grass=Tilemap.generate_surf(9, color=pre.GREEN, colorkey=None, alpha=255),
-                portal=Tilemap.generate_surf(3, size=(player_size[0] + 3, pre.TILE_SIZE), color=pre.WHITE, colorkey=None, alpha=255),
+                stone=Tilemap.generate_surf(9, color=pre.BLACK, colorkey=None, alpha=200),
                 # tiles: off grid
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
                 large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                portal=[portal_surf.copy()],
+                spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],  # HACK: only place this as an offgrid tile
             ),
-            animations_entity=pre.Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
-            animations_misc=pre.Assets.AnimationMiscAssets(particle=dict()),
+            animations_entity=None or pre.Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
+            animations_misc=None or pre.Assets.AnimationMiscAssets(particle=dict()),
         )
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -212,6 +219,7 @@ class Editor:
                         f"SAVETIMELOC.{str(self.last_save_time_readable)}",
                         f"SCROLL.{str(self.scroll)}",
                         f"TILEGRP.{str(self.tile_group).upper()}",
+                        f"TILEGRPNAME.{str(self.tile_list[self.tile_group]).upper()}",
                         f"TILEPOS.{str(tile_pos).upper()}",
                         f"TILEVAR.{str(self.tile_variant).upper()}",
                         f"TILEVARMODE.{str(self.shift).upper()}",

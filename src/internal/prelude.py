@@ -1,4 +1,7 @@
+import itertools as it
+import math
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import lru_cache
@@ -22,12 +25,19 @@ class EntityKind(Enum):
 
 
 class TileKind(Enum):
-    GRASS = "grass"
-    STONE = "stone"
-    PORTAL = "portal"
     DECOR = "decor"
+    GRASS = "grass"
     LARGE_DECOR = "large_decor"
+    PORTAL = "portal"
     SPAWNERS = "spawners"
+    STONE = "stone"
+
+
+class SpawnerKind(Enum):
+    # auto(): Instances are replaced with an appropriate value in Enum class suites.
+    PLAYER = 0
+    ENEMY = 1
+    PORTAL = 2
 
 
 @dataclass
@@ -56,8 +66,10 @@ class Collisions:
 
 class Animation:
     def __init__(self, images: list[pg.Surface], img_dur: int = 5, loop: bool = True) -> None:
-        self.images = images  # this is not copied
+        self.images: Final[list[pg.Surface]] = images  # this is not copied
         self._img_duration: Final = img_dur
+
+        self._img_duration_inverse: Final = 1 / self._img_duration  # perf:minor
         self._total_frames: Final = self._img_duration * len(self.images)
 
         self.done = True
@@ -69,6 +81,7 @@ class Animation:
 
     def update(self) -> None:
         """Increment frames like a movie screen roll or a marque"""
+
         if self.loop:
             self.frame += 1
             self.frame %= self._total_frames
@@ -81,7 +94,8 @@ class Animation:
     def img(self) -> pg.Surface:
         """Returns current image to render in animation cycle. Similar to
         render phase in the '__init__ -> update -> render' cycle"""
-        return self.images[int(self.frame / self._img_duration)]
+
+        return self.images[int(self.frame * self._img_duration_inverse)]
 
 
 ##########
@@ -108,7 +122,7 @@ class Assets:
                 case _:
                     raise ValueError(f"expected valid AnimationAssets key. got {key}")
 
-    surface: dict[str, pg.Surface]
+    entity: dict[str, pg.Surface]
     tiles: dict[str, list[pg.Surface]]
     animations_entity: AnimationEntityAssets
     animations_misc: AnimationMiscAssets
@@ -116,9 +130,11 @@ class Assets:
 
 def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image. Note: Ported from DaFluffyPotato's pygpen lib"""
+
     img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
     if colorkey is not None:
         img.set_colorkey(colorkey)
+
     return img
 
 
@@ -127,6 +143,7 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
     listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
         @example:   load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
     """
+
     return [load_img(os.path.join(path, img_name), with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
 
 
@@ -155,14 +172,15 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
     >>> assert hex_to_rgb("#ffd700") == (255, 215, 0)
     >>> assert hex_to_rgb("#FFD700") == (255, 215, 0)
     """
+
     base: Final = 16
 
-    if (n := len(s)) and n == 7:
+    if (n := len(s)) == 7:
         if s[0] == "#":
             s = s[1:]
             assert len(s) == (n - 1)
         else:
-            raise ValueError(f"expected valid hex format string. got {s}")
+            raise ValueError(f"want valid hex format string. got {s}")
 
     return (int(s[0:2], base), int(s[2:4], base), int(s[4:6], base))
 
@@ -189,43 +207,51 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
     >>> assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
     >>> assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
     """
-    if h == 360:
-        h = 0
-    assert 0 <= h < 360
-    assert 0 <= s <= 1
-    assert 0 <= l <= 1
+
+    if DEBUG_GAME_ASSERTS:
+        assert 0 <= h <= 360
+        assert 0 <= s <= 1
+        assert 0 <= l <= 1
 
     # calculate C, X, and m
-    c = (1 - abs(2 * l - 1)) * s
-    x = c * (1 - abs((h / 60) % 2 - 1))
-    m = l - c / 2
+    c: Final[float] = (1 - abs((2 * l) - 1)) * s
+    x: Final[float] = c * (1 - abs(((h / 60) % 2) - 1))
+    m: Final[float] = l - (c / 2)
 
-    rp: float
-    gp: float
-    bp: float
+    r_prime: float
+    g_prime: float
+    b_prime: float
 
-    # determine which sector of the hue circle the color is in
-    match (h // 60) % 6:  # integer division and modulo for efficient sector mapping
+    # sector mapping: determine which sector of the hue circle the color is in
+    match (h // 60) % 6:
         case 0:
-            rp, gp, bp = c, x, 0.0
+            r_prime, g_prime, b_prime = c, x, 0.0
         case 1:
-            rp, gp, bp = x, c, 0.0
+            r_prime, g_prime, b_prime = x, c, 0.0
         case 2:
-            rp, gp, bp = 0.0, c, x
+            r_prime, g_prime, b_prime = 0.0, c, x
         case 3:
-            rp, gp, bp = 0.0, x, c
+            r_prime, g_prime, b_prime = 0.0, x, c
         case 4:
-            rp, gp, bp = x, 0.0, c
-        case _:  # default case
-            rp, gp, bp = c, 0.0, x
+            r_prime, g_prime, b_prime = x, 0.0, c
+        case _:  # default
+            r_prime, g_prime, b_prime = c, 0.0, x
 
     # convert to 0-255 scale
-    # note: round() instead of int() helps in precision. e.g. gray 127 -> 128
-    return (round((rp + m) * 255), round((gp + m) * 255), round((bp + m) * 255))
+    #   note: round() instead of int() helps in precision. e.g. gray 127 -> 128
+    return (round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
 
 
 #############
 # CONSTANTS #
+
+# fmt: off
+# flags: debugging, etc
+DEBUG_EDITOR_ASSERTS= False
+DEBUG_GAME_ASSERTS  = False
+DEBUG_EDITOR_HUD    = True
+DEBUG_GAME_HUD      = True
+# fmt: on
 
 
 # fmt: off
@@ -240,62 +266,62 @@ TILE_SIZE           = 16
 # fmt: off
 SCREEN_WIDTH        = 640
 SCREEN_HEIGHT       = 480
-DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)
-DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
-# fmt: on
 
-
-# flags: debugging, etc
-
-# fmt: off
-DEBUG_EDITOR_ASSERTS: Final     = False
-DEBUG_EDITOR_HUD: Final         = True
-DEBUG_GAME_HUD: Final           = True
+DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
+DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
 # fmt: on
 
 
 # fmt: off
 CAPTION             = "tiptoe"
 CAPTION_EDITOR      = "tiptoe level editor"
-IMAGES_PATH         = os.path.join("src", "data", "images")
 ENTITY_PATH         = os.path.join("src", "data", "images", "entities")
 FONT_PATH           = None
-MAP_PATH            = os.path.join("src", "data", "maps")
+IMAGES_PATH         = os.path.join("src", "data", "images")
 INPUT_PATH          = None  # InputState
+MAP_PATH            = os.path.join("src", "data", "maps")
 SOUNDS_PATH         = None
 SPRITESHEET_PATH    = None
 # fmt: on
 
 
 # colors:
-BEIGE = (15, 20, 25)
-BG_DARK = hsl_to_rgb(234, 0.1618, 0.0618)
-BG_DARKER = hsl_to_rgb(234, 0.1618, 0.0328)
-BLACK = (0, 0, 0)
-CHARCOAL = (10, 10, 10)
-CREAM = hsl_to_rgb(0, 0.1618, 0.618)
-GRAY = hsl_to_rgb(0, 0, 0.5)
-GREEN = hsl_to_rgb(120, 1, 0.25)
-MIDNIGHT = (2, 2, 3)
-RED = hsl_to_rgb(0, 0.618, 0.328)
-SILVER = hsl_to_rgb(0, 0, 0.75)
-TRANSPARENT = (0, 0, 0, 0)
-WHITE = (255, 255, 255)
-YELLOW = hsl_to_rgb(60, 0.6, 0.3)
-
 # fmt: off
-NEIGHBOR_OFFSETS        = {
-    (-1,-1), ( 0,-1), ( 1,-1),
-    (-1, 0), ( 0, 0), ( 1, 0),
-    (-1, 1), ( 0, 1), ( 1, 1),
-}
-LEN_NEIGHBOR_OFFSETS    = 9
+BEIGE               = (15, 20, 25)
+BG_DARK             = hsl_to_rgb(234, 0.1618, 0.0618)
+BG_DARKER           = hsl_to_rgb(234, 0.1618, 0.0328)
+BLACK               = (0, 0, 0)
+CHARCOAL            = (10, 10, 10)
+CREAM               = hsl_to_rgb(0, 0.1618, 0.618)
+GRAY                = hsl_to_rgb(0, 0, 0.5)
+GREEN               = hsl_to_rgb(120, 1, 0.25)
+MIDNIGHT            = (2, 2, 3)
+# PURPLE              = hsl_to_rgb(300, 1, 0.25)
+TEAL              = hsl_to_rgb(180, 0.4, 0.25)
+RED                 = hsl_to_rgb(0, 0.618, 0.328)
+SILVER              = hsl_to_rgb(0, 0, 0.75)
+TRANSPARENT         = (0, 0, 0, 0)
+WHITE               = (255, 255, 255)
+# YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
+YELLOW              = hsl_to_rgb(60, 0.4, 0.3)
 # fmt: on
 
 
 # fmt: off
-PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
+NEIGHBOR_OFFSETS    = {
+    (-1,-1), ( 0,-1), ( 1,-1),
+    (-1, 0), ( 0, 0), ( 1, 0),
+    (-1, 1), ( 0, 1), ( 1, 1),
+}
+N_NEIGHBOR_OFFSETS  = 9
+# fmt: on
+
+
+# fmt: off
 AUTOTILE_TYPES      = { TileKind.STONE, TileKind.GRASS, }
+PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
+
+SPAWNERS_KINDS      = { EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL }  # not used for now
 # fmt: on
 
 
@@ -345,3 +371,72 @@ AUTOTILE_MAP = {
     tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
 }
 # fmt: on
+
+
+#############
+# ITERUTILS #
+
+
+class Iterutils:
+    # NOTE: this is just for learning
+
+    @staticmethod
+    def idim_collection_defaultdict():
+        lst = {"a": (0, 0), "b": (1, 1)}
+        foo: defaultdict[str, list[tuple[int, int]]] = defaultdict(list)
+        for key, (x, y) in lst.items():
+            foo[key].append((x, y))
+        print(foo)
+
+    @staticmethod
+    def idiom_it_zip_long():
+        for x in it.zip_longest([1, 2, 3], [1, 2, 3, 4, 5, 6]):
+            print(x, end=" ")
+        print()
+
+    @staticmethod
+    def idiom_it_startmap():
+        # @fbaptiste: 05_itertools.ipynb
+        lst = [(3, x) for x in range(6)]
+        lst_starmap = it.starmap(math.pow, lst)
+        for i in lst_starmap:
+            print(i, end=" ")
+        # ^ >>> 1.0 3.0 9.0 27.0 81.0 243.0
+        print()
+
+    @staticmethod
+    def idiom_it_chain():
+        # @fbaptiste: 05_itertools.ipynb
+        lst1 = [1, 2, 3, 4, 5]
+        lst2 = "abcd"
+        lst3 = (100, 200, 300)
+        lst_chain = it.chain(lst1, lst2, lst3)
+        for el in it.chain.from_iterable(zip(lst_chain)):
+            print(el, end=" ")
+        # ^ >>> 1 2 3 4 5 a b c d 100 200 300
+        print()
+
+    @staticmethod
+    def idiom_it_islice():
+        # @fbaptiste: 05_itertools.ipynb
+        # slice iterator: it even support start stop and step, except negative slicing
+        for el in it.islice((el * 2 for el in range(10)), 3):
+            print(el, end=" ")
+        # ^ >>> 0 2 4
+        print()
+        for el in it.islice((el * 2 for el in range(10)), 1, None, 2):
+            print(el, end=" ")
+        # ^ >>> 2 6 10 14 18
+        print()
+        for el in it.islice((el * 2 for el in range(10)), 1, 5, 2):
+            print(el, end=" ")
+        # ^ >>> 2 6
+        print()
+        # slice sets: no guarantees of order in sets
+        s = {"a", "b", 10, 3.2}
+        for el in it.islice(s, 0, 2):
+            print(el, end=" ")
+        # ^ >>> b 10
+        print()
+        # t=it.tee()
+        # takew=it.takewhile()
