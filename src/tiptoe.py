@@ -29,7 +29,7 @@ class Game:
         tiles_alpha = 180
         player_size = (8, pre.TILE_SIZE - 1)
         player_run_size = (player_size[0] + 1, player_size[1] - 1)
-        player_jump_size = (player_size[0], player_size[1] + 1)
+        player_jump_size = (player_size[0] - 1, player_size[1] + 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
         portal_size = (pre.TILE_SIZE, pre.TILE_SIZE)
         player_color = pre.TEAL
@@ -47,7 +47,7 @@ class Game:
         player_jump_surf = pg.Surface(player_jump_size).convert()
         player_jump_surf.set_colorkey(pre.BLACK)
         player_jump_surf.fill(player_jump_color)
-        player_jump_surf.set_alpha(player_alpha - 40)
+        player_jump_surf.set_alpha(player_alpha - 20)
 
         enemy_surf = pg.Surface(enemy_size).convert()
         enemy_surf.set_colorkey(pre.BLACK)
@@ -55,6 +55,35 @@ class Game:
         portal_surf = pg.Surface(portal_size).convert()
         portal_surf.set_colorkey(pre.BLACK)
         portal_surf.fill(portal_color)
+
+        jump_down_1 = pg.Surface(player_jump_size).convert()
+        jump_down_1.set_colorkey(pre.BLACK)
+        jump_down_1.fill(player_jump_color)
+        jump_down_1.set_alpha(player_alpha - 60)
+        jump_down_2 = pg.Surface(player_jump_size).convert()
+        jump_down_2.set_colorkey(pre.BLACK)
+        jump_down_2.fill(player_jump_color)
+        jump_down_2.set_alpha(player_alpha - 70)
+        jump_down_3 = pg.Surface(player_jump_size).convert()
+        jump_down_3.set_colorkey(pre.BLACK)
+        jump_down_3.fill(player_jump_color)
+        jump_down_3.set_alpha(player_alpha - 80)
+        jump_down_4 = pg.Surface(player_jump_size).convert()
+        jump_down_4.set_colorkey(pre.BLACK)
+        jump_down_4.fill(player_jump_color)
+        jump_down_4.set_alpha(50)
+        jump_down_5 = pg.Surface(player_jump_size).convert()
+        jump_down_5.set_colorkey(pre.BLACK)
+        jump_down_5.fill(player_jump_color)
+        jump_down_5.set_alpha(40)
+        jump_frames = [
+            player_jump_surf,
+            jump_down_1,
+            jump_down_2,
+            jump_down_3,
+            jump_down_4,
+            jump_down_5,
+        ]
 
         self.assets = pre.Assets(
             entity=dict(
@@ -79,7 +108,8 @@ class Game:
                     run=pre.Animation(
                         [player_run_surf.copy(), player_run_surf.copy()] or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size, alpha=player_alpha + 20, variance=2), img_dur=4
                     ),
-                    jump=pre.Animation([player_jump_surf] or Tilemap.generate_surf(1, color=player_color, size=player_jump_size, alpha=player_alpha, variance=20)),
+                    # or Tilemap.generate_surf(1, color=player_color, size=player_jump_size, alpha=player_alpha, variance=20),
+                    jump=pre.Animation(jump_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
                     idle=pre.Animation([enemy_surf.copy()] or Tilemap.generate_surf(count=8, color=enemy_surf.get_colorkey(), size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),

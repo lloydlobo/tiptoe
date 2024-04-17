@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from time import time
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -51,7 +52,6 @@ class PhysicalEntity:
             # ===
             self.action = action
             self.animation = self.game.assets.animations_entity[self.kind.value][self.action.value].copy()  # or self._animation_assets[self.action.value].copy()
-            # print(self.animation)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
@@ -102,6 +102,8 @@ class PhysicalEntity:
             if self.collisions.down or self.collisions.up:
                 self.velocity.y = 0  # if you run into the ground it should stop you. if you go up or jump head first to the roof it should stop you
                 # ^ PERF: can add bounce if hit head on roof
+
+        self.animation.update()
 
         return True
 
