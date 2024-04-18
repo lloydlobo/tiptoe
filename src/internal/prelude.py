@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Final, Sequence, Tuple, Union
 
 import pygame as pg
@@ -22,6 +22,7 @@ ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequenc
 class EntityKind(Enum):
     ENEMY = "enemy"
     PLAYER = "player"
+    PORTAL = "portal"
 
 
 class TileKind(Enum):
@@ -120,14 +121,17 @@ class Assets:
         player: dict[str, Animation]
         enemy: dict[str, Animation]
 
+        @property
+        def elems(self):
+            return {EntityKind.PLAYER.value: self.player, EntityKind.ENEMY.value: self.enemy}
+
+        # skipping error handling for performance
         def __getitem__(self, key: str) -> dict[str, Animation]:
-            match key:
-                case EntityKind.PLAYER.value:
-                    return self.player
-                case EntityKind.ENEMY.value:
-                    return self.enemy
-                case _:
-                    raise ValueError(f"expected valid AnimationAssets key. got {key}")
+            # match key:
+            #     case EntityKind.PLAYER.value: return self.player
+            #     case EntityKind.ENEMY.value: return self.enemy
+            #     case _: raise ValueError(f"expected valid AnimationAssets key. got {key}")
+            return self.elems[key]
 
     entity: dict[str, pg.Surface]
     tiles: dict[str, list[pg.Surface]]
@@ -257,8 +261,8 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # flags: debugging, etc
 DEBUG_EDITOR_ASSERTS= False
 DEBUG_EDITOR_HUD    = True
-DEBUG_GAME_ASSERTS  = False
-DEBUG_GAME_HUD      = False
+DEBUG_GAME_ASSERTS  = True
+DEBUG_GAME_HUD      = True
 DEBUG_GAME_PROFILER = True
 # fmt: on
 

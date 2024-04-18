@@ -1,13 +1,14 @@
 import cProfile
 import os
 import sys
+from time import time
 from typing import Final
 
 import pygame as pg
 
 import internal.prelude as pre
-from internal.entities import Enemy, Player
-from internal.tilemap import Tilemap
+from internal.entities import Enemy, PhysicalEntity, Player
+from internal.tilemap import TileItem, Tilemap
 
 
 class Game:
@@ -128,9 +129,10 @@ class Game:
         self._transition_hi: Final = 30
 
         # load_level: declares and initializes level specific members
-        self.level = 0
+        self.level = 1
         self.load_level(self.level)
         self._level_map_count = len(os.listdir(pre.MAP_PATH))
+        print(f"{self._level_map_count=}")
 
         self.screenshake = 0
 
@@ -165,43 +167,39 @@ class Game:
 
         # hack: to avoid resetting the level when `not len(self.enemies)` triggers transition to change level.
         # have to implement enemy spawning and all that jazz
-        self.enemies: list[Enemy] = []
-        self.enemies.append(Enemy(self, pg.Vector2(50, 50), pg.Vector2(8, 16)))  # FIXME: TEMPORARY HACK
 
-        self.portals = []  # unimplemented
-
+        self.enemies: list[Enemy] = []  # self.enemies.append(Enemy(self, pg.Vector2(50, 50), pg.Vector2(8, 16)))  # FIXME: TEMPORARY HACK
+        self.portals: list[TileItem] = []  # unimplemented
         self.spawner_id_pairs = (
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.PLAYER.value.__int__()),
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.ENEMY.value.__int__()),
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.PORTAL.value.__int__()),
         )
-
-        ########
-        # TODO:# (A) Implement this to avoid infinite spawns when nowhere to fall aka free fall
-        ########
-
-        for spawner in self.tilemap.extract(self.spawner_id_pairs, keep_tile=False):  # spawn player[1] and enemy[1] and portal[2]
+        for spawner in self.tilemap.extract(self.spawner_id_pairs, keep_tile=False):
             match spawner.variant:
                 case pre.SpawnerKind.PLAYER.value:  # player
                     self.player.pos = spawner.pos.copy()
-                    self.player.air_time = 0  # note: reset time to avoid multiple spawning after falling down
+                    # Implement this to avoid infinite spawns when nowhere to fall aka free fall
+                    # note: reset time to avoid multiple spawning after falling down
+                    self.player.air_time = 0
                 case pre.SpawnerKind.ENEMY.value:  # enemy
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(8, 16)))
                 case pre.SpawnerKind.PORTAL.value:  # enemy
-                    self.portals.append((pg.Surface((8, 16)), spawner.pos))
+                    portal = TileItem(pre.TileKind.PORTAL, variant=spawner.variant, pos=spawner.pos.copy())
+                    self.portals.append(portal)
                 case _:
                     raise ValueError(f'expect a valid spawners variant. got {spawner.variant, spawner}')
+        if pre.DEBUG_GAME_ASSERTS:
+            assert (val := len(self.enemies)) and val > 0, f"want atleast 1 spawned enemy. got {val}"
+            assert (val := len(self.portals)) and 0 < val < 2, f"want only 1 spawned portal tile. got {val}"
 
-        # 1/16 on y axis make camera less choppy and also doesn't hide player
-        # falling off the screen at free fall. 1/30 for x axis, gives fast
-        # horizontal slinky camera motion! Also 16 is a perfect square.
-        # note: camera origin is top-left of screen
+        # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
+        # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
         self._scroll_ease = pg.Vector2(1 / 30, 1 / 16)
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
-
         self.transition = self._transition_lo  # -30
 
     def run(self) -> None:
@@ -217,6 +215,14 @@ class Game:
             self.screenshake = max(0, self.screenshake - 1)
 
             # transitions: game level
+            if len(self.portals) == 1 and (p := self.portals[0]):
+                if self.player.rect().collidepoint(p.pos):
+                    level_clear_time = time().__round__()
+                    print(f"==INFO== {level_clear_time} level {self.level} clear")
+                    self.transition += 1
+                    if self.transition > self._transition_hi:
+                        self.level = min(self.level + 1, self._level_map_count - 1)
+                        self.load_level(self.level)
             if not len(self.enemies):
                 self.transition += 1
                 if self.transition > self._transition_hi:
@@ -244,11 +250,14 @@ class Game:
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
-            # portal: render
-            if (_enabled_tmp := 0) and _enabled_tmp:
-                self.portal = self.assets.entity["portal"]
-                self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
-                self.display.blit(self.portal, self.portal_pos - render_scroll)
+            # portal: update and render
+            if len(self.portals) == 1 and (portal := self.portals[0]):
+                self.display.blit(source=self.assets.tiles[portal.kind.value][0], dest=portal.pos - render_scroll)
+
+            # if (_enabled_tmp := 0) and _enabled_tmp:
+            #     self.portal = self.assets.entity["portal"]
+            #     self.portal_pos = pg.Vector2(int(21 * self.tilemap.tile_size), int(4 * self.tilemap.tile_size))
+            #     self.display.blit(self.portal, self.portal_pos - render_scroll)
 
             # enemy: update and render todo:
             # ...
