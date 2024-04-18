@@ -63,6 +63,7 @@ class Game:
         self.font = pg.font.SysFont(name=("monospace"), size=self.font_size, bold=True)  # or name=pg.font.get_default_font()
 
         self.clock = pg.time.Clock()
+        self.clock_dt = 0
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # figure how to make it optional. have to assign regardless of None
 
@@ -179,32 +180,6 @@ class Game:
 
         self.screenshake = 0
 
-    def render_debug_hud(self, render_scroll: tuple[int, int]):
-        antialias = True
-        key_w = 8  # VELOCITY key
-        val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
-        key_fillchar = ":"
-        val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
-        movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
-        player_action = val.value.upper() if (val := self.player.action) and val else None
-        hud_elements = [
-            (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
-            for text in [
-                f"ACTION.{player_action }",
-                f"FLIP.{str(self.player.flip).upper()}",
-                f"FPS.{self.clock.get_fps():2.0f}",
-                f"LEVEL.{str(self.level)}",
-                f"MVMNT.{movement_bitmap_str}",
-                f"POS.{self.player.pos.__round__(0)}",
-                f"RSCROLL.{render_scroll.__str__()}",
-                f"SCROLL.{self.scroll.__round__(0)}",
-                f"VELOCITY.{str(self.player.velocity.__round__(0))}",
-            ]
-        ]
-        blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
-        for index, text in enumerate(hud_elements):
-            blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))  # note: returns delta time (dt)
-
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
 
@@ -257,15 +232,47 @@ class Game:
         self.touched_portal = False
         self.transition = self._transition_lo  # -30
 
+    def render_debug_hud(self, render_scroll: tuple[int, int]):
+        antialias = True
+        key_w = 12  # VELOCITY key
+        val_w = 12  # LASTSAVE value | max overflow is 24 for local time readable
+        key_fillchar = " "
+        val_fillchar = " "  # non monospace fonts look uneven vertically in tables
+        movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
+        collisions_bitmap_str = ':'.join(list((k[0] + ('#' if v else ' ')) for k, v in self.player.collisions.__dict__.items())).upper().split(',')[0]
+        player_action = val.value.upper() if (val := self.player.action) and val else None
+        hud_elements = [
+            (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+            for text in [
+                f"CLOCK_FPS.{self.clock.get_fps():2.0f}",
+                f"CLOCK_DT.{self.clock_dt:2.0f}",
+                ###################################
+                f"CAM_RSCROLL.{render_scroll.__str__()}",
+                f"CAM_SCROLL.{self.scroll.__round__(0)}",
+                f"INPT_MVMNT.{movement_bitmap_str}",
+                f"MAP_LEVEL.{str(self.level)}",
+                f"PLYR_ACTION.{player_action }",
+                f"PLYR_ALPHA.{self.player.animation_assets[self.player.action.value].img().get_alpha() if self.player.action else None}",
+                f"PLYR_COLLIDE.{collisions_bitmap_str}",
+                f"PLYR_FLIP.{str(self.player.flip).upper()}",
+                f"PLYR_POS.{self.player.pos.__round__(0)}",
+                f"PLYR_VEL.{str(self.player.velocity.__round__(0))}",
+            ]
+        ]
+        blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
+        for index, text in enumerate(hud_elements):
+            blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))  # note: returns delta time (dt)
+
     def run(self) -> None:
         bg: pg.Surface = self.assets.entity["background"]
         bg.set_colorkey(pre.BLACK)
-        _ = bg.fill(pre.BG_DARK)
+        bg.fill(pre.BG_DARK)
+
         # TODO: parallax clouds like background
 
         while True:
-            _ = self.display.fill(pre.TRANSPARENT)
-            _ = self.display_2.blit(bg, (0, 0))
+            self.display.fill(pre.TRANSPARENT)
+            self.display_2.blit(bg, (0, 0))
 
             self.screenshake = max(0, self.screenshake - 1)
 
@@ -372,7 +379,7 @@ class Game:
 
             # DRAW: FINAL DISPLAY
             pg.display.flip()  # update whole screen
-            self.clock.tick(pre.FPS_CAP)
+            self.clock_dt = self.clock.tick(pre.FPS_CAP)
 
 
 if __name__ == "__main__":
