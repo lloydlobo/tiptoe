@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from functools import cache
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -33,7 +32,9 @@ class PhysicalEntity:
 
         # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
         self._terminal_velocity_y: Final = 5
-        self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))  # 0.1333333333.. (makes jumping possible to 3x player height)
+        self._terminal_limiter_air_friction: Final = max(
+            0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP))
+        )  # 0.1333333333.. (makes jumping possible to 3x player height)
 
         self.anim_offset = pg.Vector2(-1, -1) or pg.Vector2(-3, -3)  # should be an int
         # ^ workaround for padding used in animated sprites states like run
@@ -64,7 +65,9 @@ class PhysicalEntity:
             # | frame created only when animation has changed. This avoids animation being stuck at 0th frame
             # ===
             self.action = action
-            self.animation = self.game.assets.animations_entity[self.kind.value][self.action.value].copy()  # or self._animation_assets[self.action.value].copy()
+            self.animation = self.game.assets.animations_entity[self.kind.value][
+                self.action.value
+            ].copy()  # or self._animation_assets[self.action.value].copy()
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame

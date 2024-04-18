@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import cache, lru_cache
+from functools import lru_cache
 from typing import Final, Sequence, Tuple, Union
 
 import pygame as pg
@@ -89,7 +89,6 @@ class Animation:
     def copy(self) -> "Animation":
         return Animation(self.images, self._img_duration, self.loop)
 
-    # @lru_cache()
     def update(self) -> None:
         """Increment frames like a movie screen roll or a marque"""
         """
@@ -143,6 +142,8 @@ class Assets:
             return self.elems[key]
 
     entity: dict[str, pg.Surface]
+    misc_surf: dict[str, pg.SurfaceType]
+    misc_surfs: dict[str, list[pg.SurfaceType]]
     tiles: dict[str, list[pg.Surface]]
     animations_entity: AnimationEntityAssets
     animations_misc: AnimationMiscAssets
@@ -171,7 +172,7 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
 # COLORS #
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=32)
 def hex_to_rgb(s: str) -> tuple[int, int, int]:
     """
     HEX to RGB color:
@@ -205,7 +206,7 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
     return (int(s[0:2], base), int(s[2:4], base), int(s[4:6], base))
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=32)
 def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
     """
     Constraints: 0 ≤ H < 360, 0 ≤ S ≤ 1 and 0 ≤ L ≤ 1
@@ -227,7 +228,9 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
     >>> assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
     >>> assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
     """
-
+    # pre.hsl_to_rgb.cache_info()
+    #   Thu Apr 18 04:56:05 PM IST 2024
+    #   hits=79, misses=28, currsize=28
     if DEBUG_GAME_ASSERTS:
         assert 0 <= h <= 360
         assert 0 <= s <= 1

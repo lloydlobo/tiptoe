@@ -12,8 +12,11 @@ class Editor:
     def __init__(self) -> None:
         pg.init()
 
-        pg.display.set_caption(pre.CAPTION)
-        self.screen = pg.display.set_mode(pre.DIMENSIONS)
+        display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
+
+        self.screen = pg.display.set_mode(pre.DIMENSIONS, display_flags)
+        pg.display.set_caption(pre.CAPTION_EDITOR)
+
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
 
         self.font_size = pre.TILE_SIZE - 4
