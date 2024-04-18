@@ -91,12 +91,17 @@ class Game:
         jump_frames = [player_jump_surf, jump_down_1, jump_down_2, jump_down_3, jump_down_4, jump_down_5]
 
         # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** 0.5), ((pre.TILE_SIZE / (9 / 16)) ** 1.618))
-        cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** (1 / math.pi)), player_size[1] * 3 or (1 / 4 * (pre.TILE_SIZE / (9 / 16)) ** 1.618))
-        cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
+        # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** (1 / math.pi)), player_size[1] * 3 or (1 / 4 * (pre.TILE_SIZE / (9 / 16)) ** 1.618))
+        # cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
+        # cloud_surf.fill(pre.hsl_to_rgb(240, 0.2, 0.3))
+
+        self._cloud_count: Final = 11 or 111
+        self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
+
+        cloud_size = (69 / 1.618, 69 / 1.618)
         cloud_surf = pg.Surface(cloud_size).convert()
-        cloud_surf.set_colorkey(pre.BLACK)
-        cloud_surf.fill(pre.hsl_to_rgb(200, 0.3, 0.04))
-        _cloud_count: Final = 30 or 111
+        cloud_surf.set_colorkey(self._bg_color)
+        cloud_surf.fill(pre.hsl_to_rgb(240, 0.26, 0.13))  # awesome
 
         self.assets = pre.Assets(
             entity=dict(
@@ -110,7 +115,7 @@ class Game:
                 projectile=pg.Surface((5, 2)),
             ),
             misc_surfs=dict(
-                clouds=[cloud_surf.copy() for _ in range(_cloud_count)],
+                clouds=[cloud_surf.copy() for _ in range(self._cloud_count)],
             ),
             tiles=dict(
                 grass=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
@@ -143,7 +148,7 @@ class Game:
 
         self.sfx = {}
 
-        self.clouds = Clouds(self.assets.misc_surfs["clouds"], _cloud_count)
+        self.clouds = Clouds(self.assets.misc_surfs["clouds"], self._cloud_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -252,7 +257,8 @@ class Game:
         bg.set_colorkey(pre.BLACK)
         # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.1)) # like this !!!
         # bg.fill(pre.hsl_to_rgb(240, 0.35, 0.1))
-        bg.fill(pre.hsl_to_rgb(240, 0.3, 0.15))
+        # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.15)) # like this
+        bg.fill(self._bg_color)  # like this more
 
         # TODO: parallax clouds like background
 
@@ -292,8 +298,8 @@ class Game:
 
             # clouds
             self.clouds.update()
-            # self.clouds.render(self.display_2, render_scroll) # display two blitting avoids masks depth
-            self.clouds.render(self.display, render_scroll)
+            self.clouds.render(self.display_2, render_scroll)  # display two blitting avoids masks depth
+            # self.clouds.render(self.display, render_scroll)
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
