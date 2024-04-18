@@ -92,6 +92,7 @@ class Game:
 
         # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** 0.5), ((pre.TILE_SIZE / (9 / 16)) ** 1.618))
         cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** (1 / math.pi)), player_size[1] * 3 or (1 / 4 * (pre.TILE_SIZE / (9 / 16)) ** 1.618))
+        cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
         cloud_surf = pg.Surface(cloud_size).convert()
         cloud_surf.set_colorkey(pre.BLACK)
         cloud_surf.fill(pre.hsl_to_rgb(200, 0.3, 0.04))
@@ -291,7 +292,8 @@ class Game:
 
             # clouds
             self.clouds.update()
-            self.clouds.render(self.display_2, render_scroll)
+            # self.clouds.render(self.display_2, render_scroll) # display two blitting avoids masks depth
+            self.clouds.render(self.display, render_scroll)
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
