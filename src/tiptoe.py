@@ -1,4 +1,5 @@
 import cProfile
+import math
 from os import listdir, path
 from sys import exit
 from typing import Final
@@ -39,7 +40,7 @@ class Game:
         player_jump_size = (player_size[0] - 1, player_size[1])
         enemy_size = (8, pre.TILE_SIZE - 1)
         portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
-        player_color = pre.TEAL
+        player_color = pre.BLACKMID or pre.TEAL
         player_run_color = pre.BLACKMID  # use black for invisibility
         player_jump_color = pre.RED
         enemy_color = pre.CREAM
@@ -89,7 +90,13 @@ class Game:
         jump_down_5.set_alpha(player_alpha - 140)
         jump_frames = [player_jump_surf, jump_down_1, jump_down_2, jump_down_3, jump_down_4, jump_down_5]
 
-        _cloud_count: Final = 16
+        # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** 0.5), ((pre.TILE_SIZE / (9 / 16)) ** 1.618))
+        cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** (1 / math.pi)), player_size[1] * 3 or (1 / 4 * (pre.TILE_SIZE / (9 / 16)) ** 1.618))
+        cloud_surf = pg.Surface(cloud_size).convert()
+        cloud_surf.set_colorkey(pre.BLACK)
+        cloud_surf.fill(pre.hsl_to_rgb(200, 0.3, 0.04))
+        _cloud_count: Final = 30 or 111
+
         self.assets = pre.Assets(
             entity=dict(
                 # entity
@@ -102,13 +109,13 @@ class Game:
                 projectile=pg.Surface((5, 2)),
             ),
             misc_surfs=dict(
-                clouds=[pg.Surface((32, 32)).convert() for _ in range(_cloud_count)],
+                clouds=[cloud_surf.copy() for _ in range(_cloud_count)],
             ),
             tiles=dict(
-                grass=Tilemap.generate_surf(9, color=pre.BLACK, alpha=tiles_alpha),
-                stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=tiles_alpha),
-                decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                grass=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
+                stone=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
+                decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                large_decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
                 portal=[portal_surf_1.copy(), portal_surf_2.copy()],
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
@@ -242,7 +249,9 @@ class Game:
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
         bg.set_colorkey(pre.BLACK)
-        bg.fill(pre.BG_DARK)
+        # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.1)) # like this !!!
+        # bg.fill(pre.hsl_to_rgb(240, 0.35, 0.1))
+        bg.fill(pre.hsl_to_rgb(240, 0.3, 0.15))
 
         # TODO: parallax clouds like background
 
@@ -338,7 +347,7 @@ class Game:
 
             if pre.DEBUG_GAME_HUD:
                 self.render_debug_hud(render_scroll)
-            if pre.DEBUG_GAME_PROFILER:  # cache
+            if pre.DEBUG_GAME_CACHEINFO:  # cache
                 print(f"{pre.hsl_to_rgb.cache_info() = }")
 
             # DRAW: FINAL DISPLAY

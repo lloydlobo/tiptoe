@@ -171,11 +171,13 @@ class Tilemap:
                 surf.set_colorkey(colorkey),
                 # surf.set_alpha(alpha),
                 surf.fill(
-                    pre.hsl_to_rgb(
-                        h=(30 + pg.math.lerp(0.0328 * i * (1 + variance), 5, abs(math.sin(i)))),
-                        s=0.045 * (0.0318 + variance),
-                        l=max(0.02, (0.03 + min(0.01, (1 / (variance + 1)))) - (0.001618 * i)),
-                    )
+                    color
+                    # pre.hsl_to_rgb(
+                    #     h=(30 + pg.math.lerp(0.0328 * i * (1 + variance), 5, abs(math.sin(i)))),
+                    #     s=0.045 * (0.0318 + variance),
+                    #     l=max(0.02, (0.03 + min(0.01, (1 / (variance + 1)))) - (0.001618 * i)),
+                    #     # l=max(0.02, (0.03 + min(0.01, (1 / (variance + 1)))) - (0.001618 * i)),
+                    # )
                 ),
             )[0]
             for i in range(count)  # after processing pipeline, select first [0] Surface in tuple
