@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 import time
+from collections import deque, namedtuple
 from copy import deepcopy
 from functools import lru_cache
 from random import randint
@@ -74,20 +76,37 @@ class Tilemap:
     def extract(self, id_pairs: tuple[tuple[str, int], ...], keep_tile: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
 
-        for tile in self.offgrid_tiles.copy():
-            if (tile.kind.value, tile.variant) in id_pairs:
-                matches.append(deepcopy(tile))
-                if not keep_tile:
-                    self.offgrid_tiles.remove(tile)
+        if pre.DEBUG_EDITOR_ASSERTS:
+            GridKind = namedtuple(typename="GridKind", field_names=["offgrid", "ongrid"])
+            gk: GridKind = GridKind("offgrid", "ongrid")
+            q: deque[tuple[str, TileItem]] = deque()
 
-        for loc, tile in self.tilemap.items():
-            if (tile.kind.value, tile.variant) in id_pairs:
-                matches.append(deepcopy(tile))
-                matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
-                matches[-1].pos *= self.tile_size
+        try:
+            for tile in self.offgrid_tiles.copy():
+                if pre.DEBUG_EDITOR_ASSERTS:
+                    q.appendleft((gk.offgrid, tile))
 
-                if not keep_tile:
-                    del self.tilemap[loc]
+                if (tile.kind.value, tile.variant) in id_pairs:
+                    matches.append(deepcopy(tile))
+                    if not keep_tile:
+                        self.offgrid_tiles.remove(tile)
+
+            for loc, tile in self.tilemap.items():
+                if pre.DEBUG_EDITOR_ASSERTS:
+                    q.appendleft((gk.ongrid, tile))
+
+                if (tile.kind.value, tile.variant) in id_pairs:
+                    matches.append(deepcopy(tile))
+                    matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
+                    matches[-1].pos *= self.tile_size
+
+                    if not keep_tile:
+                        del self.tilemap[loc]
+        except RuntimeError as e:
+            if pre.DEBUG_EDITOR_ASSERTS:
+                print(f"{e}:\n\twas the spawner tile placed ongrid?\n\t{q[0]}")
+            print(f"{e}", sys.stderr)
+            sys.exit()
 
         return matches
 

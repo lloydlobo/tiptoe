@@ -20,8 +20,8 @@ ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequenc
 
 
 class EntityKind(Enum):
-    ENEMY = "enemy"
     PLAYER = "player"
+    ENEMY = "enemy"
     PORTAL = "portal"
 
 
@@ -39,6 +39,15 @@ class SpawnerKind(Enum):
     PLAYER = 0
     ENEMY = 1
     PORTAL = 2
+
+    def as_entity(self, entity_kind: EntityKind):
+        match entity_kind:
+            case EntityKind.PLAYER:
+                return self.PLAYER
+            case EntityKind.ENEMY:
+                return self.ENEMY
+            case EntityKind.PORTAL:
+                return self.PORTAL
 
 
 @dataclass
@@ -259,7 +268,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 
 # fmt: off
 # flags: debugging, etc
-DEBUG_EDITOR_ASSERTS= False
+DEBUG_EDITOR_ASSERTS= True
 DEBUG_EDITOR_HUD    = True
 DEBUG_GAME_ASSERTS  = True
 DEBUG_GAME_HUD      = True
@@ -310,14 +319,14 @@ CREAM               = hsl_to_rgb(0, 0.1618, 0.618)
 GRAY                = hsl_to_rgb(0, 0, 0.5)
 GREEN               = hsl_to_rgb(120, 1, 0.25)
 MIDNIGHT            = (2, 2, 3)
-# PURPLE              = hsl_to_rgb(300, 1, 0.25)
-TEAL              = hsl_to_rgb(180, 0.4, 0.25)
+PURPLE              = hsl_to_rgb(300, 1, 0.25)
 RED                 = hsl_to_rgb(0, 0.618, 0.328)
 SILVER              = hsl_to_rgb(0, 0, 0.75)
+TEAL                = hsl_to_rgb(180, 0.4, 0.25)
 TRANSPARENT         = (0, 0, 0, 0)
 WHITE               = (255, 255, 255)
-# YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
-YELLOW              = hsl_to_rgb(60, 0.4, 0.3)
+YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
+# YELLOW              = hsl_to_rgb(60, 0.4, 0.3)
 # fmt: on
 
 

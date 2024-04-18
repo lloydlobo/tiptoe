@@ -1,14 +1,53 @@
 import cProfile
+import math
 import os
 import sys
+from copy import deepcopy
 from time import time
 from typing import Final
 
 import pygame as pg
 
 import internal.prelude as pre
-from internal.entities import Enemy, PhysicalEntity, Player
-from internal.tilemap import TileItem, Tilemap
+from internal.entities import Enemy, Player
+from internal.tilemap import Tilemap
+
+
+class Spawner:
+    def __init__(
+        self,
+        game: "Game",
+        spawner_kind: pre.SpawnerKind,
+        entity_kind: pre.EntityKind,
+        pos: pg.Vector2,
+        size: pg.Vector2,
+    ) -> None:
+        assert spawner_kind.as_entity(entity_kind) == spawner_kind, f"spawner and entity do not match. got {spawner_kind, entity_kind}"
+
+        self.game = game
+        self.spawner_kind = spawner_kind
+        self.entity_kind = entity_kind
+        self.pos = pos.copy()
+        self.size = size
+
+        # todo: use filter
+        self.asset_key: str = ""
+        for k in self.game.assets.tiles:
+            if k == self.entity_kind.value:
+                self.asset_key = k
+
+        self.assets: list[pg.Surface] = self.game.assets.tiles[self.entity_kind.value]
+
+    def rect(self) -> pg.Rect:
+        return pg.Rect(self.pos.x, self.pos.y, self.size.x, self.size.y)
+
+
+class Portal(Spawner):
+    def __init__(self, game: "Game", entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
+        super().__init__(game, pre.SpawnerKind.PORTAL, entity_kind, pos, size)
+
+    def rect(self) -> pg.Rect:
+        return super().rect()
 
 
 class Game:
@@ -33,12 +72,13 @@ class Game:
         player_run_size = (player_size[0] + 1, player_size[1] - 1)
         player_jump_size = (player_size[0] - 1, player_size[1])
         enemy_size = (8, pre.TILE_SIZE - 1)
-        portal_size = (pre.TILE_SIZE, pre.TILE_SIZE)
+        portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
         player_color = pre.TEAL
         player_run_color = pre.BLACKMID  # use black for invisibility
         player_jump_color = pre.RED
         enemy_color = pre.CREAM
-        portal_color = pre.WHITE
+        portal_1_color = pre.WHITE
+        portal_2_color = pre.BEIGE
         player_alpha = 190
 
         player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
@@ -54,9 +94,12 @@ class Game:
         enemy_surf = pg.Surface(enemy_size).convert()
         enemy_surf.set_colorkey(pre.BLACK)
         enemy_surf.fill(enemy_color)
-        portal_surf = pg.Surface(portal_size).convert()
-        portal_surf.set_colorkey(pre.BLACK)
-        portal_surf.fill(portal_color)
+        portal_surf_1 = pg.Surface(portal_size).convert()
+        portal_surf_1.set_colorkey(pre.BLACK)
+        portal_surf_1.fill(portal_1_color)
+        portal_surf_2 = pg.Surface(portal_size).convert()
+        portal_surf_2.set_colorkey(pre.BLACK)
+        portal_surf_2.fill(portal_2_color)
 
         jump_down_1 = pg.Surface(player_jump_size).convert()
         jump_down_1.set_colorkey(pre.BLACK)
@@ -95,7 +138,7 @@ class Game:
                 stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=tiles_alpha),
                 decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
                 large_decor=Tilemap.generate_surf(4, color=pre.BLACK, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
-                portal=[portal_surf.copy()],
+                portal=[portal_surf_1.copy(), portal_surf_2.copy()],
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
@@ -115,7 +158,7 @@ class Game:
 
         self.sfx = {}
 
-        self.player: Player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
+        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
@@ -129,7 +172,7 @@ class Game:
         self._transition_hi: Final = 30
 
         # load_level: declares and initializes level specific members
-        self.level = 1
+        self.level = 0
         self.load_level(self.level)
         self._level_map_count = len(os.listdir(pre.MAP_PATH))
         print(f"{self._level_map_count=}")
@@ -169,29 +212,40 @@ class Game:
         # have to implement enemy spawning and all that jazz
 
         self.enemies: list[Enemy] = []  # self.enemies.append(Enemy(self, pg.Vector2(50, 50), pg.Vector2(8, 16)))  # FIXME: TEMPORARY HACK
-        self.portals: list[TileItem] = []  # unimplemented
+        # self.portal_spawner =
+        self.portal_spawners: list[Portal] = []
+
+        # self.portals: list[TileItem] = []  # unimplemented
         self.spawner_id_pairs = (
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.PLAYER.value.__int__()),
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.ENEMY.value.__int__()),
             (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.PORTAL.value.__int__()),
+            (pre.TileKind.SPAWNERS.value.__str__(), pre.SpawnerKind.PORTAL.value.__int__()),
         )
-        for spawner in self.tilemap.extract(self.spawner_id_pairs, keep_tile=False):
-            match spawner.variant:
-                case pre.SpawnerKind.PLAYER.value:  # player
-                    self.player.pos = spawner.pos.copy()
-                    # Implement this to avoid infinite spawns when nowhere to fall aka free fall
-                    # note: reset time to avoid multiple spawning after falling down
-                    self.player.air_time = 0
-                case pre.SpawnerKind.ENEMY.value:  # enemy
-                    self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(8, 16)))
-                case pre.SpawnerKind.PORTAL.value:  # enemy
-                    portal = TileItem(pre.TileKind.PORTAL, variant=spawner.variant, pos=spawner.pos.copy())
-                    self.portals.append(portal)
-                case _:
-                    raise ValueError(f'expect a valid spawners variant. got {spawner.variant, spawner}')
+        last_spawner_seen = None
+        try:
+            for spawner in self.tilemap.extract(self.spawner_id_pairs, keep_tile=False):
+                last_spawner_seen = deepcopy(spawner)
+                match spawner.variant:
+                    case pre.SpawnerKind.PLAYER.value:  # player
+                        self.player.pos = spawner.pos.copy()
+                        # Implement this to avoid infinite spawns when nowhere to fall aka free fall
+                        # note: reset time to avoid multiple spawning after falling down
+                        self.player.air_time = 0
+                    case pre.SpawnerKind.ENEMY.value:  # enemy
+                        self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(8, 16)))
+                    case pre.SpawnerKind.PORTAL.value:  # enemy
+                        # portal = TileItem(pre.TileKind.PORTAL, variant=spawner.variant, pos=spawner.pos.copy())
+                        # self.portals.append(portal)
+                        self.portal_spawners.append(Portal(self, entity_kind=pre.EntityKind.PORTAL, pos=spawner.pos, size=pg.Vector2(pre.TILE_SIZE, pre.TILE_SIZE)))
+                    case _:
+                        raise ValueError(f'expect a valid spawners variant. got {spawner.variant, spawner}')
+        except RuntimeError as e:
+            raise RuntimeError(f"{e}:\n\twas the spawner tile placed ongrid?\n\t{last_spawner_seen}")
+
         if pre.DEBUG_GAME_ASSERTS:
             assert (val := len(self.enemies)) and val > 0, f"want atleast 1 spawned enemy. got {val}"
-            assert (val := len(self.portals)) and 0 < val < 2, f"want only 1 spawned portal tile. got {val}"
+            assert (val := len(self.portal_spawners)) and val > 0, f"want atleast 1 spawned portal. got {val}"
 
         # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
         # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
@@ -200,6 +254,7 @@ class Game:
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
+        self.touched_portal = False
         self.transition = self._transition_lo  # -30
 
     def run(self) -> None:
@@ -215,19 +270,12 @@ class Game:
             self.screenshake = max(0, self.screenshake - 1)
 
             # transitions: game level
-            if len(self.portals) == 1 and (p := self.portals[0]):
-                if self.player.rect().collidepoint(p.pos):
-                    level_clear_time = time().__round__()
-                    print(f"==INFO== {level_clear_time} level {self.level} clear")
-                    self.transition += 1
-                    if self.transition > self._transition_hi:
-                        self.level = min(self.level + 1, self._level_map_count - 1)
-                        self.load_level(self.level)
-            if not len(self.enemies):
+            if (_win_condition := (self.touched_portal or not len(self.enemies))) and _win_condition:
                 self.transition += 1
                 if self.transition > self._transition_hi:
                     self.level = min(self.level + 1, self._level_map_count - 1)
                     self.load_level(self.level)
+
             if self.transition < self._transition_mid:
                 self.transition += 1
 
@@ -250,9 +298,23 @@ class Game:
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
 
-            # portal: update and render
-            if len(self.portals) == 1 and (portal := self.portals[0]):
-                self.display.blit(source=self.assets.tiles[portal.kind.value][0], dest=portal.pos - render_scroll)
+            # portal: update(detect) and render
+            if not self.touched_portal:  # note: <- this disappears very fast
+                for i, portal in enumerate(self.portal_spawners):
+                    # detect: collison
+                    if self.player.rect().colliderect(portal.rect()):
+                        self.touched_portal = True
+                        level_clear_time = time().__round__()
+                        print(f"==INFO== {level_clear_time} level {self.level} clear")
+                    # render: portal
+                    self.display.blit(source=portal.assets[i].copy(), dest=portal.pos - render_scroll)
+            # OLD: if self.portals and (portal := self.portals[0]):
+            #     # if self.player.rect().collidepoint(portal.pos):
+            #     if self.player.rect().colliderect(pg.Rect(portal.pos.x, portal.pos.y, 16, 16)):
+            #         self.touched_portal = True
+            #         level_clear_time = time().__round__()
+            #         print(f"==INFO== {level_clear_time} level {self.level} clear")
+            #     self.display.blit(source=self.assets.tiles[portal.kind.value][0], dest=portal.pos - render_scroll)
 
             # if (_enabled_tmp := 0) and _enabled_tmp:
             #     self.portal = self.assets.entity["portal"]
