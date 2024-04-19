@@ -17,21 +17,6 @@ import pygame as pg
 import internal.prelude as pre
 
 
-# @lru_cache(maxsize=None)
-def calc_pos_to_loc(x: int, y: int, offset: Union[tuple[int, int], None]) -> str:
-    """
-    calc_pos_to_loc convert position with offset to json serialise-able key for
-    game level map Returns a string with `_lru_cache_wrapper` that is a
-    'Constants shared by all lru cache instances' NOTE: named params will not
-    work with this lru function. Maybe due to adding generic like `None` to
-    handle multiple cases
-    """
-
-    if offset:
-        return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}"
-    return f"{int(x)};{int(y)}"
-
-
 @dataclass
 class TileItem:
     kind: pre.TileKind  # use an enum or verify with field()
@@ -54,68 +39,34 @@ class Tilemap:
 
     def tiles_around(self, pos: tuple[int, int]) -> list[TileItem]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
-        loc_x, loc_y = self.calc_tile_loc(pos[0], pos[1])
-        return [
-            self.tilemap[seen_location]
-            for offset in pre.NEIGHBOR_OFFSETS
-            if (seen_location := calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap
-        ]
+        loc_x, loc_y = self.pos_as_grid_loc_tuple2(pos[0], pos[1])
+        return [self.tilemap[seen_location] for offset in pre.NEIGHBOR_OFFSETS if (seen_location := calc_pos_to_loc(loc_x, loc_y, offset)) and seen_location in self.tilemap]
 
     def physics_rects_around(self, pos: tuple[int, int]) -> list[pg.Rect]:
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
-        return [
-            pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size)
-            for tile in self.tiles_around(pos)
-            if tile.kind in pre.PHYSICS_TILES
-        ]
-
-    def is_solid(self, loc: pg.Vector2 | str) -> bool:
-        """Checks if a tile is solid (Vector2 or string representation)."""
-        if isinstance(loc, pg.Vector2):
-            loc = self.vec2_jsonstr(loc)
-        return loc in self.tilemap and self.tilemap[loc].kind in pre.PHYSICS_TILES
-
-    # perf: Implement flood filling feature
-    def floodfill(self, tile):
-        pass
-
-    def maybe_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
-        return self.tilemap.get(self.vec2_jsonstr(self.pos_as_grid_loc(pos)), None)
-
-    def maybe_solid_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
-        # note: why are we returning the tile instead of a boolean
-        """Return optional physics tile can be stepped on or None"""
-        return tile if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in pre.PHYSICS_TILES) else None
-
-        # ^ OR use if ( loc := self.vec2_jsonstr(self.pos_as_grid_loc(pos)), tile := self.tilemap.get(loc, None))
+        return [pg.Rect(int(tile.pos.x * self.tile_size), int(tile.pos.y * self.tile_size), self.tile_size, self.tile_size) for tile in self.tiles_around(pos) if tile.kind in pre.PHYSICS_TILES]
 
     def extract(self, id_pairs: tuple[tuple[str, int], ...], keep_tile: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
-
         if pre.DEBUG_EDITOR_ASSERTS:  # perf: use a context manager
             GridKind = namedtuple(typename="GridKind", field_names=["offgrid", "ongrid"])
             gk: GridKind = GridKind("offgrid", "ongrid")
             q: deque[tuple[str, TileItem]] = deque()
-
         try:
             for tile in self.offgrid_tiles.copy():
                 if pre.DEBUG_EDITOR_ASSERTS:
                     q.appendleft((gk.offgrid, tile))
-
                 if (tile.kind.value, tile.variant) in id_pairs:
                     matches.append(deepcopy(tile))
                     if not keep_tile:
                         self.offgrid_tiles.remove(tile)
-
             for loc, tile in self.tilemap.items():
                 if pre.DEBUG_EDITOR_ASSERTS:
                     q.appendleft((gk.ongrid, tile))
-
                 if (tile.kind.value, tile.variant) in id_pairs:
                     matches.append(deepcopy(tile))
                     matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
                     matches[-1].pos *= self.tile_size
-
                     if not keep_tile:
                         del self.tilemap[loc]
         except RuntimeError as e:
@@ -123,21 +74,34 @@ class Tilemap:
                 print(f"{e}:\n\twas the spawner tile placed ongrid?\n\t{q[0]}")
             print(f"{e}", sys.stderr)
             sys.exit()
-
         return matches
 
-    # note: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`
-    # perf: can use -shift in offset param
-    # perf: maybe use a priority queue instead of a set
+    # perf: Implement flood filling feature
+    def floodfill(self, tile):
+        pass
 
-    def autotile(self) -> None:  # 3:04:00
-        D: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
+    def maybe_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
+        return self.tilemap.get(self.vec2_jsonstr(self.pos_as_grid_loc_vec2(pos)), None)
+
+    def maybe_solid_gridtile_bool(self, pos: pg.Vector2) -> bool:
+        """Return boolean if physics tile can be stepped on or None"""
+        return True if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in pre.PHYSICS_TILES) else False
+
+    def maybe_solid_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
+        """Return optional physics tile can be stepped on or None"""
+        return tile if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in pre.PHYSICS_TILES) else None
+
+    def autotile(self) -> None:
+        # note: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`
+        # perf: can use -shift in offset param
+        # perf: maybe use a priority queue instead of a set
+        _directions: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
         neighbors: set[tuple[int, int]] = set()
         for tile in self.tilemap.values():
             if tile.kind not in pre.AUTOTILE_TYPES:
                 neighbors.clear()
                 continue
-            for dir in D:
+            for dir in _directions:
                 if (loc := tile.pos + dir, check_loc := calc_pos_to_loc(loc.x, loc.y, None)) and check_loc in self.tilemap:
                     if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
                         neighbors.add(dir)
@@ -156,18 +120,33 @@ class Tilemap:
         if map_data:
             self.tile_size = map_data["tile_size"]
             self.tilemap = dict(self.tilemap_json_to_dataclass(map_data["tilemap"]))
-            self.offgrid_tiles = self.offgrid_tiles_json_to_dataclass(map_data["offgrid"])
-
-    # @lru_cache(maxsize=round((pre.DIMENSIONS[0] * pre.DIMENSIONS[1]) / pow(pre.TILE_SIZE, 2) * (1 / pre.SCALE)))
-    def calc_tile_loc(self, x: int | float, y: int | float) -> tuple[int, int]:
-        """calc_tile_loc avoids pixel bordering zero to round to 1."""
-        return (int(x // self.tile_size), int(y // self.tile_size))
+            self.offgrid_tiles = list(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
 
     def tilemap_to_json(self) -> dict[str, TileItemJSON]:
         return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
 
     def offgrid_tiles_to_json(self) -> list[TileItemJSON]:
         return [TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for tile in self.offgrid_tiles]
+
+    def pos_as_grid_loc_vec2(self, vec2: pg.Vector2) -> pg.Vector2:
+        return vec2 // self.tile_size  # Vector element-wise division for efficiency
+
+    def pos_as_grid_loc_tuple2(self, x: int | float, y: int | float) -> tuple[int, int]:
+        """calc_tile_loc avoids pixel bordering zero to round to 1."""
+        return (int(x // self.tile_size), int(y // self.tile_size))
+
+    @staticmethod
+    def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
+        return (TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data)
+
+    @staticmethod
+    def vec2_jsonstr(vec2: pg.Vector2) -> str:
+        return f"{vec2.x:.0f};{vec2.y:.0f}"  # Using f-string formatting for clarity
+
+    @staticmethod
+    def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):  # -> dict[str, TileItem]
+        # PERF: needs optimization. use ctx manager for generator function reading?
+        return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
 
     @staticmethod
     def generate_surf(
@@ -178,15 +157,9 @@ class Tilemap:
         alpha: int = 255,
         variance: int = 0,
     ) -> list[pg.Surface]:
-        """
-        Tip: use lesser alpha to blend with the background fill for a
-        cohesive theme high variance leads to easy detection. Lower in idle
-        state is ideal for being camouflaged in surroundings variance
-        (0==base_color) && (>0 == random colors)
-        """
+        """Tip: use lesser alpha to blend with the background fill for a cohesive theme high variance leads to easy detection. Lower in idle state is ideal for being camouflaged in surroundings variance (0==base_color) && (>0 == random colors)"""
         # _ = [max(0, min(255, base + randint(-variance, variance))) for base in color] if variance else color
         alpha = max(0, min(255, alpha))  # clamp from less opaque -> fully opaque
-
         return [
             (
                 surf := pg.Surface(size),
@@ -205,39 +178,14 @@ class Tilemap:
             for i in range(count)  # after processing pipeline, select first [0] Surface in tuple
         ]
 
-    @staticmethod
-    def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):  # -> dict[str, TileItem]
-        # PERF: needs optimization. use ctx manager for generator function reading?
-        """
-        Thu Apr 18 03:40:42 PM IST 2024
-        578    0.003    0.000    0.005    0.000 tilemap.py:200(<genexpr>)
-          2    0.002    0.001    0.005    0.002 tilemap.py:75(extract)
-          2    0.000    0.000    0.000    0.000 tilemap.py:192(tilemap_json_to_dataclass)
-        Thu Apr 18 03:39:04 PM IST 2024
-          2    0.000    0.000    0.004    0.002 tilemap.py:193(tilemap_json_to_dataclass)
-        578    0.003    0.000    0.004    0.000 tilemap.py:195(<genexpr>)
-        """
-        return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
-
-    @staticmethod
-    def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]) -> list[TileItem]:
-        return [TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data]
-
-    @staticmethod
-    def vec2_jsonstr(vec2: pg.Vector2) -> str:
-        return f"{vec2.x:.0f};{vec2.y:.0f}"  # Using f-string formatting for clarity
-
-    def pos_as_grid_loc(self, vec2: pg.Vector2) -> pg.Vector2:
-        return vec2 // self.tile_size  # Vector element-wise division for efficiency
-
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
         blit = surf.blit
         for tile in self.offgrid_tiles:
             blit(self.game.assets.tiles[tile.kind.value][tile.variant], tile.pos - offset)
 
-        xlo, ylo = self.calc_tile_loc(offset[0], offset[1])
-        xhi, yhi = self.calc_tile_loc(offset[0] + surf.get_width(), offset[1] + surf.get_height())
+        xlo, ylo = self.pos_as_grid_loc_tuple2(offset[0], offset[1])
+        xhi, yhi = self.pos_as_grid_loc_tuple2(offset[0] + surf.get_width(), offset[1] + surf.get_height())
         blit = surf.blit
         for x in range(xlo, xhi + 1):
             for y in range(ylo, yhi + 1):
@@ -245,3 +193,9 @@ class Tilemap:
                 if (loc := calc_pos_to_loc(x, y, None)) in self.tilemap:
                     tile = self.tilemap[loc]
                     blit(self.game.assets.tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
+
+
+def calc_pos_to_loc(x: int, y: int, offset: Union[tuple[int, int], None]) -> str:
+    # FIXME: the level editor you with is this, so if we cannot change this
+    """calc_pos_to_loc convert position with offset to json serialise-able key string for game level map"""
+    return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}" if offset else f"{int(x)};{int(y)}"

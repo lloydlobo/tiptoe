@@ -2,6 +2,6 @@
 typeCheckingMode = "strict"
 
 [tool.black]
-line-length = 160
+line-length = 209
 skip-string-normalization = true
 

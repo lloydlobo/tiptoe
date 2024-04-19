@@ -1,5 +1,4 @@
 import cProfile
-import math
 from os import listdir, path
 from sys import exit
 from typing import Final
@@ -126,20 +125,15 @@ class Game:
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(
-                        Tilemap.generate_surf(9, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha, variance=1), img_dur=6
-                    ),
+                    idle=pre.Animation(Tilemap.generate_surf(9, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha, variance=1), img_dur=6),
                     run=pre.Animation(
-                        [player_run_surf.copy(), player_run_surf.copy()]
-                        or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size, alpha=player_alpha + 20, variance=2),
+                        [player_run_surf.copy(), player_run_surf.copy()] or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size, alpha=player_alpha + 20, variance=2),
                         img_dur=4,
                     ),  # or Tilemap.generate_surf(1, color=player_color, size=player_jump_size, alpha=player_alpha, variance=20),
                     jump=pre.Animation(jump_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
-                    idle=pre.Animation(
-                        [enemy_surf.copy()] or Tilemap.generate_surf(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6
-                    ),
+                    idle=pre.Animation([enemy_surf.copy()] or Tilemap.generate_surf(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),
                     run=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=4),
                 ),
             ),
@@ -227,11 +221,7 @@ class Game:
         collisions_bitmap_str = ':'.join(list((k[0] + ('#' if v else ' ')) for k, v in self.player.collisions.__dict__.items())).upper().split(',')[0]
         player_action = val.value.upper() if (val := self.player.action) and val else None
         hud_elements = [
-            (
-                f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}"
-                if '.' in text
-                else f"{text.ljust(val_w,val_fillchar)}"
-            )
+            (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
             for text in [
                 f"CLOCK_FPS.{self.clock.get_fps():2.0f}",
                 f"CLOCK_DT.{self.clock_dt:2.0f}",

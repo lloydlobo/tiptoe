@@ -33,9 +33,7 @@ class PhysicalEntity:
 
         # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
         self._terminal_velocity_y: Final = 5
-        self._terminal_limiter_air_friction: Final = max(
-            0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP))
-        )  # 0.1333333333.. (makes jumping possible to 3x player height)
+        self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))  # 0.1333333333.. (makes jumping possible to 3x player height)
 
         self.anim_offset = pg.Vector2(-1, -1) or pg.Vector2(-3, -3)  # should be an int
         # ^ workaround for padding used in animated sprites states like run
@@ -52,13 +50,6 @@ class PhysicalEntity:
 
         return pg.Rect(int(self.pos.x), int(self.pos.y), int(self.size.x), int(self.size.y))
 
-    # def __eq__(self, value: object, /) -> bool:
-    #     print(f"{self.kind,value=}")
-    #     return self.pos==value.pos and self.collisions==value.collisions
-    #
-    # def __hash__(self) -> int:
-    #     return hash(tuple(self.pos))
-
     def set_action(self, action: Action):
 
         if action != self.action:  # quick check to see if a new action is set. grab animation if changed
@@ -66,19 +57,15 @@ class PhysicalEntity:
             # | frame created only when animation has changed. This avoids animation being stuck at 0th frame
             # ===
             self.action = action
-            self.animation = self.game.assets.animations_entity[self.kind.value][
-                self.action.value
-            ].copy()  # or self._animation_assets[self.action.value].copy()
+            self.animation = self.game.assets.animations_entity[self.kind.value][self.action.value].copy()  # or self._animation_assets[self.action.value].copy()
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)  # reset at start of each frame
 
         frame_movement: pg.Vector2 = movement + self.velocity
 
-        # physics: movement via collision detection 2 part axis method
-        # handle one axis at a time for predictable resolution
+        # physics: movement via collision detection 2 part axis method handle one axis at a time for predictable resolution
         # also pygame-ce allows calculating floats with Rects
-
         self.pos.x += frame_movement.x
         entity_rect = self.rect()
         for rect in tilemap.physics_rects_around((int(self.pos.x), int(self.pos.y))):
@@ -120,8 +107,6 @@ class PhysicalEntity:
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         surf.blit(pg.transform.flip(self.animation.img(), self.flip, False), (self.pos - offset + self.anim_offset))
-        # old: =>
-        # surf.blit(self.game.assets.surface["player"], self.pos - offset)
 
 
 class Enemy(PhysicalEntity):
@@ -152,21 +137,24 @@ class Enemy(PhysicalEntity):
         """
         # manipulate movement
         if self.walking:
-            _lookahead: Final = (self.rect().centerx + (-7 if self.flip else 7), self.pos[1] + 23)  # (x=7px * west/east from center, y=23px * south)
-            # fmt: off
-            if (
-                (solid_ahead := tilemap.maybe_solid_gridtile(pg.Vector2(_lookahead)))
-                and (
-                    solid_ahead
-                    and (self.collisions.right or self.collisions.left)
-                )
-            ):
-                self.flip = not self.flip
-            elif solid_ahead:
-                movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
-            else:
-                self.flip = not self.flip
-            # fmt: on
+            lookahead_pos = pg.Vector2(self.rect().centerx + (-7 if self.flip else 7), self.pos.y + 23)
+            # solid_ahead = tilemap.maybe_solid_gridtile(lookahead_pos)
+            match (tilemap.maybe_solid_gridtile_bool(lookahead_pos), self.collisions.left, self.collisions.right):
+                case (True, True, _) | (True, _, True):  # Solid ahead and colliding on the left or right or both?
+                    self.flip = not self.flip
+                case (True, False, False):  # Solid ahead but not colliding
+                    movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
+                case _:  # Any other case (not solid ahead)
+                    self.flip = not self.flip
+
+            if (_refactor := 0) and _refactor:
+                _lookahead: Final = (self.rect().centerx + (-7 if self.flip else 7), self.pos[1] + 23)  # (x=7px * west/east from center, y=23px * south)
+                if (solid_ahead := tilemap.maybe_solid_gridtile(pg.Vector2(_lookahead))) and (solid_ahead and (self.collisions.right or self.collisions.left)):
+                    self.flip = not self.flip
+                elif solid_ahead:
+                    movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
+                else:
+                    self.flip = not self.flip
 
             # match (solid_ahead, self.collisions.left, self.collisions.right):
             #     case (True, True, _) | (True, _, True):
@@ -215,7 +203,7 @@ class Player(PhysicalEntity):
         self.air_time += 1
 
         # death: by air fall
-        # note: should this apply to enemy too? what if they fall accidently?
+        #   note: should this apply to enemy too? what if they fall accidently?
         if self.air_time > self._air_time_freefall_death:
             if not self.game.dead:
                 self.game.screenshake = max(self.game.tilemap.tile_size, self.game.screenshake - 1)
@@ -231,7 +219,8 @@ class Player(PhysicalEntity):
             elif movement.x != 0:
                 self.set_action(Action.RUN)
             else:
-                self.set_action(Action.IDLE)  # note: player IDLE state blends into the nearby color and can't be seen by enemies
+                self.set_action(Action.IDLE)
+                # note: player IDLE state blends into the nearby color and can't be seen by enemies
 
         return True
 
@@ -240,7 +229,6 @@ class Player(PhysicalEntity):
 
     def jump(self) -> bool:
         """returns True if successful jump"""
-
         if self.jumps:  # HACK: temp jump impl
             self.velocity.y = -self._jump_thrust  # -y dir: go up
             self.jumps -= 1
