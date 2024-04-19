@@ -153,14 +153,20 @@ class Enemy(PhysicalEntity):
         # manipulate movement
         if self.walking:
             _lookahead: Final = (self.rect().centerx + (-7 if self.flip else 7), self.pos[1] + 23)  # (x=7px * west/east from center, y=23px * south)
-
-            # solid_ahead = not False  # TODO: physics tiles around
-            if (solid_ahead := tilemap.solid_check(pg.Vector2(_lookahead))) and (solid_ahead and (self.collisions.right or self.collisions.left)):
+            # fmt: off
+            if (
+                (solid_ahead := tilemap.maybe_solid_gridtile(pg.Vector2(_lookahead)))
+                and (
+                    solid_ahead
+                    and (self.collisions.right or self.collisions.left)
+                )
+            ):
                 self.flip = not self.flip
             elif solid_ahead:
                 movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
             else:
                 self.flip = not self.flip
+            # fmt: on
 
             # match (solid_ahead, self.collisions.left, self.collisions.right):
             #     case (True, True, _) | (True, _, True):
@@ -171,7 +177,7 @@ class Enemy(PhysicalEntity):
             #     case _:  # if tile glitch
             #         self.flip = not self.flip
             # becomes 0 (static once every walk cycle of spawning a projectile)
-            self.walking = max(0, self.walking - 1) # NOTE: max only!!!!
+            self.walking = max(0, self.walking - 1)  # NOTE: max only!!!!
             if not self.walking:  # can shoot
                 pass
         elif random() < 0.01:

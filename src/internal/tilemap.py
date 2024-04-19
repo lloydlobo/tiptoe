@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-import math
 import sys
 from collections import deque, namedtuple
 from copy import deepcopy
-from functools import lru_cache
-from typing import TYPE_CHECKING, Final, TypedDict, Union
+from typing import TYPE_CHECKING, Final, Optional, TypedDict, Union
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game  # from editor import Editor
@@ -71,7 +69,25 @@ class Tilemap:
             if tile.kind in pre.PHYSICS_TILES
         ]
 
+    def is_solid(self, loc: pg.Vector2 | str) -> bool:
+        """Checks if a tile is solid (Vector2 or string representation)."""
+        if isinstance(loc, pg.Vector2):
+            loc = self.vec2_jsonstr(loc)
+        return loc in self.tilemap and self.tilemap[loc].kind in pre.PHYSICS_TILES
+
     # perf: Implement flood filling feature
+    def floodfill(self, tile):
+        pass
+
+    def maybe_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
+        return self.tilemap.get(self.vec2_jsonstr(self.pos_as_grid_loc(pos)), None)
+
+    def maybe_solid_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
+        # note: why are we returning the tile instead of a boolean
+        """Return optional physics tile can be stepped on or None"""
+        return tile if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in pre.PHYSICS_TILES) else None
+
+        # ^ OR use if ( loc := self.vec2_jsonstr(self.pos_as_grid_loc(pos)), tile := self.tilemap.get(loc, None))
 
     def extract(self, id_pairs: tuple[tuple[str, int], ...], keep_tile: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
@@ -147,6 +163,12 @@ class Tilemap:
         """calc_tile_loc avoids pixel bordering zero to round to 1."""
         return (int(x // self.tile_size), int(y // self.tile_size))
 
+    def tilemap_to_json(self) -> dict[str, TileItemJSON]:
+        return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
+
+    def offgrid_tiles_to_json(self) -> list[TileItemJSON]:
+        return [TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for tile in self.offgrid_tiles]
+
     @staticmethod
     def generate_surf(
         count: int,
@@ -183,18 +205,6 @@ class Tilemap:
             for i in range(count)  # after processing pipeline, select first [0] Surface in tuple
         ]
 
-    def solid_check(self, pos: pg.Vector2) -> TileItem | None:
-        (x, y) = self.calc_tile_loc(pos.x, pos.y)
-        if (tile_loc := calc_pos_to_loc(x, y, None)) and tile_loc in self.tilemap:
-            if self.tilemap[tile_loc].kind in pre.PHYSICS_TILES:  # note: only physics tile can be stepped on
-                return self.tilemap[tile_loc]
-
-    def tilemap_to_json(self) -> dict[str, TileItemJSON]:
-        return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
-
-    def offgrid_tiles_to_json(self) -> list[TileItemJSON]:
-        return [TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for tile in self.offgrid_tiles]
-
     @staticmethod
     def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):  # -> dict[str, TileItem]
         # PERF: needs optimization. use ctx manager for generator function reading?
@@ -212,6 +222,13 @@ class Tilemap:
     @staticmethod
     def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]) -> list[TileItem]:
         return [TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data]
+
+    @staticmethod
+    def vec2_jsonstr(vec2: pg.Vector2) -> str:
+        return f"{vec2.x:.0f};{vec2.y:.0f}"  # Using f-string formatting for clarity
+
+    def pos_as_grid_loc(self, vec2: pg.Vector2) -> pg.Vector2:
+        return vec2 // self.tile_size  # Vector element-wise division for efficiency
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         # hack: optimization hack to stop python from initializing dot methods on each iteration in for loop
