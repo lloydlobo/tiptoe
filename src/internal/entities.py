@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from random import randint, random
 from typing import TYPE_CHECKING, Final
 
 import internal.prelude as pre
@@ -126,9 +127,63 @@ class PhysicalEntity:
 class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.ENEMY, pos, size)
+        self.walking = 0
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
+        """
+        solid_ahead = True  # TODO: physics tiles around
+
+        match (solid_ahead, self.collisions.left, self.collisions.right):
+            case (True, True, _):  # Solid ahead and colliding on the left
+            case (True, _, True):  # Solid ahead and colliding on the right
+                self.flip = not self.flip
+            case (True, False, False):  # Solid ahead but not colliding
+                movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
+            case _:  # Any other case (not solid ahead)
+                # Handle movement as usual (code not provided in the prompt)
+                pass
+
+            if (solid_ahead := tilemap.solid_check(_lookahead)) and (solid_ahead and (self.collisions["right"] or self.collisions["left"])):
+                self.flip = not self.flip
+            elif solid_ahead:  # turn
+                movement = (movement[0] + (-0.5 if self.flip else 0.5), movement[1])
+            else:
+                self.flip = not self.flip
+        """
+        # manipulate movement
+        if self.walking:
+            _lookahead: Final = (self.rect().centerx + (-7 if self.flip else 7), self.pos[1] + 23)  # (x=7px * west/east from center, y=23px * south)
+
+            # solid_ahead = not False  # TODO: physics tiles around
+            if (solid_ahead := tilemap.solid_check(pg.Vector2(_lookahead))) and (solid_ahead and (self.collisions.right or self.collisions.left)):
+                self.flip = not self.flip
+            elif solid_ahead:
+                movement = pg.Vector2(movement.x + (-0.5 if self.flip else 0.5), movement.y)
+            else:
+                self.flip = not self.flip
+
+            # match (solid_ahead, self.collisions.left, self.collisions.right):
+            #     case (True, True, _) | (True, _, True):
+            #         self.flip = not self.flip
+            #     case (True, _, _):
+            #         movement.x = movement.x + (-0.5 if self.flip else 0.5)
+            #         movement.y = movement.y
+            #     case _:  # if tile glitch
+            #         self.flip = not self.flip
+            # becomes 0 (static once every walk cycle of spawning a projectile)
+            self.walking = max(0, self.walking - 1) # NOTE: max only!!!!
+            if not self.walking:  # can shoot
+                pass
+        elif random() < 0.01:
+            self.walking = randint(30, 120)
+
         super().update(tilemap, movement)
+
+        if movement[0] != 0:
+            self.set_action(Action.RUN)
+        else:
+            self.set_action(Action.IDLE)
+
         return False  # enemy: alive
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:

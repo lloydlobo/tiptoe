@@ -183,6 +183,12 @@ class Tilemap:
             for i in range(count)  # after processing pipeline, select first [0] Surface in tuple
         ]
 
+    def solid_check(self, pos: pg.Vector2) -> TileItem | None:
+        (x, y) = self.calc_tile_loc(pos.x, pos.y)
+        if (tile_loc := calc_pos_to_loc(x, y, None)) and tile_loc in self.tilemap:
+            if self.tilemap[tile_loc].kind in pre.PHYSICS_TILES:  # note: only physics tile can be stepped on
+                return self.tilemap[tile_loc]
+
     def tilemap_to_json(self) -> dict[str, TileItemJSON]:
         return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
 

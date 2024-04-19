@@ -29,33 +29,55 @@ class Editor:
         ######
         # note: need these for reference for animation workaround
         ######
+        tiles_alpha = 255
 
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
+        portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
+
         player_color = pre.YELLOW
+        portal_1_color = pre.WHITE
+        portal_2_color = pre.BEIGE
         enemy_color = pre.CREAM
+
         player_surf = pg.Surface(player_size).convert()
         player_surf.set_colorkey(pre.BLACK)
         player_surf.fill(player_color)
+
         enemy_surf = pg.Surface(enemy_size).convert()
         enemy_surf.set_colorkey(pre.BLACK)
         enemy_surf.fill(enemy_color)
+
         portal_surf = pg.Surface((pre.TILE_SIZE, pre.TILE_SIZE)).convert()
         portal_surf.set_colorkey(pre.BLACK)
         portal_surf.fill(pre.WHITE)
 
+        portal_surf_1 = pg.Surface(portal_size).convert()
+        portal_surf_1.set_colorkey(pre.BLACK)
+        portal_surf_1.fill(portal_1_color)
+        portal_surf_2 = pg.Surface(portal_size).convert()
+        portal_surf_2.set_colorkey(pre.BLACK)
+        portal_surf_2.fill(portal_2_color)
+
         self.assets = pre.Assets(
             entity=dict(),
             tiles=dict(
-                # tiles: on grid
-                grass=Tilemap.generate_surf(9, color=pre.GREEN, alpha=255),
-                stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=200),
-                # tiles: off grid
-                decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
-                portal=[portal_surf.copy()],
+                # # tiles: on grid
+                # grass=Tilemap.generate_surf(9, color=pre.GREEN, alpha=255),
+                # stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=200),
+                # # tiles: off grid
+                # decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                # large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                # portal=[portal_surf.copy()],
+                grass=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
+                stone=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
+                decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                large_decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                portal=[portal_surf_1.copy(), portal_surf_2.copy()],
                 spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],  # HACK: only place this as an offgrid tile
             ),
+            misc_surf=dict(),
+            misc_surfs=dict(),
             animations_entity=None or pre.Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
             animations_misc=None or pre.Assets.AnimationMiscAssets(particle=dict()),
         )
@@ -115,7 +137,9 @@ class Editor:
                 self.display.blit(cur_tile_img, mpos)
 
             if self.clicking and self.ongrid:  # tile: add
-                self.tilemap.tilemap[calc_pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
+                self.tilemap.tilemap[calc_pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(
+                    kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos
+                )
             if self.right_clicking:  # tile: remove
                 if (tile_loc := calc_pos_to_loc(tile_pos.x, tile_pos.y, None)) and tile_loc in self.tilemap.tilemap:
                     del self.tilemap.tilemap[tile_loc]
@@ -136,7 +160,9 @@ class Editor:
                     if event.button == 1:
                         self.clicking = True
                         if not self.ongrid:
-                            self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll))
+                            self.tilemap.offgrid_tiles.append(
+                                TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll)
+                            )
                     if event.button == 3:  # 2 is when you click down on the mice
                         self.right_clicking = True
                 if event.type == pg.MOUSEBUTTONUP:
@@ -206,7 +232,11 @@ class Editor:
                 key_fillchar = ":"
                 val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
                 hud_elements = [
-                    (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+                    (
+                        f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}"
+                        if '.' in text
+                        else f"{text.ljust(val_w,val_fillchar)}"
+                    )
                     for text in [
                         f"FPS.{self.clock.get_fps():2.0f}",
                         f"GRIDMODE.{str(self.ongrid).upper()}",
