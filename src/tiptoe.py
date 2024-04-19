@@ -1,4 +1,6 @@
 import cProfile
+import math
+from collections import deque
 from os import listdir, path
 from sys import exit
 from typing import Final
@@ -29,6 +31,8 @@ class Game:
 
         self.clock = pg.time.Clock()
         self.clock_dt = 0
+        if pre.DEBUG_GAME_HUD:
+            self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # figure how to make it optional. have to assign regardless of None
 
@@ -42,7 +46,7 @@ class Game:
         player_color = pre.BLACKMID or pre.TEAL
         player_run_color = pre.BLACKMID  # use black for invisibility
         player_jump_color = pre.RED
-        enemy_color = pre.CREAM
+        enemy_color = pre.YELLOWMID or pre.CREAM
         portal_1_color = pre.WHITE
         portal_2_color = pre.BEIGE
         player_alpha = 190
@@ -94,7 +98,7 @@ class Game:
         # cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
         # cloud_surf.fill(pre.hsl_to_rgb(240, 0.2, 0.3))
 
-        self._cloud_count: Final = 11 or 111
+        self._cloud_count: Final = 9 or 111
         self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
 
         cloud_size = (69 / 1.618, 69 / 1.618)
@@ -211,36 +215,43 @@ class Game:
         self.touched_portal = False
         self.transition = self._transition_lo  # -30
 
-    def render_debug_hud(self, render_scroll: tuple[int, int]):
+    def render_debug_hud(self, render_scroll: tuple[int, int]) -> None:
         antialias = True
-        key_w = 12  # VELOCITY key
-        val_w = 12  # LASTSAVE value | max overflow is 24 for local time readable
+        text_color = pre.CREAM
+        key_w = 12
+        val_w = 12
         key_fillchar = " "
         val_fillchar = " "  # non monospace fonts look uneven vertically in tables
         movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
         collisions_bitmap_str = ':'.join(list((k[0] + ('#' if v else ' ')) for k, v in self.player.collisions.__dict__.items())).upper().split(',')[0]
         player_action = val.value.upper() if (val := self.player.action) and val else None
-        hud_elements = [
+        line_height = min(self.font_size, pre.TILE_SIZE)
+        hud_elements = (
             (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
-            for text in [
+            for text in (
+                ##################################
                 f"CLOCK_FPS.{self.clock.get_fps():2.0f}",
                 f"CLOCK_DT.{self.clock_dt:2.0f}",
                 ###################################
                 f"CAM_RSCROLL.{render_scroll.__str__()}",
                 f"CAM_SCROLL.{self.scroll.__round__(0)}",
+                ##################################
                 f"INPT_MVMNT.{movement_bitmap_str}",
                 f"MAP_LEVEL.{str(self.level)}",
+                ##################################
                 f"PLYR_ACTION.{player_action }",
                 f"PLYR_ALPHA.{self.player.animation_assets[self.player.action.value].img().get_alpha() if self.player.action else None}",
                 f"PLYR_COLLIDE.{collisions_bitmap_str}",
                 f"PLYR_FLIP.{str(self.player.flip).upper()}",
                 f"PLYR_POS.{self.player.pos.__round__(0)}",
                 f"PLYR_VEL.{str(self.player.velocity.__round__(0))}",
-            ]
-        ]
-        blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
+                f"PLYR_DASH.{str(self.player.dash_time)}",
+                ##################################
+            )
+        )
+        blit_text = self.screen.blit
         for index, text in enumerate(hud_elements):
-            blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))  # note: returns delta time (dt)
+            blit_text(self.font.render(text, antialias, text_color, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
 
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
@@ -249,8 +260,6 @@ class Game:
         # bg.fill(pre.hsl_to_rgb(240, 0.35, 0.1))
         # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.15)) # like this
         bg.fill(self._bg_color)  # like this more
-
-        # TODO: parallax clouds like background
 
         while True:
             self.display.fill(pre.TRANSPARENT)
@@ -276,12 +285,9 @@ class Game:
                     self.load_level(self.level)
 
             # camera: update and parallax
-            # 'where we want camera to be' - 'where we are or what we have' /
-            # '30', so further player is faster camera moves and vice-versa we
-            # can use round on scroll increment to smooth out jumper scrolling
-            # & also multiplying by point zero thirty two instead of dividing
-            # by thirty if camera is off by 1px not an issue, but rendering
-            # tiles could be. note: use 0 round off for smooth camera
+            #     'where we want camera to be' - 'where we are or what we have' / '30', so further player is faster camera moves and vice-versa we
+            #     can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing
+            #     by thirty if camera is off by 1px not an issue, but rendering tiles could be. note: use 0 round off for smooth camera
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -289,7 +295,6 @@ class Game:
             # clouds
             self.clouds.update()
             self.clouds.render(self.display_2, render_scroll)  # display two blitting avoids masks depth
-            # self.clouds.render(self.display, render_scroll)
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
@@ -334,6 +339,9 @@ class Game:
                     if event.key == pg.K_UP:
                         if self.player.jump():
                             pass  # todo: play jump sfx
+                    if event.key == pg.K_DOWN:
+                        if self.player.dash():
+                            pass  # todo: dash jump sfx
                 if event.type == pg.KEYUP:
                     if event.key == pg.K_LEFT:
                         self.movement.left = False
@@ -348,15 +356,21 @@ class Game:
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
 
             if pre.DEBUG_GAME_HUD:
-                self.render_debug_hud(render_scroll)
+                if abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2:
+                    self.render_debug_hud(render_scroll)
             if pre.DEBUG_GAME_CACHEINFO:  # cache
                 print(f"{pre.hsl_to_rgb.cache_info() = }")
 
             # DRAW: FINAL DISPLAY
 
-            # update whole screen
+            # update: whole screen
             pg.display.update()  # pg.display.flip()
             self.clock_dt = self.clock.tick(pre.FPS_CAP)
+
+            if pre.DEBUG_GAME_HUD:
+                self.clock_dt_recent_values.appendleft(self.clock_dt)
+                if len(self.clock_dt_recent_values) == pre.FPS_CAP:
+                    self.clock_dt_recent_values.pop()
 
 
 if __name__ == "__main__":

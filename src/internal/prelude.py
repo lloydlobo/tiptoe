@@ -330,7 +330,7 @@ TEAL                = hsl_to_rgb(180, 0.4, 0.25)
 TRANSPARENT         = (0, 0, 0, 0)
 WHITE               = (255, 255, 255)
 YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
-# YELLOW              = hsl_to_rgb(60, 0.4, 0.3)
+YELLOWMID           = hsl_to_rgb(60, 0.4, 0.25)
 # fmt: on
 
 
