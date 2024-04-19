@@ -34,10 +34,11 @@ class Cloud:
     def update(self) -> None:
         self.pos.y -= self._speed
 
-        if 350 <= self.rot <= 360:
-            self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
-        else:
-            self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
+        if (_enable_rotation := 0) and _enable_rotation:
+            if 350 <= self.rot <= 360:
+                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
+            else:
+                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
 
         if pre.DEBUG_GAME_STRESSTEST:
             if 354 < self.rot < 357:  # reset fiesty rotation

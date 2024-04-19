@@ -214,7 +214,8 @@ class Player(PhysicalEntity):
         # ....
         if abs(self.dash_time) in {60, 50}:
             # todo: spawn dash burst particles
-            print(f"spawning particles: dash burst: {self.dash_time=}")
+            # print(f"spawning particles: dash burst: {self.dash_time=}")
+            pass
         if self.dash_time > 0:  # 0:60
             self.dash_time = max(0, self.dash_time - 1)
         if self.dash_time < 0:  # -60:0
@@ -224,7 +225,8 @@ class Player(PhysicalEntity):
             if abs(self.dash_time) == 51:
                 self.velocity.x *= 0.1  # deceleration also acts as a cooldown, for next trigger
             # todo: spawn dash streeam particles
-            print(f"spawning particles: dash stream: {self.dash_time=}")
+            # print(f"spawning particles: dash stream: {self.dash_time=}")
+            pass
 
         # normalize horizontal velocity
         if self.velocity.x > 0:

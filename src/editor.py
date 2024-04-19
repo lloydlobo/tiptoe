@@ -5,7 +5,7 @@ import time
 import pygame as pg
 
 import internal.prelude as pre
-from internal.tilemap import TileItem, Tilemap, calc_pos_to_loc
+from internal.tilemap import TileItem, Tilemap, pos_to_loc
 
 
 class Editor:
@@ -137,9 +137,9 @@ class Editor:
                 self.display.blit(cur_tile_img, mpos)
 
             if self.clicking and self.ongrid:  # tile: add
-                self.tilemap.tilemap[calc_pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
+                self.tilemap.tilemap[pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
             if self.right_clicking:  # tile: remove
-                if (tile_loc := calc_pos_to_loc(tile_pos.x, tile_pos.y, None)) and tile_loc in self.tilemap.tilemap:
+                if (tile_loc := pos_to_loc(tile_pos.x, tile_pos.y, None)) and tile_loc in self.tilemap.tilemap:
                     del self.tilemap.tilemap[tile_loc]
 
                 for tile in self.tilemap.offgrid_tiles.copy():

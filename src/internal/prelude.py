@@ -265,11 +265,11 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # fmt: off
 # flags: debugging, etc
 DEBUG_EDITOR_ASSERTS= True
-DEBUG_EDITOR_HUD    = False
+DEBUG_EDITOR_HUD    = True
 DEBUG_GAME_ASSERTS  = True
 DEBUG_GAME_CACHEINFO= False
-DEBUG_GAME_HUD      = False
-DEBUG_GAME_PROFILER = False
+DEBUG_GAME_HUD      = True
+DEBUG_GAME_PROFILER = True
 DEBUG_GAME_STRESSTEST = False
 # fmt: on
 

@@ -1,7 +1,7 @@
 import cProfile
 import itertools as it
-import math
 from collections import deque
+from functools import partial
 from os import listdir, path
 from sys import exit
 from typing import Final
@@ -35,10 +35,10 @@ class Game:
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
 
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # figure how to make it optional. have to assign regardless of None
+        # perf: figure how to make it optional. have to assign regardless of None
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         # need these for reference for animation workaround
-        tiles_alpha = 255
         player_size = (8, pre.TILE_SIZE - 1)
         player_run_size = (player_size[0] + 1, player_size[1] - 1)
         player_jump_size = (player_size[0] - 1, player_size[1])
@@ -52,7 +52,7 @@ class Game:
         portal_2_color = pre.BEIGE
         player_alpha = 190
 
-        player_surf = Tilemap.generate_surf(1, player_color, size=player_size, alpha=player_alpha)[0]
+        player_surf = Tilemap.generate_surf(1, player_color, size=player_size)[0]
         player_run_surf = pg.Surface(player_run_size).convert()
         player_run_surf.set_colorkey(pre.BLACK)
         player_run_surf.fill(player_run_color)
@@ -99,21 +99,17 @@ class Game:
         # cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
         # cloud_surf.fill(pre.hsl_to_rgb(240, 0.2, 0.3))
 
-        self._cloud_count: Final = 69 or 111 or 16
+        self._cloud_count: Final = 16*2
         self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
 
         cloud_size = (69 / 1.618, 69 / 1.618)
-        # cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618))) # love this size
         cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
         cloud_surf = pg.Surface(cloud_size).convert()
         cloud_surf.set_colorkey(self._bg_color)
-        # cloud_surf.fill(pre.hsl_to_rgb(240, 0.26, 0.13))  # awesome
-        # cloud_surf.fill(pre.hsl_to_rgb(200, 0.26, 0.13))  # awesome
-        cloud_surf.fill(pre.hsl_to_rgb(60*5, 0.26, 0.18))  # awesome
+        cloud_surf.fill(pre.hsl_to_rgb(60 * 5, 0.26, 0.18))  # awesome
 
         self.assets = pre.Assets(
             entity=dict(
-                # entity
                 enemy=enemy_surf.copy(),
                 player=player_surf.copy(),
             ),
@@ -126,19 +122,16 @@ class Game:
                 clouds=[cloud_surf.copy() for _ in range(self._cloud_count)],
             ),
             tiles=dict(
-                grass=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
-                stone=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
                 decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                grass=Tilemap.generate_surf(9, color=pre.BLACKMID),
                 large_decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
                 portal=[portal_surf_1.copy(), portal_surf_2.copy()],
+                stone=Tilemap.generate_surf(9, color=pre.BLACKMID),
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(Tilemap.generate_surf(9, color=player_color, size=(player_size[0], player_size[1]), alpha=player_alpha, variance=1), img_dur=6),
-                    run=pre.Animation(
-                        [player_run_surf.copy(), player_run_surf.copy()] or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size, alpha=player_alpha + 20, variance=2),
-                        img_dur=4,
-                    ),  # or Tilemap.generate_surf(1, color=player_color, size=player_jump_size, alpha=player_alpha, variance=20),
+                    idle=pre.Animation(Tilemap.generate_surf(9, color=player_color, size=(player_size[0], player_size[1])), img_dur=6),
+                    run=pre.Animation([player_run_surf.copy(), player_run_surf.copy()] or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size), img_dur=4),
                     jump=pre.Animation(jump_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
@@ -224,16 +217,19 @@ class Game:
         self.transition = self._transition_lo  # -30
 
     def render_debug_hud(self, render_scroll: tuple[int, int]) -> None:
+        t_size = pre.TILE_SIZE
         antialias = True
-        text_color = pre.CREAM
-        key_w = 12
-        val_w = 12
         key_fillchar = " "
+        key_w = 12
+        line_height = min(self.font_size, t_size)
+        text_color = pre.CREAM
         val_fillchar = " "  # non monospace fonts look uneven vertically in tables
-        movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
+        val_w = 12
+
         collisions_bitmap_str = ':'.join(list((k[0] + ('#' if v else ' ')) for k, v in self.player.collisions.__dict__.items())).upper().split(',')[0]
+        movement_bitmap_str = ':'.join(list((k[0] + str(int(v))) for k, v in self.movement.__dict__.items())[0:2]).upper().split(',')[0]
         player_action = val.value.upper() if (val := self.player.action) and val else None
-        line_height = min(self.font_size, pre.TILE_SIZE)
+
         hud_elements = (
             (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
             for text in (
@@ -257,14 +253,19 @@ class Game:
                 ##################################
             )
         )
-        blit_text = self.screen.blit
+
+        blit_text_partial = partial(self.screen.blit)
+        render_font_partial = partial(self.font.render)
         for index, text in enumerate(hud_elements):
-            blit_text(self.font.render(text, antialias, text_color, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
+            blit_text_partial(render_font_partial(text, antialias, text_color, pre.BG_DARK), (t_size, t_size + index * line_height))
 
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
         bg.set_colorkey(pre.BLACK)
         bg.fill(self._bg_color)
+
+        if pre.DEBUG_GAME_HUD:
+            render_debug_partial = partial(self.render_debug_hud)
 
         while True:
             self.display.fill(pre.TRANSPARENT)
@@ -366,7 +367,7 @@ class Game:
 
             if pre.DEBUG_GAME_HUD:
                 if abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2:
-                    self.render_debug_hud(render_scroll)
+                    render_debug_partial(render_scroll)
             if pre.DEBUG_GAME_CACHEINFO:  # cache
                 print(f"{pre.hsl_to_rgb.cache_info() = }")
 
@@ -385,4 +386,5 @@ class Game:
 if __name__ == "__main__":
     if pre.DEBUG_GAME_PROFILER:
         cProfile.run("Game().load_level(0)", sort="cumulative")
+        cProfile.run("Game().run()", sort="cumulative")
     Game().run()
