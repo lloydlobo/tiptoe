@@ -91,13 +91,6 @@ class Animation:
 
     def update(self) -> None:
         """Increment frames like a movie screen roll or a marque"""
-        """
-    View the cache statistics named tuple (hits, misses, maxsize, currsize)
-    with f.cache_info().  Clear the cache and statistics with f.cache_clear().
-    Access the underlying function with f.__wrapped__.
-
-        """
-
         if self.loop:
             self.frame += 1
             self.frame %= self._total_frames
@@ -272,11 +265,12 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # fmt: off
 # flags: debugging, etc
 DEBUG_EDITOR_ASSERTS= True
-DEBUG_EDITOR_HUD    = True
+DEBUG_EDITOR_HUD    = False
 DEBUG_GAME_ASSERTS  = True
-DEBUG_GAME_HUD      = True
-DEBUG_GAME_PROFILER = False
 DEBUG_GAME_CACHEINFO= False
+DEBUG_GAME_HUD      = False
+DEBUG_GAME_PROFILER = False
+DEBUG_GAME_STRESSTEST = False
 # fmt: on
 
 
@@ -408,7 +402,28 @@ class Iterutils:
     # NOTE: this is just for learning
 
     @staticmethod
-    def idim_collection_defaultdict():
+    def _idiom_it_cycle():
+        # bg = (0, 0, 0)
+        # ...
+        bg_colors = (hsl_to_rgb(240, 0.3, 0.1), hsl_to_rgb(240, 0.35, 0.1), hsl_to_rgb(240, 0.3, 0.15))
+        bg_color_cycle = it.cycle(bg_colors)
+        counter = 0
+        while True:
+            # display_2.blit(bg, (0, 0))
+            # ...
+            bg_color_cycle = it.cycle(bg_colors)
+            nxt_bg_color = next(bg_color_cycle)
+            # ...
+            # bg.fill(nxt_bg_color)
+            print(nxt_bg_color)
+            # ...
+            if (_user_quits := True) and _user_quits:
+                if counter >= 10:
+                    break
+            counter += 1
+
+    @staticmethod
+    def _idiom_collection_defaultdict():
         lst = {"a": (0, 0), "b": (1, 1)}
         foo: defaultdict[str, list[tuple[int, int]]] = defaultdict(list)
         for key, (x, y) in lst.items():
@@ -416,13 +431,13 @@ class Iterutils:
         print(foo)
 
     @staticmethod
-    def idiom_it_zip_long():
+    def _idiom_it_zip_long():
         for x in it.zip_longest([1, 2, 3], [1, 2, 3, 4, 5, 6]):
             print(x, end=" ")
         print()
 
     @staticmethod
-    def idiom_it_startmap():
+    def _idiom_it_startmap():
         # @fbaptiste: 05_itertools.ipynb
         lst = [(3, x) for x in range(6)]
         lst_starmap = it.starmap(math.pow, lst)
@@ -432,7 +447,7 @@ class Iterutils:
         print()
 
     @staticmethod
-    def idiom_it_chain():
+    def _idiom_it_chain():
         # @fbaptiste: 05_itertools.ipynb
         lst1 = [1, 2, 3, 4, 5]
         lst2 = "abcd"
@@ -444,7 +459,7 @@ class Iterutils:
         print()
 
     @staticmethod
-    def idiom_it_islice():
+    def _idiom_it_islice():
         # @fbaptiste: 05_itertools.ipynb
         # slice iterator: it even support start stop and step, except negative slicing
         for el in it.islice((el * 2 for el in range(10)), 3):

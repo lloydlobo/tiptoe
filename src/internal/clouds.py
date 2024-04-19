@@ -1,3 +1,4 @@
+import itertools as it
 import math
 import random
 from time import time
@@ -25,22 +26,24 @@ class Cloud:
         self._img_w: Final = self._img.get_width()
         self._img_h: Final = self._img.get_height()
 
+        if pre.DEBUG_GAME_STRESSTEST:
+            _base: Final = 0.618
+            self._angles = tuple(map(lambda x: x * 45, range(0, 9)))
+            self._rot_reset_cycle: Final = it.cycle(tuple(it.starmap(pow, ((1, _base), (2, _base), (3, _base), (5, _base), (8, _base), (13, _base), (21, _base), (34, _base)))))
+
     def update(self) -> None:
-        # self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
-        # ^ this just works fine
-        # ====
-        self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
-        # print(f"{self.rot:.2f} {self._speed:.2f}")
+        self.pos.y -= self._speed
 
-        # note: use abs(self.rot) if rotating the other direction
-        if self.rot >= 90:  # reset fiesty rotation
-            self.rot = int(1 + rot_function(self.pos.y, None))
-            self.rot = int(1 + rot_function(self.pos.x, None))
+        if 350 <= self.rot <= 360:
+            self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
+        else:
+            self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
 
-        if (_horizontal_only := True) and not _horizontal_only:
-            self.pos.x += self._speed
-        elif (_verticaly_dominant := True) and _verticaly_dominant:
-            self.pos.y -= self._speed
+        if pre.DEBUG_GAME_STRESSTEST:
+            if 354 < self.rot < 357:  # reset fiesty rotation
+                self.rot = int(1 + rot_function(self.pos.y, None))
+            if (rot := round(abs(self.rot))) and rot in self._angles:  # slingshot
+                self.pos.y -= 2 * next(self._rot_reset_cycle) * self._speed
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int]) -> None:
         dest: pg.Vector2 = self.pos - pg.Vector2(offset) * self._depth  # parallax FX
@@ -50,9 +53,20 @@ class Cloud:
 
 class Clouds:
     def __init__(self, cloud_imgs: list[pg.SurfaceType], count: int = 16) -> None:
-        _speedmultiplexer: Final = 3  # 5 more chaotic than 4. also wider distribution in speed
+        _fibs: Final = (2, 3, 5, 8, 13)
+        _avg: Final = sum(_fibs) / len(_fibs)
+
+        _fibos_cycle: Final = it.cycle(_fibs)
+        _speedmultiplexer: Final = 0.5  # 5 more chaotic than 4. also wider distribution in speed
+
         self._mut_clouds: list[Cloud] = [
-            Cloud(img=random.choice(cloud_imgs), pos=pg.Vector2(random.random() * 99999, random.random() * 99999), speed=(random.random() * 0.05 + 0.05) * _speedmultiplexer, depth=random.random() * 0.6 + 0.2)
+            Cloud(
+                img=random.choice(cloud_imgs),
+                pos=pg.Vector2(random.random() * 99999, random.random() * 99999),
+                # speed=(random.random() * 0.05 + 0.05) * _speedmultiplexer,  # approx range(0.05:0.10) when 1==_speedmultiplexer
+                speed=(random.random() * 0.05 + 0.05) * _speedmultiplexer * next(_fibos_cycle),  # approx range(0.05:0.10) when 1==_speedmultiplexer
+                depth=random.random() * 0.618 + min(0.2, round(next(_fibos_cycle) / (_avg * 1.618), 4)),
+            )
             for _ in range(count)
         ]
 

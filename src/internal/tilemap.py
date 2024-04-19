@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools as it
 import json
 import sys
 from collections import deque, namedtuple
@@ -137,6 +138,12 @@ class Tilemap:
 
     @staticmethod
     def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
+        # print(f"{data=}")
+        dataclass_data = it.starmap(TileItem, data)
+        # for x in dataclass_data:
+        #     print(x)
+        # print(dataclass_data)
+        # return dataclass_data
         return (TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data)
 
     @staticmethod

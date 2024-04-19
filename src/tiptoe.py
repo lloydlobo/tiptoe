@@ -1,4 +1,5 @@
 import cProfile
+import itertools as it
 import math
 from collections import deque
 from os import listdir, path
@@ -98,13 +99,17 @@ class Game:
         # cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
         # cloud_surf.fill(pre.hsl_to_rgb(240, 0.2, 0.3))
 
-        self._cloud_count: Final = 9 or 111
+        self._cloud_count: Final = 69 or 111 or 16
         self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
 
         cloud_size = (69 / 1.618, 69 / 1.618)
+        # cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618))) # love this size
+        cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
         cloud_surf = pg.Surface(cloud_size).convert()
         cloud_surf.set_colorkey(self._bg_color)
-        cloud_surf.fill(pre.hsl_to_rgb(240, 0.26, 0.13))  # awesome
+        # cloud_surf.fill(pre.hsl_to_rgb(240, 0.26, 0.13))  # awesome
+        # cloud_surf.fill(pre.hsl_to_rgb(200, 0.26, 0.13))  # awesome
+        cloud_surf.fill(pre.hsl_to_rgb(60*5, 0.26, 0.18))  # awesome
 
         self.assets = pre.Assets(
             entity=dict(
@@ -169,6 +174,9 @@ class Game:
 
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
+
+        self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), self._bg_color)
+        self.bg_color_cycle = it.cycle(self.bg_colors)
 
         self.enemies: list[Enemy] = []
         self.portal_spawners: list[Portal] = []
@@ -256,10 +264,7 @@ class Game:
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
         bg.set_colorkey(pre.BLACK)
-        # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.1)) # like this !!!
-        # bg.fill(pre.hsl_to_rgb(240, 0.35, 0.1))
-        # bg.fill(pre.hsl_to_rgb(240, 0.3, 0.15)) # like this
-        bg.fill(self._bg_color)  # like this more
+        bg.fill(self._bg_color)
 
         while True:
             self.display.fill(pre.TRANSPARENT)
@@ -272,6 +277,7 @@ class Game:
                 self.transition += 1
                 if self.transition > self._transition_hi:
                     self.level = min(self.level + 1, self._level_map_count - 1)
+                    bg.fill(next(self.bg_color_cycle))
                     self.load_level(self.level)
 
             if self.transition < self._transition_mid:
@@ -292,9 +298,12 @@ class Game:
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
-            # clouds
+            # clouds: backdrop update and render
             self.clouds.update()
-            self.clouds.render(self.display_2, render_scroll)  # display two blitting avoids masks depth
+            if (_enable_cloud_masks := 0) and _enable_cloud_masks:
+                self.clouds.render(self.display, render_scroll)
+            else:  # display_2 blitting avoids masks depth
+                self.clouds.render(self.display_2, render_scroll)
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
