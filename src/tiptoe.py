@@ -311,8 +311,12 @@ class Game:
                         self.touched_portal = True
                     self.display.blit(portal.assets[i], portal.pos - render_scroll)
 
-            # enemy: update and render todo:
-            # ...
+            # enemy: update and render
+            for enemy in self.enemies.copy():
+                kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
+                enemy.render(self.display, render_scroll)
+                if kill_animation:
+                    self.enemies.remove(enemy)
 
             # player: update and render
             if not self.dead:
