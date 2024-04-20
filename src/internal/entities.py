@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from enum import Enum
 from random import randint, random
 from typing import TYPE_CHECKING, Final, Optional
@@ -119,8 +120,15 @@ class Enemy(PhysicalEntity):
         self._lookahead_y: Final = 23  # 23px south
         self._moveby_x: Final = 0.5  # -0.5px if flip(facing left) else 0.5px
 
+        self.movement_history_x: deque[float] = deque(maxlen=pre.FPS_CAP or 10)
+        self.movement_history_y: deque[float] = deque(maxlen=pre.FPS_CAP or 10)
+
+        self.alert_timer = 0
+        self._always_alert = True  # added it just for fun. remove it for real gameplay
+
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         # pre-calculations: before inherited PhysicalEntity update()
+
         match self.walking_timer > 0:
             case True:  # movement: via timer
                 _lookahead = pg.Vector2(
@@ -132,16 +140,32 @@ class Enemy(PhysicalEntity):
                     case (True, True, _) | (True, _, True):
                         self.flip = not self.flip
                     case (True, False, False):
-                        movement = pg.Vector2(movement.x + (-self._moveby_x if self.flip else self._moveby_x), movement.y)
+                        dx = -self._moveby_x if self.flip else self._moveby_x
+                        movement = pg.Vector2(movement.x + dx, movement.y)
+                        if self.alert_timer or self._always_alert:  # calculate moving average for smooth/erratic movement and apply to enemy movement
+                            # perf: we can just hard code the length of movement history vvv
+                            avg_x_mvmt = round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0) * 0.1
+                            movement.x += round(avg_x_mvmt * 0.328 * 10) * 0.1
+                        self.movement_history_x.append(dx)
                     case _:  # Any other case (not solid ahead or one tile space glitch)
                         self.flip = not self.flip
+
+                self.alert_timer = max(0, self.alert_timer - 1)
 
                 # timer: decrement. becomes 0 or static once every walk cycle to begin spawning a projectile
                 self.walking_timer = max(0, self.walking_timer - 1)
 
                 # interaction: can now shoot while static
                 if not self.walking_timer:
-                    pass  # TODO: calculate distance between player and enemy
+
+                    # TODO: calculate distance between player and enemy
+                    if 0:
+                        pass
+
+                    # todo: replenish alert timer if enemy spots player
+                    if 0:
+                        self.alert_timer = randint(30 * 2, 120 * 2)
+                    pass
 
             case False if random() < 0.01:  # timer: replenish (1% chance or one in every .67 seconds)
                 self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking

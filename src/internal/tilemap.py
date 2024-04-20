@@ -6,7 +6,7 @@ import math
 import sys
 from collections import defaultdict, deque, namedtuple
 from copy import deepcopy
-from functools import partial
+from functools import partial, reduce
 from pprint import pprint
 from typing import TYPE_CHECKING, Final, Optional, TypedDict, Union
 

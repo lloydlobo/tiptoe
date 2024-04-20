@@ -269,8 +269,6 @@ class Game:
             blit_text_partialfn(render_font_partial(text, antialias, text_color, pre.BG_DARK), (t_size, t_size + index * line_height))
 
     def run(self) -> None:
-        print(pg.time.get_ticks())
-
         bg: pg.Surface = self.assets.misc_surf["background"]
         bg.set_colorkey(pre.BLACK)
         bg.fill(self._bg_color)
@@ -278,8 +276,9 @@ class Game:
         if pre.DEBUG_GAME_HUD:
             render_debug_partialfn = partial(self.render_debug_hud)
 
-        i = 0
-        j = 0
+        if pre.DEBUG_GAME_STRESSTEST:
+            i = 0
+            j = 0
 
         _last_get_tick = pg.time.get_ticks()
         running = True

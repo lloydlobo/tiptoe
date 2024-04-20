@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import lru_cache
+from functools import lru_cache, reduce
 from typing import Final, Sequence, Tuple, Union
 
 import pygame as pg
@@ -269,7 +269,7 @@ DEBUG_EDITOR_HUD    = True
 
 DEBUG_GAME_ASSERTS  = True
 DEBUG_GAME_CACHEINFO= False
-DEBUG_GAME_HUD      = True
+DEBUG_GAME_HUD      = False
 DEBUG_GAME_PROFILER = False
 DEBUG_GAME_STRESSTEST = False
 # fmt: on
@@ -416,11 +416,24 @@ def generate_surf(count: int, color: tuple[int, int, int] = BLACK, size: tuple[i
 # ITERUTILS #
 
 
+class Funcutils:
+    @staticmethod
+    def idiom_functools_reducer():
+        print(f"{ reduce(lambda x, y: x/y, [1, 2, 3, 4, 5]) = }")  # 0.008333333333333333
+        print(f"{ reduce(lambda x, y: x//y, [1, 2, 3, 4, 5]) = }")  # 0
+        print(f"{ reduce(lambda x, y: x*y, [1, 2, 3, 4, 5]) = }")  # 120
+        print(f"{ reduce(lambda x, y: x+y, [1, 2, 3, 4, 5]) = }")  # 15: calculates ((((1+2)+3)+4)+5)
+        print(f"{ reduce(lambda x, y: x-y, [1, 2, 3, 4, 5]) = }")  # -13
+        print(f"{ reduce(lambda x, y: x%y, [1, 2, 3, 4, 5]) = }")  # 1
+        print(f"{ reduce(lambda x, y: x**y, [1, 2, 3, 4, 5]) = }")  # 1
+        print(f"{ reduce(lambda x, y: x**(1/y), [1, 2, 3, 4, 5]) = }")  # 1.0
+
+
 class Iterutils:
     # NOTE: this is just for learning
 
     @staticmethod
-    def _idiom_it_cycle():
+    def idiom_it_cycle():
         # bg = (0, 0, 0)
         # ...
         bg_colors = (hsl_to_rgb(240, 0.3, 0.1), hsl_to_rgb(240, 0.35, 0.1), hsl_to_rgb(240, 0.3, 0.15))
@@ -441,7 +454,7 @@ class Iterutils:
             counter += 1
 
     @staticmethod
-    def _idiom_collection_defaultdict():
+    def idiom_collection_defaultdict():
         lst = {"a": (0, 0), "b": (1, 1)}
         foo: defaultdict[str, list[tuple[int, int]]] = defaultdict(list)
         for key, (x, y) in lst.items():
@@ -449,13 +462,13 @@ class Iterutils:
         print(foo)
 
     @staticmethod
-    def _idiom_it_zip_long():
+    def idiom_it_zip_long():
         for x in it.zip_longest([1, 2, 3], [1, 2, 3, 4, 5, 6]):
             print(x, end=" ")
         print()
 
     @staticmethod
-    def _idiom_it_startmap():
+    def idiom_it_startmap():
         # @fbaptiste: 05_itertools.ipynb
         lst = [(3, x) for x in range(6)]
         lst_starmap = it.starmap(math.pow, lst)
@@ -465,7 +478,7 @@ class Iterutils:
         print()
 
     @staticmethod
-    def _idiom_it_chain():
+    def idiom_it_chain():
         # @fbaptiste: 05_itertools.ipynb
         lst1 = [1, 2, 3, 4, 5]
         lst2 = "abcd"
@@ -477,7 +490,7 @@ class Iterutils:
         print()
 
     @staticmethod
-    def _idiom_it_islice():
+    def idiom_it_islice():
         # @fbaptiste: 05_itertools.ipynb
         # slice iterator: it even support start stop and step, except negative slicing
         for el in it.islice((el * 2 for el in range(10)), 3):
