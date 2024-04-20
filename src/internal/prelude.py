@@ -266,10 +266,11 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # flags: debugging, etc
 DEBUG_EDITOR_ASSERTS= True
 DEBUG_EDITOR_HUD    = True
+
 DEBUG_GAME_ASSERTS  = True
 DEBUG_GAME_CACHEINFO= False
 DEBUG_GAME_HUD      = True
-DEBUG_GAME_PROFILER = True
+DEBUG_GAME_PROFILER = False
 DEBUG_GAME_STRESSTEST = False
 # fmt: on
 
@@ -318,6 +319,7 @@ GRAY                = hsl_to_rgb(0, 0, 0.5)
 GREEN               = hsl_to_rgb(120, 1, 0.25)
 MIDNIGHT            = (2, 2, 3)
 PURPLE              = hsl_to_rgb(300, 1, 0.25)
+PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
 RED                 = hsl_to_rgb(0, 0.618, 0.328)
 SILVER              = hsl_to_rgb(0, 0, 0.75)
 TEAL                = hsl_to_rgb(180, 0.4, 0.25)
@@ -392,6 +394,22 @@ AUTOTILE_MAP = {
     tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
 }
 # fmt: on
+
+###################
+# PYGAME SURFACES #
+
+
+def generate_surf(count: int, color: tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> list[pg.Surface]:
+    _with_variation = False
+    return [
+        (
+            surf := pg.Surface(size),
+            surf.set_colorkey(colorkey),
+            surf.fill(color if not _with_variation else (color[0] + int(math.sin(i) + i * 10) // 10, color[1] + int(math.cos(i) + i * 10) // 10, color[2] + i * (1 or 2))),
+        )[0]
+        # ^ after processing pipeline, select first [0] Surface in tuple
+        for i in range(count)
+    ]
 
 
 #############

@@ -1,8 +1,10 @@
 import cProfile
 import itertools as it
+import math
 from collections import deque
 from functools import partial
 from os import listdir, path
+from random import randint, random
 from sys import exit
 from typing import Final
 
@@ -21,8 +23,12 @@ class Game:
 
         display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
 
-        self.screen = pg.display.set_mode(pre.DIMENSIONS, display_flags)
+        self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         pg.display.set_caption(pre.CAPTION)
+        pg.display._set_autoresize(False)
+        # ^ see github:pygame/examples/resizing_new.py
+        # | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+        # ====
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
@@ -31,28 +37,41 @@ class Game:
         self.font = pg.font.SysFont(name=("monospace"), size=self.font_size, bold=True)  # or name=pg.font.get_default_font()
 
         self.clock = pg.time.Clock()
-        self.clock_dt = 0
+        self._clock_dt = 0
         if pre.DEBUG_GAME_HUD:
-            self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
+            self.clock_dt_recent_values: deque[int] = deque([self._clock_dt, self._clock_dt])
 
-        # perf: figure how to make it optional. have to assign regardless of None
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # perf: figure how to make it optional. have to assign regardless of None
+
+        self._cloud_count: Final = 16 * 2
+        self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
+
+        cloud_color = pre.hsl_to_rgb(60 * 5, 0.26, 0.18)
+        cloud_size = (69 / 1.618, 69 / 1.618)
+        cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
+        cloud_surf = pg.Surface(cloud_size).convert()
+        cloud_surf.set_colorkey(self._bg_color)
+        cloud_surf.fill(cloud_color)  # awesome
 
         # need these for reference for animation workaround
+
         player_size = (8, pre.TILE_SIZE - 1)
-        player_run_size = (player_size[0] + 1, player_size[1] - 1)
-        player_jump_size = (player_size[0] - 1, player_size[1])
+
         enemy_size = (8, pre.TILE_SIZE - 1)
+        player_jump_size = (player_size[0] - 1, player_size[1])
+        player_run_size = (player_size[0] + 1, player_size[1] - 1)
         portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
+
+        enemy_color = pre.TEAL or pre.CREAM
         player_color = pre.BLACKMID or pre.TEAL
-        player_run_color = pre.BLACKMID  # use black for invisibility
         player_jump_color = pre.RED
-        enemy_color = pre.YELLOWMID or pre.CREAM
+        player_run_color = pre.BLACKMID  # use black for invisibility
         portal_1_color = pre.WHITE
         portal_2_color = pre.BEIGE
+
         player_alpha = 190
 
-        player_surf = Tilemap.generate_surf(1, player_color, size=player_size)[0]
+        player_surf = pre.generate_surf(1, player_color, size=player_size)[0]
         player_run_surf = pg.Surface(player_run_size).convert()
         player_run_surf.set_colorkey(pre.BLACK)
         player_run_surf.fill(player_run_color)
@@ -94,19 +113,7 @@ class Game:
         jump_down_5.set_alpha(player_alpha - 140)
         jump_frames = [player_jump_surf, jump_down_1, jump_down_2, jump_down_3, jump_down_4, jump_down_5]
 
-        # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** 0.5), ((pre.TILE_SIZE / (9 / 16)) ** 1.618))
-        # cloud_size = (((pre.TILE_SIZE / (16 / 9)) ** (1 / math.pi)), player_size[1] * 3 or (1 / 4 * (pre.TILE_SIZE / (9 / 16)) ** 1.618))
-        # cloud_size = ((player_size[0] / math.pi) / 1.618, player_size[1] * math.pi)
-        # cloud_surf.fill(pre.hsl_to_rgb(240, 0.2, 0.3))
-
-        self._cloud_count: Final = 16*2
-        self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
-
-        cloud_size = (69 / 1.618, 69 / 1.618)
-        cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
-        cloud_surf = pg.Surface(cloud_size).convert()
-        cloud_surf.set_colorkey(self._bg_color)
-        cloud_surf.fill(pre.hsl_to_rgb(60 * 5, 0.26, 0.18))  # awesome
+        gen_surf_partialfn = partial(pre.generate_surf)
 
         self.assets = pre.Assets(
             entity=dict(
@@ -122,27 +129,29 @@ class Game:
                 clouds=[cloud_surf.copy() for _ in range(self._cloud_count)],
             ),
             tiles=dict(
-                decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                grass=Tilemap.generate_surf(9, color=pre.BLACKMID),
-                large_decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                grass=gen_surf_partialfn(9, color=pre.BLACKMID or pre.GREEN),
+                large_decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
                 portal=[portal_surf_1.copy(), portal_surf_2.copy()],
-                stone=Tilemap.generate_surf(9, color=pre.BLACKMID),
+                stone=gen_surf_partialfn(9, color=pre.BLACKMID or pre.PURPLEMID),
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(Tilemap.generate_surf(9, color=player_color, size=(player_size[0], player_size[1])), img_dur=6),
-                    run=pre.Animation([player_run_surf.copy(), player_run_surf.copy()] or Tilemap.generate_surf(9, color=pre.WHITE, size=player_run_size), img_dur=4),
+                    idle=pre.Animation(gen_surf_partialfn(9, color=player_color, size=(player_size[0], player_size[1])), img_dur=6),
+                    run=pre.Animation([player_run_surf.copy(), player_run_surf.copy()] or gen_surf_partialfn(9, color=pre.WHITE, size=player_run_size), img_dur=4),
                     jump=pre.Animation(jump_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
-                    idle=pre.Animation([enemy_surf.copy()] or Tilemap.generate_surf(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),
-                    run=pre.Animation(Tilemap.generate_surf(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=4),
+                    idle=pre.Animation([enemy_surf.copy()] or gen_surf_partialfn(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=6),
+                    run=pre.Animation(gen_surf_partialfn(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1)), img_dur=4),
                 ),
             ),
             animations_misc=pre.Assets.AnimationMiscAssets(particle=dict()),
         )
 
-        self.sfx = {}
+        self.sfx = {
+            # TODO:
+        }
 
         self.clouds = Clouds(self.assets.misc_surfs["clouds"], self._cloud_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(player_size))
@@ -235,7 +244,7 @@ class Game:
             for text in (
                 ##################################
                 f"CLOCK_FPS.{self.clock.get_fps():2.0f}",
-                f"CLOCK_DT.{self.clock_dt:2.0f}",
+                f"CLOCK_DT.{self._clock_dt:2.0f}",
                 ###################################
                 f"CAM_RSCROLL.{render_scroll.__str__()}",
                 f"CAM_SCROLL.{self.scroll.__round__(0)}",
@@ -254,22 +263,46 @@ class Game:
             )
         )
 
-        blit_text_partial = partial(self.screen.blit)
+        blit_text_partialfn = partial(self.screen.blit)
         render_font_partial = partial(self.font.render)
         for index, text in enumerate(hud_elements):
-            blit_text_partial(render_font_partial(text, antialias, text_color, pre.BG_DARK), (t_size, t_size + index * line_height))
+            blit_text_partialfn(render_font_partial(text, antialias, text_color, pre.BG_DARK), (t_size, t_size + index * line_height))
 
     def run(self) -> None:
+        print(pg.time.get_ticks())
+
         bg: pg.Surface = self.assets.misc_surf["background"]
         bg.set_colorkey(pre.BLACK)
         bg.fill(self._bg_color)
 
         if pre.DEBUG_GAME_HUD:
-            render_debug_partial = partial(self.render_debug_hud)
+            render_debug_partialfn = partial(self.render_debug_hud)
 
-        while True:
+        i = 0
+        j = 0
+
+        _last_get_tick = pg.time.get_ticks()
+        running = True
+        while running:
             self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
+
+            # REGION: start | debug: resizable screen
+            if pre.DEBUG_GAME_STRESSTEST:
+                i += 1
+                i = i % self.display.get_width()
+                j += i % 2
+                j = j % self.display.get_height()
+                # self.display.fill((255, 0, 255))
+                pg.draw.circle(self.display, (0, 0, 0), (100, 100), 20)
+                pg.draw.circle(self.display, (0, 0, 200), (0, 0), 10)
+                pg.draw.circle(self.display, (200, 0, 0), (160, 120), 30)
+                pg.draw.line(self.display, (250, 250, 0), (0, 120), (160, 0))
+                pg.draw.circle(self.display, (255, 255, 255), (i, j), 5)
+                #
+                # ^ see github:pygame/examples/resizing_new.py
+                # ====
+            # ENDREGION
 
             self.screenshake = max(0, self.screenshake - 1)
 
@@ -299,8 +332,13 @@ class Game:
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
+            # pg.draw.circle(halo_surf, pre.hsl_to_rgb(0,0.2,0.9), (160,120), halo_size[0])
+            # halo_blitted_rect=self.display.blit(halo_surf,(render_scroll[0],render_scroll[1]))
+            # self.display.blit(halo_surf,render_scroll)
+            # pg.draw.circle(self.display, pre.hsl_to_rgb(0,0.5,0.5), (160, 120), pre.TILE_SIZE*3)
+
             # clouds: backdrop update and render
-            self.clouds.update()
+            self.clouds.update()  # clouds drawn behind everything else
             if (_enable_cloud_masks := 0) and _enable_cloud_masks:
                 self.clouds.render(self.display, render_scroll)
             else:  # display_2 blitting avoids masks depth
@@ -323,6 +361,31 @@ class Game:
                 if kill_animation:
                     self.enemies.remove(enemy)
 
+            # player: halo concept glow spot
+            # halo:init
+            halo_radius = self.player.size.x // 2
+            halo_size = pg.Vector2(halo_radius, halo_radius)
+            halo_center = pg.Vector2(160, 120)
+            halo_surf_size = self.display.get_size()
+            halo_offset_factor = (0, 0.5)[1]  # if 0 then top-left of player is halop center
+            halo_offset_with_player = self.player.size * halo_offset_factor
+            halo_dest = self.player.pos - (halo_size / pre.TILE_SIZE + halo_center - halo_offset_with_player) - pg.Vector2(render_scroll)
+            halo_color = self.bg_colors[1]
+            # halo:update
+            halo_glitch_speed_multiplier = (0.5) or (random() * 0.618 * randint(6, 9))  # should sync this to "Bee Gees: staying alive bpm"
+            if (_cur_tick := pg.time.get_ticks()) - _last_get_tick >= (pre.FPS_CAP * self.clock.get_time()) * halo_glitch_speed_multiplier:
+                _last_get_tick = _cur_tick  # cycle through color almost every "one second ^^^^^^^^^^^^^^^
+                halo_color = tuple(map(int, tuple(pg.Vector3(next(self.bg_color_cycle)) * 1.618)))  # simulate glitch:
+                # print(halo_color, halo_glitch_speed_multiplier)
+            # halo:render
+            halo_surf = pg.Surface(halo_surf_size).convert()
+            if (_tmp_use_alpha := 0) and _tmp_use_alpha:  # ^ remeber to set this as convert_alpha
+                halo_alpha = 255
+                halo_surf.set_alpha(halo_alpha)
+            halo_surf.set_colorkey(pre.BLACK)
+            pg.draw.circle(halo_surf, halo_color, halo_center, halo_radius)
+            _ = self.display_2.blit(halo_surf, (halo_dest))  # use returned rect in debug HUD
+
             # player: update and render
             if not self.dead:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
@@ -338,9 +401,12 @@ class Game:
             # ...
 
             for event in pg.event.get():
+                if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                    running = False
                 if event.type == pg.QUIT:
-                    pg.quit()
-                    exit()
+                    running = False
+                if event.type == pg.VIDEORESIZE:
+                    self.screen = pg.display.get_surface()
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_LEFT:
                         self.movement.left = True
@@ -367,20 +433,24 @@ class Game:
 
             if pre.DEBUG_GAME_HUD:
                 if abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2:
-                    render_debug_partial(render_scroll)
+                    render_debug_partialfn(render_scroll)
             if pre.DEBUG_GAME_CACHEINFO:  # cache
                 print(f"{pre.hsl_to_rgb.cache_info() = }")
 
             # DRAW: FINAL DISPLAY
-
             # update: whole screen
-            pg.display.update()  # pg.display.flip()
-            self.clock_dt = self.clock.tick(pre.FPS_CAP)
+            pg.display.flip()
+            self._clock_dt = self.clock.tick(pre.FPS_CAP)
 
             if pre.DEBUG_GAME_HUD:
-                self.clock_dt_recent_values.appendleft(self.clock_dt)
+                self.clock_dt_recent_values.appendleft(self._clock_dt)
                 if len(self.clock_dt_recent_values) == pre.FPS_CAP:
                     self.clock_dt_recent_values.pop()
+        # end `while running:`
+
+        assert running == False
+        pg.quit()
+        exit()
 
 
 if __name__ == "__main__":

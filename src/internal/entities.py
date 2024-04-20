@@ -141,7 +141,7 @@ class Enemy(PhysicalEntity):
 
                 # interaction: can now shoot while static
                 if not self.walking_timer:
-                    pass  # todo: calculate distance between player and enemy
+                    pass  # TODO: calculate distance between player and enemy
 
             case False if random() < 0.01:  # timer: replenish (1% chance or one in every .67 seconds)
                 self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking
@@ -157,7 +157,7 @@ class Enemy(PhysicalEntity):
             self.set_action(Action.IDLE)
 
         # enemy: death
-        #   todo: ....
+        #   TODO: ....
         #   if _dead_condition:
         #       return True
 
@@ -213,7 +213,7 @@ class Player(PhysicalEntity):
         # |  0         60                  51 50         0
         # ....
         if abs(self.dash_time) in {60, 50}:
-            # todo: spawn dash burst particles
+            # TODO: spawn dash burst particles
             # print(f"spawning particles: dash burst: {self.dash_time=}")
             pass
         if self.dash_time > 0:  # 0:60
@@ -224,7 +224,7 @@ class Player(PhysicalEntity):
             self.velocity.x = 8 * (abs(self.dash_time) / self.dash_time)  # modify speed based on direction
             if abs(self.dash_time) == 51:
                 self.velocity.x *= 0.1  # deceleration also acts as a cooldown, for next trigger
-            # todo: spawn dash streeam particles
+            # TODO: spawn dash streeam particles
             # print(f"spawning particles: dash stream: {self.dash_time=}")
             pass
 

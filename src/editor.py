@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from functools import partial
 
 import pygame as pg
 
@@ -29,8 +30,6 @@ class Editor:
         ######
         # note: need these for reference for animation workaround
         ######
-        tiles_alpha = 255
-
         player_size = (8, pre.TILE_SIZE - 1)
         enemy_size = (8, pre.TILE_SIZE - 1)
         portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
@@ -59,22 +58,17 @@ class Editor:
         portal_surf_2.set_colorkey(pre.BLACK)
         portal_surf_2.fill(portal_2_color)
 
+        gen_surf_partialfn = partial(pre.generate_surf)
+
         self.assets = pre.Assets(
             entity=dict(),
             tiles=dict(
-                # # tiles: on grid
-                # grass=Tilemap.generate_surf(9, color=pre.GREEN, alpha=255),
-                # stone=Tilemap.generate_surf(9, color=pre.BLACK, alpha=200),
-                # # tiles: off grid
-                # decor=Tilemap.generate_surf(4, color=pre.WHITE, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                # large_decor=Tilemap.generate_surf(4, color=pre.CREAM, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
-                # portal=[portal_surf.copy()],
-                grass=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
-                stone=Tilemap.generate_surf(9, color=pre.BLACKMID, alpha=tiles_alpha),
-                decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                large_decor=Tilemap.generate_surf(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                grass=gen_surf_partialfn(9, color=pre.BLACKMID or pre.GREEN),
+                stone=gen_surf_partialfn(9, color=pre.BLACKMID or pre.PURPLEMID),
+                decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
+                large_decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
                 portal=[portal_surf_1.copy(), portal_surf_2.copy()],
-                spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],  # HACK: only place this as an offgrid tile
+                spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],
             ),
             misc_surf=dict(),
             misc_surfs=dict(),
