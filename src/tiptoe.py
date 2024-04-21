@@ -208,33 +208,23 @@ class Game:
         ]
         self.enemies: list[Enemy] = []
         self.portal_spawners: list[Portal] = []
-        # self.torches: list[Torch] = []
-        _spwn_id: Final[str] = pre.TileKind.SPAWNERS.value.__str__()  # -> "spawners"
-        self.spawner_id_pairs = [
-            (_spwn_id, int(pre.SpawnerKind.PLAYER.value)),
-            (_spwn_id, int(pre.SpawnerKind.ENEMY.value)),
-            (_spwn_id, int(pre.SpawnerKind.PORTAL.value)),
-            (_spwn_id, int(pre.SpawnerKind.PORTAL.value)),
-        ]
+        spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
+        self._spawner_id_pairs = list(zip(map(str, [pre.TileKind.SPAWNERS.value] * len(spawner_kinds)), map(int, spawner_kinds)))
         if pre.DEBUG_GAME_ASSERTS:
             seen_player_spawn = False
             seen_player_spawners: list[TileItem] = []
-        for spawner in self.tilemap.extract(self.spawner_id_pairs, keep=False):
+        for spawner in self.tilemap.extract(self._spawner_id_pairs, keep=False):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
                     if pre.DEBUG_GAME_ASSERTS:
                         seen_player_spawners.append(spawner)
                         assert not seen_player_spawn, f"want only one player spawner. got {len(seen_player_spawners), seen_player_spawners=}"
                         seen_player_spawn = True
-
-                    # note: reset time to avoids multiple spawns during fall
-                    self.player.pos = spawner.pos.copy()
+                    self.player.pos = spawner.pos.copy()  # note: reset time to avoids multiple spawns during fall
                     self.player.air_time = 0
+
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(Enemy(self, spawner.pos, self._enemy_size))
-
-                    # torch_pos = pg.Vector2(spawner.pos.x, spawner.pos.y - (self._enemy_size.y))
-                    # self.torches.append(Torch(pos=torch_pos))  # offset
 
                 case pre.SpawnerKind.PORTAL:
                     self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, pos=spawner.pos, size=pg.Vector2(pre.TILE_SIZE, pre.TILE_SIZE)))

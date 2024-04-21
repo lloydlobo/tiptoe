@@ -3,7 +3,7 @@ import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
 from typing import Final, Generator, Sequence, Tuple, Union
@@ -41,7 +41,7 @@ class TileKind(Enum):
     STONE = "stone"
 
 
-class SpawnerKind(Enum):
+class SpawnerKind(IntEnum):
     # auto(): Instances are replaced with an appropriate value in Enum class suites.
     PLAYER = 0
     ENEMY = 1
@@ -370,7 +370,7 @@ SPAWNERS_KINDS      = { EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL }  
 
 
 # fmt: off
-class AutotileID(Enum):
+class AutotileID(IntEnum):
     """
     >>> assert list(range(0, 8 + 1)) == [x.value for x in AutoTileVariant]
     """
@@ -400,15 +400,15 @@ tiles:
 """
 # fmt: off
 AUTOTILE_MAP = {
-    tuple(sorted([( 1, 0), ( 0, 1)                 ])): AutotileID.TOPLEFT.value      or 0,  # ES
-    tuple(sorted([( 1, 0), ( 0, 1), (-1, 0)        ])): AutotileID.TOPCENTER.value    or 1,  # ESW
-    tuple(sorted([(-1, 0), ( 0, 1)                 ])): AutotileID.TOPRIGHT.value     or 2,  # WS
-    tuple(sorted([(-1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLERIGHT.value  or 3,  # WSN
-    tuple(sorted([(-1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMRIGHT.value  or 4,  # WN
-    tuple(sorted([(-1, 0), ( 0,-1), ( 1, 0)        ])): AutotileID.BOTTOMCENTER.value or 5,  # WNE
-    tuple(sorted([( 1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMLEFT.value   or 6,  # EN
-    tuple(sorted([( 1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLELEFT.value   or 7,  # ENS
-    tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER.value or 8,  # EWSN
+    tuple(sorted([( 1, 0), ( 0, 1)                 ])): AutotileID.TOPLEFT      or 0,  # ES
+    tuple(sorted([( 1, 0), ( 0, 1), (-1, 0)        ])): AutotileID.TOPCENTER    or 1,  # ESW
+    tuple(sorted([(-1, 0), ( 0, 1)                 ])): AutotileID.TOPRIGHT     or 2,  # WS
+    tuple(sorted([(-1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLERIGHT  or 3,  # WSN
+    tuple(sorted([(-1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMRIGHT  or 4,  # WN
+    tuple(sorted([(-1, 0), ( 0,-1), ( 1, 0)        ])): AutotileID.BOTTOMCENTER or 5,  # WNE
+    tuple(sorted([( 1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMLEFT   or 6,  # EN
+    tuple(sorted([( 1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLELEFT   or 7,  # ENS
+    tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER or 8,  # EWSN
 }
 # fmt: on
 
