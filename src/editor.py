@@ -1,7 +1,6 @@
-import os
+import itertools as it
 import sys
 import time
-from functools import partial
 from pathlib import Path
 
 import pygame as pg
@@ -59,16 +58,30 @@ class Editor:
         portal_surf_2.set_colorkey(pre.BLACK)
         portal_surf_2.fill(portal_2_color)
 
-        gen_surf_partialfn = partial(pre.generate_surf)
+        asset_tiles_decor_variations = (
+            (2, pre.GREEN, (4, 8)),  # variants 0,1
+            (2, pre.YELLOW, (3, 8)),  # variants 2,3
+            (2, pre.TEAL, (4, 5)),  # variants 4,5
+        )
+        asset_tiles_largedecor_variations = (
+            (2, pre.GRAY, (32, 16)),  # variants 0,1
+            (2, pre.BG_DARK, (32, 16)),  # variants 2,3
+            (2, pre.BEIGE, (32, 16)),  # variants 4,5
+        )
+        decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
+        large_decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
 
         self.assets = pre.Assets(
             entity=dict(),
             tiles=dict(
-                grass=gen_surf_partialfn(9, color=pre.BLACKMID or pre.GREEN),
-                stone=gen_surf_partialfn(9, color=pre.BLACKMID or pre.PURPLEMID),
-                decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE // 2, pre.TILE_SIZE // 2)),
-                large_decor=gen_surf_partialfn(4, color=pre.BLACKMID, size=(pre.TILE_SIZE * 2, pre.TILE_SIZE * 2)),
+                # grid tiles
+                stone=list(pre.create_surfaces_partialfn(9, color=pre.BLACKMID or pre.PURPLEMID)),
+                grass=list(pre.create_surfaces_partialfn(9, color=pre.BLACKMID or pre.GREEN)),
+                # offgrid tiles
+                decor=decors,
+                large_decor=large_decors,
                 portal=[portal_surf_1.copy(), portal_surf_2.copy()],
+                # spawner positional tiles only
                 spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],
             ),
             misc_surf=dict(),
@@ -154,7 +167,7 @@ class Editor:
                     if event.button == 1:
                         self.clicking = True
                         if not self.ongrid:
-                            self.tilemap.offgrid_tiles.append(TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll))
+                            self.tilemap.offgrid_tiles.add(TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll))
                     if event.button == 3:  # 2 is when you click down on the mice
                         self.right_clicking = True
                 if event.type == pg.MOUSEBUTTONUP:

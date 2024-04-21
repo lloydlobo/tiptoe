@@ -4,9 +4,9 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import lru_cache, reduce
+from functools import lru_cache, partial, reduce
 from pathlib import Path
-from typing import Final, Sequence, Tuple, Union
+from typing import Final, Generator, Sequence, Tuple, Union
 
 import pygame as pg
 
@@ -18,6 +18,12 @@ import pygame as pg
 # note: ported from pygame source file: _common.py
 RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
+
+
+class ParticleKind(Enum):
+    # class AnimationMiscAssets:
+    FLAME = "flame"
+    LEAF = "leaf"
 
 
 class EntityKind(Enum):
@@ -272,14 +278,14 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 
 # flags: debugging, etc
 # fmt: off
-DEBUG_EDITOR_ASSERTS= True
-DEBUG_EDITOR_HUD    = True
+DEBUG_EDITOR_ASSERTS    = True
+DEBUG_EDITOR_HUD        = True
 
-DEBUG_GAME_ASSERTS  = True
-DEBUG_GAME_CACHEINFO= False
-DEBUG_GAME_HUD      = False
-DEBUG_GAME_PROFILER = False
-DEBUG_GAME_STRESSTEST = False
+DEBUG_GAME_ASSERTS      = True
+DEBUG_GAME_CACHEINFO    = False
+DEBUG_GAME_HUD          = True
+DEBUG_GAME_PROFILER     = False
+DEBUG_GAME_STRESSTEST   = False
 # fmt: on
 
 
@@ -308,7 +314,7 @@ CAPTION_EDITOR      = "tiptoe level editor"
 # fmt: off
 ENTITY_PATH         = Path("src") / "data" / "images" / "entities" or os.path.join("src", "data", "images", "entities")
 FONT_PATH           = None
-IMAGES_PATH         = Path("src") / "data" / "images" or os.path.join("src", "data", "images")
+IMGS_PATH           = Path("src") / "data" / "images" or os.path.join("src", "data", "images")
 INPUT_PATH          = None  # InputState
 MAP_PATH            = Path("src") / "data" / "maps" or os.path.join("src", "data", "maps")
 SOUNDS_PATH         = None
@@ -328,6 +334,7 @@ CREAM               = hsl_to_rgb(0, 0.1618, 0.618)
 GRAY                = hsl_to_rgb(0, 0, 0.5)
 GREEN               = hsl_to_rgb(120, 1, 0.25)
 MIDNIGHT            = (2, 2, 3)
+PINK                = hsl_to_rgb(60 * 5, 0.26, 0.18)
 PURPLE              = hsl_to_rgb(300, 1, 0.25)
 PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
 RED                 = hsl_to_rgb(0, 0.618, 0.328)
@@ -405,34 +412,36 @@ AUTOTILE_MAP = {
 }
 # fmt: on
 
+
 ###################
 # PYGAME SURFACES #
 
 
-def generate_surf(
+def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int]) -> pg.SurfaceType:
+    surf = pg.Surface(size)
+    surf.set_colorkey(colorkey)
+    surf.fill(fill_color)
+    return surf
+
+
+create_surface_partialfn = partial(create_surface, colorkey=BLACK)
+create_surface_partialfn.__doc__ = """New create_surface function with partial application of colorkey argument and or other keywords."""
+
+
+def create_surfaces(
     count: int,
     color: tuple[int, int, int] = BLACK,
     size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
     colorkey: ColorValue = BLACK,
-) -> list[pg.SurfaceType]:
-    _with_variation = False
-    return [
-        (
-            surf := pg.Surface(size),
-            surf.set_colorkey(colorkey),
-            surf.fill(
-                color
-                if not _with_variation
-                else (
-                    color[0] + int(math.sin(i) + i * 10) // 10,
-                    color[1] + int(math.cos(i) + i * 10) // 10,
-                    color[2] + i * (1 or 2),
-                )
-            ),
-        )[0]
-        # ^ after processing pipeline, select first [0] Surface in tuple
-        for i in range(count)
-    ]
+) -> Generator[pg.SurfaceType, None, None]:
+    if colorkey:
+        return (create_surface(size, colorkey, color) for _ in range(count))
+    else:
+        return (create_surface_partialfn(size, color) for _ in range(count))
+
+
+create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
+create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
 
 
 #########################

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import itertools as it
 import json
-import math
 import sys
 from collections import defaultdict, deque, namedtuple
 from copy import deepcopy
 from functools import partial, reduce
-from pprint import pprint
 from typing import TYPE_CHECKING, Final, Optional, TypedDict, Union
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
@@ -36,6 +34,14 @@ class TileItem:
     variant: int
     pos: pg.Vector2  # | list[int | float] | tuple[int | float, ...]
 
+    def __hash__(self) -> int:
+        return hash((self.kind, self.variant, self.pos.x, self.pos.y))
+
+    def __eq__(self, other: object, /) -> bool:
+        if not isinstance(other, TileItem):
+            return False
+        return (self.kind, self.variant, self.pos) == (other.kind, other.variant, other.pos)
+
 
 class TileItemJSON(TypedDict):
     kind: str  # use an enum or verify with field()
@@ -46,9 +52,12 @@ class TileItemJSON(TypedDict):
 class Tilemap:
     def __init__(self, game: Game | Editor, tile_size: int = pre.TILE_SIZE) -> None:
         self.game = game
-        self.offgrid_tiles: list[TileItem] = []
+        self.offgrid_tiles: set[TileItem] = set()  # PERF: use set?
         self.tile_size = tile_size
         self.tilemap: dict[str, TileItem] = {}  # use defaultdict?
+        print(self.offgrid_tiles)
+        self.offgrid_tiles.add(TileItem(pre.TileKind.STONE, 0, pg.Vector2(0, 0)))
+        print(self.offgrid_tiles)
 
         # derived local like variables
         self.game_assets_tiles = self.game.assets.tiles
@@ -93,19 +102,19 @@ class Tilemap:
             if tile.kind in self._physics_tiles
         )
 
-    def extract(self, id_pairs: tuple[tuple[str, int], ...], keep_tile: bool = False) -> list[TileItem]:
+    def extract(self, id_pairs: list[tuple[str, int]], keep: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
         if pre.DEBUG_EDITOR_ASSERTS:  # perf: use a context manager
             GridKind = namedtuple(typename="GridKind", field_names=["offgrid", "ongrid"])
-            gk: GridKind = GridKind("offgrid", "ongrid")
-            q: deque[tuple[str, TileItem]] = deque()
+            gk = GridKind("offgrid", "ongrid")
+            q = deque()
         try:  # use itertools.chain?
             for tile in self.offgrid_tiles.copy():
                 if pre.DEBUG_EDITOR_ASSERTS:
                     q.appendleft((gk.offgrid, tile))
                 if (tile.kind.value, tile.variant) in id_pairs:
                     matches.append(deepcopy(tile))
-                    if not keep_tile:
+                    if not keep:
                         self.offgrid_tiles.remove(tile)
             for loc, tile in self.tilemap.items():
                 if pre.DEBUG_EDITOR_ASSERTS:
@@ -114,7 +123,7 @@ class Tilemap:
                     matches.append(deepcopy(tile))
                     matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
                     matches[-1].pos *= self.tile_size
-                    if not keep_tile:
+                    if not keep:
                         del self.tilemap[loc]
         except RuntimeError as e:
             if pre.DEBUG_EDITOR_ASSERTS:
@@ -214,7 +223,7 @@ class Tilemap:
         if map_data:
             self.tile_size = map_data["tile_size"]
             self.tilemap = dict(self.tilemap_json_to_dataclass(map_data["tilemap"]))
-            self.offgrid_tiles = list(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
+            self.offgrid_tiles = set(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
 
     def maybe_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
         return self.tilemap.get(self.vec2_jsonstr(self.pos_as_grid_loc_vec2(pos)), None)

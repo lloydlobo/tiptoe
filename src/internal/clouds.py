@@ -17,7 +17,6 @@ def rot_function(x: float, _: float | None) -> float:
 class Cloud:
     def __init__(self, img: pg.SurfaceType, pos: pg.Vector2, speed: float, depth: float) -> None:
         self.pos = pos
-        self.rot = 0.0
 
         self._depth: Final = depth
         self._img: Final = img
@@ -28,17 +27,19 @@ class Cloud:
 
         if pre.DEBUG_GAME_STRESSTEST:
             _base: Final = 0.618
+            self.rot = 0.0
             self._angles = tuple(map(lambda x: x * 45, range(0, 9)))
             self._rot_reset_cycle: Final = it.cycle(tuple(it.starmap(pow, ((1, _base), (2, _base), (3, _base), (5, _base), (8, _base), (13, _base), (21, _base), (34, _base)))))
 
     def update(self) -> None:
         self.pos.y -= self._speed
 
-        if (_enable_rotation := 0) and _enable_rotation:
-            if 350 <= self.rot <= 360:
-                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
-            else:
-                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
+        if pre.DEBUG_GAME_STRESSTEST:
+            if (_enable_rot_func := 0) and _enable_rot_func:
+                if 350 <= self.rot <= 360:
+                    self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
+                else:
+                    self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
 
         if pre.DEBUG_GAME_STRESSTEST:
             if 354 < self.rot < 357:  # reset fiesty rotation
@@ -49,7 +50,10 @@ class Cloud:
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int]) -> None:
         dest: pg.Vector2 = self.pos - pg.Vector2(offset) * self._depth  # parallax FX
         dest_wrapped = (dest.x % (surf.get_width() + self._img_w) - self._img_w, dest.y % (surf.get_height() + self._img_h) - self._img_h)
-        surf.blit(pg.transform.rotate(self._img, self.rot), dest_wrapped)  # loop around the screen width
+        if pre.DEBUG_GAME_STRESSTEST:
+            surf.blit(pg.transform.rotate(self._img, self.rot), dest_wrapped)  # loop around the screen width
+        else:
+            surf.blit(self._img, dest_wrapped)  # loop around the screen width
 
 
 class Clouds:
