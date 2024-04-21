@@ -2,6 +2,7 @@ import os
 import sys
 import time
 from functools import partial
+from pathlib import Path
 
 import pygame as pg
 
@@ -86,8 +87,9 @@ class Editor:
         self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
+        # path=os.path.join(pre.MAP_PATH, f"{map_id}.json")
         try:
-            self.tilemap.load(path=os.path.join(pre.MAP_PATH, f"{map_id}.json"))
+            self.tilemap.load(path=str(Path(pre.MAP_PATH) / f"{map_id}.json"))
         except FileNotFoundError:
             pass
 
@@ -191,7 +193,8 @@ class Editor:
                         self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
                         if not self.last_save_time or (t := time.time(), dt := t - self.last_save_time) and dt >= 0.12:
-                            self.tilemap.save(os.path.join(pre.MAP_PATH, f"{self.level}.json"))
+                            # path=os.path.join(pre.MAP_PATH, f"{self.level}.json")
+                            self.tilemap.save(str(Path(pre.MAP_PATH) / f"{self.level}.json"))
                             self.last_save_time = time.time()
                             self.last_save_time_readable = time.asctime()
                             self.save_generation += 1

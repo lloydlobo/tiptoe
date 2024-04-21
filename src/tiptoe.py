@@ -1,6 +1,5 @@
 import cProfile
 import itertools as it
-import math
 from collections import deque
 from functools import partial
 from os import listdir, path

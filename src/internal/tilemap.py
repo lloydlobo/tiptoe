@@ -202,10 +202,12 @@ class Tilemap:
             # tile_neighbors.clear()
 
     def save(self, path: str) -> None:
+        # TODO: convert path type from str to use Path
         with open(path, "w") as f:
             json.dump(dict(tile_size=self.tile_size, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()), f)
 
     def load(self, path: str) -> None:
+        # TODO: convert path type from str to use Path
         map_data = None
         with open(path, "r") as f:
             map_data = json.load(f)

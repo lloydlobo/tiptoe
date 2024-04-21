@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import lru_cache, reduce
+from pathlib import Path
 from typing import Final, Sequence, Tuple, Union
 
 import pygame as pg
@@ -158,7 +159,14 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
         @example:   load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
     """
 
-    return [load_img(os.path.join(path, img_name), with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
+    return [
+        load_img(
+            f"{Path(path) / img_name}" or os.path.join(path, img_name),
+            with_alpha,
+            colorkey,
+        )
+        for img_name in sorted(os.listdir(path))
+    ]
 
 
 ##########
@@ -262,8 +270,8 @@ def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
 # CONSTANTS #
 
 
-# fmt: off
 # flags: debugging, etc
+# fmt: off
 DEBUG_EDITOR_ASSERTS= True
 DEBUG_EDITOR_HUD    = True
 
@@ -292,15 +300,17 @@ DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.333333
 DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
 # fmt: on
 
-
 # fmt: off
 CAPTION             = "tiptoe"
 CAPTION_EDITOR      = "tiptoe level editor"
-ENTITY_PATH         = os.path.join("src", "data", "images", "entities")
+# fmt: on
+
+# fmt: off
+ENTITY_PATH         = Path("src") / "data" / "images" / "entities" or os.path.join("src", "data", "images", "entities")
 FONT_PATH           = None
-IMAGES_PATH         = os.path.join("src", "data", "images")
+IMAGES_PATH         = Path("src") / "data" / "images" or os.path.join("src", "data", "images")
 INPUT_PATH          = None  # InputState
-MAP_PATH            = os.path.join("src", "data", "maps")
+MAP_PATH            = Path("src") / "data" / "maps" or os.path.join("src", "data", "maps")
 SOUNDS_PATH         = None
 SPRITESHEET_PATH    = None
 # fmt: on
@@ -399,21 +409,36 @@ AUTOTILE_MAP = {
 # PYGAME SURFACES #
 
 
-def generate_surf(count: int, color: tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> list[pg.Surface]:
+def generate_surf(
+    count: int,
+    color: tuple[int, int, int] = BLACK,
+    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
+    colorkey: ColorValue = BLACK,
+) -> list[pg.SurfaceType]:
     _with_variation = False
     return [
         (
             surf := pg.Surface(size),
             surf.set_colorkey(colorkey),
-            surf.fill(color if not _with_variation else (color[0] + int(math.sin(i) + i * 10) // 10, color[1] + int(math.cos(i) + i * 10) // 10, color[2] + i * (1 or 2))),
+            surf.fill(
+                color
+                if not _with_variation
+                else (
+                    color[0] + int(math.sin(i) + i * 10) // 10,
+                    color[1] + int(math.cos(i) + i * 10) // 10,
+                    color[2] + i * (1 or 2),
+                )
+            ),
         )[0]
         # ^ after processing pipeline, select first [0] Surface in tuple
         for i in range(count)
     ]
 
 
-#############
-# ITERUTILS #
+#########################
+# FUNCUTILS & ITERUTILS #
+
+# NOTE: this is just for learning
 
 
 class Funcutils:
@@ -430,7 +455,6 @@ class Funcutils:
 
 
 class Iterutils:
-    # NOTE: this is just for learning
 
     @staticmethod
     def idiom_it_cycle():
