@@ -13,7 +13,7 @@ import internal.prelude as pre
 from internal.clouds import Clouds
 from internal.entities import Enemy, Player
 from internal.spawner import Portal
-from internal.tilemap import TileItem, Tilemap
+from internal.tilemap import Tilemap
 
 
 class Game:
@@ -24,10 +24,9 @@ class Game:
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         pg.display.set_caption(pre.CAPTION)
-        pg.display._set_autoresize(False)
+        pg.display._set_autoresize(False)  # type: ignore
         # ^ see github:pygame/examples/resizing_new.py
         # | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
-        # ====
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
@@ -46,13 +45,11 @@ class Game:
         self._cloud_count: Final = 16 * 2
         self._bg_color: Final = pre.hsl_to_rgb(240, 0.3, 0.10)
 
-        cloud_color = pre.hsl_to_rgb(60 * 5, 0.26, 0.18)
         cloud_size = (69 / 1.618, 69 / 1.618)
-        # print(f"{cloud_size=}")
         cloud_size = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
         cloud_surf = pg.Surface(cloud_size).convert()
         cloud_surf.set_colorkey(self._bg_color)
-        cloud_surf.fill(cloud_color)  # awesome
+        cloud_surf.fill(pre.COLOR.CLOUD)  # awesome
 
         # need these for reference for animation workaround
 
@@ -63,54 +60,47 @@ class Game:
         player_run_size = (player_size[0] + 1, player_size[1] - 1)
         portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
 
-        enemy_color = pre.TEAL or pre.CREAM
-        player_color = pre.BLACKMID or pre.TEAL
-        player_jump_color = pre.RED
-        player_run_color = pre.BLACKMID  # use black for invisibility
-        portal_1_color = pre.WHITE
-        portal_2_color = pre.BEIGE
-
         player_alpha = 190
 
-        player_surf = list(pre.create_surfaces(1, player_color, size=player_size))[0]
+        player_surf = list(pre.create_surfaces(1, pre.COLOR.PLAYER, size=player_size))[0]
         player_run_surf = pg.Surface(player_run_size).convert()
         player_run_surf.set_colorkey(pre.BLACK)
-        player_run_surf.fill(player_run_color)
+        player_run_surf.fill(pre.COLOR.PLAYERRUN)  # use black for invisibility
         player_run_surf.set_alpha(0)
         player_jump_surf = pg.Surface(player_jump_size).convert()
         player_jump_surf.set_colorkey(pre.BLACK)
-        player_jump_surf.fill(player_jump_color)
+        player_jump_surf.fill(pre.COLOR.PLAYERJUMP)
         player_jump_surf.set_alpha(player_alpha - 40)
 
         enemy_surf = pg.Surface(enemy_size).convert()
         enemy_surf.set_colorkey(pre.BLACK)
-        enemy_surf.fill(enemy_color)
+        enemy_surf.fill(pre.COLOR.ENEMY)
         portal_surf_1 = pg.Surface(portal_size).convert()
         portal_surf_1.set_colorkey(pre.BLACK)
-        portal_surf_1.fill(portal_1_color)
+        portal_surf_1.fill(pre.COLOR.PORTAL1)
         portal_surf_2 = pg.Surface(portal_size).convert()
         portal_surf_2.set_colorkey(pre.BLACK)
-        portal_surf_2.fill(portal_2_color)
+        portal_surf_2.fill(pre.COLOR.PORTAL2)
 
         jump_down_1 = pg.Surface(player_jump_size).convert()
         jump_down_1.set_colorkey(pre.BLACK)
-        jump_down_1.fill(player_jump_color)
+        jump_down_1.fill(pre.COLOR.PLAYERJUMP)
         jump_down_1.set_alpha(player_alpha - 70)
         jump_down_2 = pg.Surface(player_jump_size).convert()
         jump_down_2.set_colorkey(pre.BLACK)
-        jump_down_2.fill(player_jump_color)
+        jump_down_2.fill(pre.COLOR.PLAYERJUMP)
         jump_down_2.set_alpha(player_alpha - 80)
         jump_down_3 = pg.Surface(player_jump_size).convert()
         jump_down_3.set_colorkey(pre.BLACK)
-        jump_down_3.fill(player_jump_color)
+        jump_down_3.fill(pre.COLOR.PLAYERJUMP)
         jump_down_3.set_alpha(player_alpha - 90)
         jump_down_4 = pg.Surface(player_jump_size).convert()
         jump_down_4.set_colorkey(pre.BLACK)
-        jump_down_4.fill(player_jump_color)
+        jump_down_4.fill(pre.COLOR.PLAYERJUMP)
         jump_down_4.set_alpha(player_alpha - 100)
         jump_down_5 = pg.Surface(player_jump_size).convert()
         jump_down_5.set_colorkey(pre.BLACK)
-        jump_down_5.fill(player_jump_color)
+        jump_down_5.fill(pre.COLOR.PLAYERJUMP)
         jump_down_5.set_alpha(player_alpha - 140)
         jump_frames = [player_jump_surf, jump_down_1, jump_down_2, jump_down_3, jump_down_4, jump_down_5]
 
@@ -151,13 +141,13 @@ class Game:
             ),
             animations_entity=pre.Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(list(pre.create_surfaces_partialfn(9, color=player_color, size=(player_size[0], player_size[1]))), img_dur=6),
+                    idle=pre.Animation(list(pre.create_surfaces_partialfn(9, color=pre.COLOR.PLAYER, size=(player_size[0], player_size[1]))), img_dur=6),
                     run=pre.Animation([player_run_surf.copy(), player_run_surf.copy()], img_dur=4),
                     jump=pre.Animation(jump_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
                     idle=pre.Animation([enemy_surf.copy()], img_dur=6),
-                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, color=enemy_color, size=(enemy_size[0], enemy_size[1] - 1))), img_dur=4),
+                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, color=pre.COLOR.ENEMY, size=(enemy_size[0], enemy_size[1] - 1))), img_dur=4),
                 ),
             ),
             animations_misc=pre.Assets.AnimationMiscAssets(
@@ -199,41 +189,35 @@ class Game:
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
 
-        # SPAWNERS
-        self.torch_spawners = [
-            # fmt: off
-            pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13)
-            for torch in self.tilemap.extract([("large_decor", 2)], keep=True)
-            # fmt: on
-        ]
-        self.enemies: list[Enemy] = []
-        self.portal_spawners: list[Portal] = []
+        # DECORATIVE SPAWNERS
+        self.torch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
+
         spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
-        self._spawner_id_pairs = list(zip(map(str, [pre.TileKind.SPAWNERS.value] * len(spawner_kinds)), map(int, spawner_kinds)))
-        if pre.DEBUG_GAME_ASSERTS:
-            seen_player_spawn = False
-            seen_player_spawners: list[TileItem] = []
-        for spawner in self.tilemap.extract(self._spawner_id_pairs, keep=False):
+        # TILE SPAWNERS
+        self.portal_spawners: list[Portal] = []
+        # ENTITY SPAWNERS
+        self.enemies: list[Enemy] = []
+        for spawner in self.tilemap.extract(
+            id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), map(int, spawner_kinds))),
+            keep=False,
+        ):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
-                    if pre.DEBUG_GAME_ASSERTS:
-                        seen_player_spawners.append(spawner)
-                        assert not seen_player_spawn, f"want only one player spawner. got {len(seen_player_spawners), seen_player_spawners=}"
-                        seen_player_spawn = True
-                    self.player.pos = spawner.pos.copy()  # note: reset time to avoids multiple spawns during fall
-                    self.player.air_time = 0
-
+                    self.player.pos = spawner.pos.copy()  # coerce to a mutable list if pos is a tuple
+                    self.player.air_time = 0  # Reset time to avoid multiple spawns during fall
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(Enemy(self, spawner.pos, self._enemy_size))
-
                 case pre.SpawnerKind.PORTAL:
-                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, pos=spawner.pos, size=pg.Vector2(pre.TILE_SIZE, pre.TILE_SIZE)))
-
+                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
         if pre.DEBUG_GAME_ASSERTS:
-            assert (val := len(self.enemies)) and val > 0, f"want atleast 1 spawned enemy. got {val}"
-            assert (val := len(self.portal_spawners)) and val > 0, f"want atleast 1 spawned portal. got {val}"
+            assert self.player is not None, f"want a spawned player. got {self.player}"
+            assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
+            assert (val := len(self.portal_spawners)) > 0, f"want atleast 1 spawned portal. got {val}"
 
-        self.particles: list[Particle] = []  # particles go on display, but they are added after the displays merge so they don't receive the outline
+        # Particles go on display, but they are added after the displays merge
+        # so they don't receive the outline
+        self.particles: list[Particle] = []
+
         # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
         # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
@@ -242,7 +226,7 @@ class Game:
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
         self.touched_portal = False
-        self.transition = self._transition_lo  # -30
+        self.transition = self._transition_lo
 
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
@@ -264,9 +248,9 @@ class Game:
 
             # REGION: start | debug: resizable screen
             if pre.DEBUG_GAME_STRESSTEST:
-                i += 1
+                i += 1  # type: ignore
                 i = i % self.display.get_width()
-                j += i % 2
+                j += i % 2  # type: ignore
                 j = j % self.display.get_height()
                 # self.display.fill((255, 0, 255))
                 pg.draw.circle(self.display, (0, 0, 0), (100, 100), 20)
@@ -421,7 +405,7 @@ class Game:
 
             if pre.DEBUG_GAME_HUD:
                 if abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2:
-                    render_debug_partialfn(render_scroll, mouse_pos)
+                    render_debug_partialfn(render_scroll, mouse_pos)  # type: ignore
             if pre.DEBUG_GAME_CACHEINFO:  # cache
                 print(f"{pre.hsl_to_rgb.cache_info() = }")
 
@@ -499,7 +483,7 @@ class Game:
 
 
 class Particle:
-    def __init__(self, game: Game, p_kind, pos: pg.Vector2, velocity: pg.Vector2 = pg.Vector2(0, 0), frame: int = 0) -> None:
+    def __init__(self, game: Game, p_kind: pre.ParticleKind, pos: pg.Vector2, velocity: pg.Vector2 = pg.Vector2(0, 0), frame: int = 0) -> None:
         self.game = game
         self.pos = pos
         self.velocity = velocity

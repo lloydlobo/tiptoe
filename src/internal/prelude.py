@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
+from random import randint
 from typing import Final, Generator, Sequence, Tuple, Union
 
 import pygame as pg
@@ -344,6 +345,22 @@ TRANSPARENT         = (0, 0, 0, 0)
 WHITE               = (255, 255, 255)
 YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
 YELLOWMID           = hsl_to_rgb(60, 0.4, 0.25)
+# fmt: on
+
+
+# fmt: off
+@dataclass
+class COLOR:
+    BG              = hsl_to_rgb(0, 0.618, 0.328)
+    CLOUD           = hsl_to_rgb(60 * 5, 0.26, 0.18)
+    ENEMY           = (hsl_to_rgb(180, 0.4, 0.25), hsl_to_rgb(0, 0.1618, 0.618))[randint(0,1)]
+    GRASS           = hsl_to_rgb(0, 0.618, 0.328)
+    PLAYER          = (1, 1, 1)
+    PLAYERJUMP      = hsl_to_rgb(0, 0.618, 0.328)
+    PLAYERRUN       = (1, 1, 1)
+    PORTAL1         = (255, 255, 255)
+    PORTAL2         = (15, 20, 25)
+    STONE           = hsl_to_rgb(0, 0.618, 0.328)
 # fmt: on
 
 
