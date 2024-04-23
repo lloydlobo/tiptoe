@@ -7,9 +7,11 @@ from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
 from random import randint
-from typing import Final, Generator, Sequence, Tuple, Union
+from typing import Any, Dict, Final, Generator, Sequence, Tuple, Union
 
 import pygame as pg
+import toml
+
 
 #########
 # TYPES #
@@ -30,6 +32,7 @@ class ParticleKind(Enum):
 class EntityKind(Enum):
     PLAYER = "player"
     ENEMY = "enemy"
+    # FIXME: is portal an entity? if it can teleport and move then maybe consider it.
     PORTAL = "portal"
 
 
@@ -115,48 +118,15 @@ class Animation:
         return self.images[int(self.frame * self._img_duration_inverse)]
 
 
-##########
-# ASSETS #
-
-
-@dataclass
-class Assets:
-    @dataclass
-    class AnimationMiscAssets:
-        particle: dict[str, Animation]
-
-    @dataclass
-    class AnimationEntityAssets:
-        player: dict[str, Animation]
-        enemy: dict[str, Animation]
-
-        @property
-        def elems(self):
-            return {EntityKind.PLAYER.value: self.player, EntityKind.ENEMY.value: self.enemy}
-
-        # skipping error handling for performance
-        def __getitem__(self, key: str) -> dict[str, Animation]:
-            # match key:
-            #     case EntityKind.PLAYER.value: return self.player
-            #     case EntityKind.ENEMY.value: return self.enemy
-            #     case _: raise ValueError(f"expected valid AnimationAssets key. got {key}")
-            return self.elems[key]
-
-    entity: dict[str, pg.Surface]
-    misc_surf: dict[str, pg.SurfaceType]
-    misc_surfs: dict[str, list[pg.SurfaceType]]
-    tiles: dict[str, list[pg.Surface]]
-    animations_entity: AnimationEntityAssets
-    animations_misc: AnimationMiscAssets
+############
+# FILE I/O #
 
 
 def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image. Note: Ported from DaFluffyPotato's pygpen lib"""
-
     img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
     if colorkey is not None:
         img.set_colorkey(colorkey)
-
     return img
 
 
@@ -165,15 +135,32 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
     listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
         @example:   load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
     """
+    return [load_img(f"{Path(path) / img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
 
-    return [
-        load_img(
-            f"{Path(path) / img_name}" or os.path.join(path, img_name),
-            with_alpha,
-            colorkey,
-        )
-        for img_name in sorted(os.listdir(path))
-    ]
+
+@dataclass
+class ConfigHandler:
+    def __init__(self, config_path: Path) -> None:
+        self._path: Final[Path] = config_path
+        self.config: Dict[str, Any] = {}
+
+        self.game: Dict[str, Any] = {}
+
+        self.game_entity_enemy: Dict[str, Any] = {}
+        self.game_entity_player: Dict[str, Any] = {}
+        self.game_misc_decorations: Dict[str, Any] = {}
+        self.game_misc_decorations_blur: Dict[str, Any] = {}
+        self.game_world_stars: Dict[str, Any] = {}
+
+    def load_game_config(self) -> None:
+        self.config = toml.load(self._path)
+        self.game = self.config.copy().get("game", {})
+
+        self.game_world_stars = self.game.get("world", {}).get("stars", {})
+        self.game_entity_player = self.game.get("entity", {}).get("player", {}).get("movement", {})
+        self.game_entity_enemy = self.game.get("entity", {}).get("enemy", {}).get("movement", {})
+        self.game_misc_decorations = self.game.get("misc", {}).get("decorations", {})
+        self.game_misc_decorations_blur = self.game.get("misc", {}).get("decorations", {}).get("blur", {})
 
 
 ##########
@@ -207,7 +194,8 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
     if (n := len(s)) == 7:
         if s[0] == "#":
             s = s[1:]
-            assert len(s) == (n - 1)
+            if DEBUG_GAME_ASSERTS:
+                assert len(s) == (n - 1), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
         else:
             raise ValueError(f"want valid hex format string. got {s}")
 
@@ -313,11 +301,23 @@ CAPTION_EDITOR      = "tiptoe level editor"
 # fmt: on
 
 # fmt: off
-ENTITY_PATH         = Path("src") / "data" / "images" / "entities" or os.path.join("src", "data", "images", "entities")
+SRC_PATH                        = Path("src")
+
+SRC_DATA_PATH                   = SRC_PATH / "data"
+
+SRC_DATA_IMAGES_PATH            = SRC_DATA_PATH / "images" 
+SRC_DATA_MAP_PATH               = SRC_DATA_PATH / "maps" 
+
+SRC_DATA_IMAGES_ENTITIES_PATH   = SRC_DATA_IMAGES_PATH / "entities"
+# fmt: on
+
+# aliases for directory paths
+# fmt: off
+ENTITY_PATH         = SRC_DATA_IMAGES_ENTITIES_PATH
 FONT_PATH           = None
-IMGS_PATH           = Path("src") / "data" / "images" or os.path.join("src", "data", "images")
-INPUT_PATH          = None  # InputState
-MAP_PATH            = Path("src") / "data" / "maps" or os.path.join("src", "data", "maps")
+IMGS_PATH           = SRC_DATA_IMAGES_PATH 
+INPUTSTATE_PATH     = None  
+MAP_PATH            = SRC_DATA_MAP_PATH
 SOUNDS_PATH         = None
 SPRITESHEET_PATH    = None
 # fmt: on
@@ -326,15 +326,19 @@ SPRITESHEET_PATH    = None
 # colors:
 # fmt: off
 BEIGE               = (15, 20, 25)
-BG_DARK             = hsl_to_rgb(234, 0.1618, 0.0618)
-BG_DARKER           = hsl_to_rgb(234, 0.1618, 0.0328)
+BGDARK              = hsl_to_rgb(234, 0.1618, 0.0618)
+BGDARKER            = hsl_to_rgb(234, 0.1618, 0.0328)
 BLACK               = (0, 0, 0)
 BLACKMID            = (1, 1, 1)
 CHARCOAL            = (10, 10, 10)
+DARKGRAY            = (20, 20, 20)
 CREAM               = hsl_to_rgb(0, 0.1618, 0.618)
 GRAY                = hsl_to_rgb(0, 0, 0.5)
 GREEN               = hsl_to_rgb(120, 1, 0.25)
 MIDNIGHT            = (2, 2, 3)
+OLIVE               = hsl_to_rgb(60, 1, 0.25)
+OLIVEMID            = hsl_to_rgb(60, 0.4, 0.25)
+ORANGE              = hsl_to_rgb(10,1,1)
 PINK                = hsl_to_rgb(60 * 5, 0.26, 0.18)
 PURPLE              = hsl_to_rgb(300, 1, 0.25)
 PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
@@ -350,9 +354,36 @@ YELLOWMID           = hsl_to_rgb(60, 0.4, 0.25)
 
 # fmt: off
 @dataclass
+class COUNT:
+    STAR            = (TILE_SIZE or 16)
+    # FLAMEPARTICLE   = (TILE_SIZE or 16)
+
+
+@dataclass
+class COUNTRAND:
+    FLAMEPARTICLE   = randint(6, 64)        # (0,20) OG
+
+
+# fmt: on
+
+
+# fmt: off
+@dataclass
+class SIZE:
+    ENEMY           = (8, 16)
+    FLAMEPARTICLE   = (3, 3)
+    FLAMETORCH      = (1, 7)
+    PLAYER          = (8, TILE_SIZE - 1)
+    STAR            = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
+# fmt: on
+
+
+# fmt: off
+@dataclass
 class COLOR:
     BG              = hsl_to_rgb(0, 0.618, 0.328)
-    CLOUD           = hsl_to_rgb(60 * 5, 0.26, 0.18)
+    BGCOLOR         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
+    STAR            = hsl_to_rgb(300, 0.26, 0.18)
     ENEMY           = (hsl_to_rgb(180, 0.4, 0.25), hsl_to_rgb(0, 0.1618, 0.618))[randint(0,1)]
     GRASS           = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER          = (1, 1, 1)
@@ -360,7 +391,8 @@ class COLOR:
     PLAYERRUN       = (1, 1, 1)
     PORTAL1         = (255, 255, 255)
     PORTAL2         = (15, 20, 25)
-    STONE           = hsl_to_rgb(0, 0.618, 0.328)
+    STONE           = (1, 1, 1)
+    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
 # fmt: on
 
 
@@ -434,15 +466,48 @@ AUTOTILE_MAP = {
 # PYGAME SURFACES #
 
 
-def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int]) -> pg.SurfaceType:
-    surf = pg.Surface(size)
+def create_surface(
+    size: tuple[int, int],
+    colorkey: tuple[int, int, int] | ColorValue,
+    fill_color: tuple[int, int, int],
+) -> pg.SurfaceType:
+    surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
     return surf
 
 
 create_surface_partialfn = partial(create_surface, colorkey=BLACK)
-create_surface_partialfn.__doc__ = """New create_surface function with partial application of colorkey argument and or other keywords."""
+create_surface_partialfn.__doc__ = """
+(function) def create_surface(
+    size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int]
+) -> pg.SurfaceType
+
+New create_surface function with partial application of colorkey argument and or other keywords.
+"""
+
+
+def create_surface_withalpha(
+    size: tuple[int, int],
+    colorkey: tuple[int, int, int] | ColorValue,
+    fill_color: tuple[int, int, int],
+    alpha: int,
+) -> pg.SurfaceType:
+    surf = pg.Surface(size).convert_alpha()
+    surf.set_colorkey(colorkey)
+    surf.fill(fill_color)
+    surf.set_alpha(alpha)
+    return surf
+
+
+create_surface_withalpha_partialfn = partial(create_surface_withalpha, colorkey=BLACK)
+create_surface_withalpha_partialfn.__doc__ = """
+(function) def create_surface_withalpha
+    size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int], alpha: int
+) -> pg.SurfaceType
+
+New create_surface_withalpha function with partial application of colorkey argument and or other keywords.
+"""
 
 
 def create_surfaces(

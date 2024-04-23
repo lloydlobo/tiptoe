@@ -1,3 +1,5 @@
+# vim: modeline
+
 import itertools as it
 import sys
 import time
@@ -6,6 +8,7 @@ from pathlib import Path
 import pygame as pg
 
 import internal.prelude as pre
+from internal.assets import Assets
 from internal.tilemap import TileItem, Tilemap, pos_to_loc
 
 
@@ -65,13 +68,13 @@ class Editor:
         )
         asset_tiles_largedecor_variations = (
             (2, pre.GRAY, (32, 16)),  # variants 0,1
-            (2, pre.BG_DARK, (32, 16)),  # variants 2,3
+            (2, pre.BGDARK, (32, 16)),  # variants 2,3
             (2, pre.BEIGE, (32, 16)),  # variants 4,5
         )
         decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
         large_decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
 
-        self.assets = pre.Assets(
+        self.assets = Assets(
             entity=dict(),
             tiles=dict(
                 # grid tiles
@@ -86,8 +89,8 @@ class Editor:
             ),
             misc_surf=dict(),
             misc_surfs=dict(),
-            animations_entity=None or pre.Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
-            animations_misc=None or pre.Assets.AnimationMiscAssets(particle=dict()),
+            animations_entity=None or Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
+            animations_misc=None or Assets.AnimationMiscAssets(particle=dict()),
         )
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -122,7 +125,7 @@ class Editor:
 
     def run(self) -> None:
         while True:
-            self.display.fill(pre.BG_DARK)
+            self.display.fill(pre.SILVER)
 
             # camera: update and parallax
             self.scroll.x += round(self.movement.right - self.movement.left) * pre.CAMERA_SPEED
@@ -266,3 +269,6 @@ class Editor:
 
 if __name__ == "__main__":
     Editor().run()
+
+# The line beneath this is called `modeline`. See `:help modeline`
+# vim: ts=2 sts=2 sw=2 et

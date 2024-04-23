@@ -8,6 +8,7 @@ from copy import deepcopy
 from functools import partial, reduce
 from typing import TYPE_CHECKING, Final, Optional, TypedDict, Union
 
+
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game  # from editor import Editor
     from editor import Editor
