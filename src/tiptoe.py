@@ -28,38 +28,42 @@ class Game:
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         pg.display.set_caption(pre.CAPTION)
         pg.display._set_autoresize(False)  # type: ignore |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
-        self.bgcolor = pre.COLOR.BGCOLORDARK
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
-        if (__dreamlike := 0) and __dreamlike:
-            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
-            pre.Surfaces.compute_vignette(surf=self.display_3)
-            self.display_3.set_alpha(17)
-        elif (__noir := 1) and __noir:
-            display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
-            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
-            self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-            if self.bgcolor == pre.COLOR.BGCOLORDARK:
-                pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
-            elif self.bgcolor == pre.COLOR.BGCOLORDARKER:
-                pre.Surfaces.compute_vignette(self.display_3, 17)
-            else:
-                pre.Surfaces.compute_vignette(self.display_3, 23)
-            if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
+
+        # self.bgcolor = (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK, pre.COLOR.BGCOLORDARKER)[randint(0, 2)]
+        self.bgcolor = (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK)[randint(0, 1)]
+
+        if pre.DEBUG_GAME_STRESSTEST:
+            if (__dreamlike := 0) and __dreamlike:
+                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
+                pre.Surfaces.compute_vignette(surf=self.display_3)
+                self.display_3.set_alpha(17)
+            elif (__noir := 1) and __noir:
+                display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
+                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
+                self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
+                if self.bgcolor == pre.COLOR.BGCOLORDARK:
+                    pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
+                elif self.bgcolor == pre.COLOR.BGCOLORDARKER:
+                    pre.Surfaces.compute_vignette(self.display_3, 17)
+                else:
+                    pre.Surfaces.compute_vignette(self.display_3, 23)
+                if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
+                    self.display_3.set_colorkey(pre.BLACK)
+            elif (__moody := 0) and __moody:
+                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
                 self.display_3.set_colorkey(pre.BLACK)
-        elif (__moody := 0) and __moody:
-            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
-            self.display_3.set_colorkey(pre.BLACK)
-            self.display_3.set_alpha(255 // 2)
-            pre.Surfaces.compute_vignette(surf=self.display_3)
-            self.display_3.set_alpha(14)
-        else:
-            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
-            self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
-            pre.Surfaces.compute_vignette(self.display_3, 255)
-            self.display_3.fill(pre.COLOR.BGCOLORDARKGLOW)
-            pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
+                self.display_3.set_alpha(255 // 2)
+                pre.Surfaces.compute_vignette(surf=self.display_3)
+                self.display_3.set_alpha(14)
+            else:
+                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
+                self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
+                pre.Surfaces.compute_vignette(self.display_3, 255)
+                self.display_3.fill(pre.COLOR.BGCOLORDARKGLOW)
+                pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
         self.font_size = max(10, 11)
         self.font = pg.font.SysFont(name=("monospace"), size=self.font_size, bold=True)  # or name=pg.font.get_default_font()
@@ -102,7 +106,7 @@ class Game:
         self._transition_mid: Final = 0
         self._transition_hi: Final = 30
 
-        self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BGCOLOR)
+        self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BGMIRAGE)
         self.bg_color_cycle = it.cycle(self.bg_colors)
 
         # load_level: declares and initializes level specific members
@@ -197,6 +201,7 @@ class Game:
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAME,
+                    # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
                     pos=pg.Vector2(
                         x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[1] / 2, flametorch_rect.w / 2)),
                         y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 8) - flametorch_rect.h / 2),
@@ -205,7 +210,21 @@ class Game:
                     frame=pre.COUNTRAND.FLAMEPARTICLE,
                 )
                 for flametorch_rect in self.flametorch_spawners.copy()
-                if random() * (49_999 / 10_000) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+                if random() * (49_999 / 100_000) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+            )  # big number is to control spawn rate
+            self.particles.extend(
+                Particle(
+                    game=self,
+                    p_kind=pre.ParticleKind.FLAMEGLOW,
+                    pos=pg.Vector2(
+                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[1] / 2, flametorch_rect.w / 2)),
+                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 8) - flametorch_rect.h / 2),
+                    ),
+                    velocity=pg.Vector2(-0.1, 0.3),
+                    frame=pre.COUNTRAND.FLAMEPARTICLE,
+                )
+                for flametorch_rect in self.flametorch_spawners.copy()
+                if random() * (49_999 / 100_000) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
             )  # big number is to control spawn rate
 
             # stars: backdrop update and render
@@ -248,13 +267,28 @@ class Game:
             #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
             #   perf: if is_used then don't render, until next reset. so we can cycle through limited amount of particles
             for particle in self.particles:
-                kill_animation = particle.update()
-                particle.render(self.display, render_scroll)
-                if kill_animation:
-                    self.particles.remove(particle)
-                # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
-                if particle.kind == pre.ParticleKind.FLAME:
-                    particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1) // 2
+                match particle.kind:
+                    case pre.ParticleKind.FLAME:
+                        kill_animation = particle.update()
+                        particle.render(self.display, render_scroll)
+                        if kill_animation:
+                            self.particles.remove(particle)
+                        # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
+                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1) // 2
+                    case pre.ParticleKind.FLAMEGLOW:
+                        # particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3
+                        # particle.pos.y += math.sin(particle.animation.frame * 1.035) * 0.3
+                        kill_animation = particle.update()
+                        img = particle.animation.img().copy()
+                        self.display.blit(
+                            source=img,
+                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2),
+                            special_flags=pg.BLEND_RGB_ADD,
+                        )
+                        if kill_animation:
+                            self.particles.remove(particle)
+                    case _:
+                        pass
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
@@ -282,7 +316,8 @@ class Game:
 
             # RENDER: DISPLAY
             # blit: display on display_2 and then blit display_2 on screen for depth effect
-            self.display.blit(self.display_3, (0, 0))
+            if pre.DEBUG_GAME_STRESSTEST:
+                self.display.blit(self.display_3, (0, 0))
             self.display_2.blit(self.display, (0, 0))
             # TODO: screenshake effect via offset for screen blit
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
@@ -302,8 +337,10 @@ class Game:
 
         # end `while running:`
         assert running == False
+
         if pre.DEBUG_GAME_CACHEINFO:  # cache
             print(f"{pre.hsl_to_rgb.cache_info() = }")
+
         pg.quit()
         exit()
 

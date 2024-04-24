@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import math
+import time
 from collections import deque
 from enum import Enum
-from pprint import pprint
 from random import randint, random
-from time import time
 from typing import TYPE_CHECKING, Final, Literal, Optional
 
 import internal.prelude as pre
@@ -190,7 +189,7 @@ class Enemy(PhysicalEntity):
                 #             pprint(self.history_contact_with_player)  # _type:ignore
                 #             print("enemy contact player", len(self.history_contact_with_player))
                 #         if self.game.player.dash_time >= self.game.player.dash_time_burst_1 - self.game.player.dash_time_burst_2:
-                #             print("dashed")
+                # print("dashed")
                 #         self.history_contact_with_player.appendleft(record)  # _type:ignore
 
                 # Enemy interaction: can now shoot while static!!
@@ -199,7 +198,7 @@ class Enemy(PhysicalEntity):
                     dist_pe = self.game.player.pos - self.pos
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         self.alert_timer = self._max_alert_time
-                        print(f"{dist_pe=}")
+                        # print(f"{dist_pe=}")
                         pass
                     pass
 
@@ -245,7 +244,7 @@ class Player(PhysicalEntity):
         self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
         self._jump_thrust: Final = 3
         self._dash_thrust: Final = 8
-        self._jumps: Final = 1
+        self._jumps: Final = 2
         self._max_air_time: Final = 5
         self._max_dash_time: Final = 60  # directional velocity vector
         self.dash_time_burst_1: Final = self._max_dash_time
@@ -280,8 +279,18 @@ class Player(PhysicalEntity):
 
         # Reset times when touch ground
         if self.collisions.down:
+            if self.air_time > self._max_air_time:  # Credit: mrc
+                # TODO:
+                #    self.game.sfx["land_anim"]
+                #    self.game.sfx.play("land", volume=0.5)
+                print(f"{time.time()}: render land anim")
+                print(f"{time.time()}: play land sound")
+                pass
             self.air_time = 0
             self.jumps = self._jumps
+        else:
+            pass
+            # self.air_time += self.game.clock_dt
 
         # Update action based on player state
         if not self.wall_slide:

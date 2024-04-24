@@ -1,9 +1,16 @@
 import itertools as it
 import json
 from dataclasses import dataclass
-from random import randint
+from functools import partial
+from pprint import pprint
+from random import randint, random
+from typing import Any
 
+import numpy as np
 import pygame as pg
+from numpy._typing import NDArray
+from numpy.core.multiarray import ndarray
+from numpy.dtypes import UInt8DType
 
 from internal import prelude as pre
 
@@ -25,6 +32,40 @@ ASSETS_JSON_v2 = """{
     "misc_surf": {"background": {"size": [800, 600], "color": [0, 0, 0], "alpha": 255}, "gun": {"size": [14, 7], "color": [255, 255, 255], "alpha": 255}, "projectile": {"size": [5, 2], "color": [255, 255, 255], "alpha": 255}},
     "misc_surfs": {"stars": [{"size": [100, 50], "color": [255, 255, 255], "alpha": 255}]}
 }"""
+
+
+class StarParameters:
+    def __init__(self, size: pg.Rect, color: tuple[int, int, int, int]):
+        self.size = size
+        self.color = color
+
+
+def create_star_surfaces(star_params: StarParameters, star_count: int) -> list[pg.SurfaceType]:
+    """
+    Usage:
+        import pygame as pg
+        star_params = StarParameters(pg.Rect(0, 0, 3, 3), (255, 255, 255, 255))
+        star_count = 100
+        stars = create_star_surfaces(star_params, star_count)
+    """
+    stars: list[pg.SurfaceType] = []
+    for _ in range(star_count):
+        star_surface = pg.Surface((star_params.size.x, star_params.size.y), pg.SRCALPHA)
+        star_surface.fill((0, 0, 0, 255))
+        pg.draw.rect(star_surface, star_params.color, star_params.size)
+
+        pixels = pg.surfarray.pixels3d(star_surface)
+        for x, y in it.product(range(star_params.size.x), range(star_params.size.y)):
+            r, g, b = pixels[x, y]
+            pixels[x, y] = (clamp(r + randint(-4, 4), 0, 255), clamp(g + randint(-4, 4), 0, 255), clamp(b + randint(-4, 4), 0, 255))
+
+        stars.append(star_surface)
+
+    return stars
+
+
+def clamp(value: int, min_val: int, max_val: int) -> int:
+    return min(max(value, min_val), max_val)
 
 
 @dataclass
@@ -56,10 +97,57 @@ class Assets:
         particle: dict[str, pre.Animation]
 
     @staticmethod
-    def initialize_assets():
+    def create_star_surfaces() -> list[pg.SurfaceType]:
+        """
+        # star_surf = pg.Surface(pre.SIZE.STAR).convert()
+        # star_surf.set_colorkey(pre.COLOR.BGMIRAGE)
+        # star_surf.fill(pre.COLOR.STAR)  # awesome
+        # stars: list[pg.SurfaceType] = []
+        # for _ in range(pre.COUNT.STAR):
+        #     surf = star_surf.copy()
+        #     r, g, b = pre.COLOR.STAR
+        #     r += round(10 * (random() * randint(-4, 4))) // 10
+        #     g += round(10 * (random() * randint(-4, 4))) // 10
+        #     b += round(10 * (random() * randint(-4, 4))) // 10
+        #     surf.fill((r, g, b))  # awesome
+        #     stars.append(surf)
+        """
         star_surf = pg.Surface(pre.SIZE.STAR).convert()
-        star_surf.set_colorkey(pre.COLOR.BGCOLOR)
-        star_surf.fill(pre.COLOR.STAR)  # awesome
+        star_surf.set_colorkey(pre.BLACK or pre.COLOR.BGMIRAGE)  # magic fx?
+        star_surf.fill(pre.COLOR.STAR)
+
+        # Pre-calculate random color adjustments
+        # lst: list[int] = [round(10 * (random() * randint(-4, 4))) // 10 for _ in range(3)]
+        # color_adjustments: NDArray[Any] = np.array(lst)  # array([-3,  0,  0])
+        lst: list[int] = [round(10 * (random() * randint(-4, 4))) // 10 for _ in range(pre.COUNT.STAR)]
+        color_adjustments: NDArray[Any] = np.array(lst)  # array([-3,  0,  0])
+        pprint(color_adjustments)
+        ccc = it.cycle(color_adjustments)
+
+        # Generate stars with adjusted colors
+        stars: list[pg.SurfaceType] = [star_surf.copy() for _ in range(pre.COUNT.STAR)]
+
+        pixels3d_partialfn = partial(pg.surfarray.pixels3d)
+        blit_array_partialfn = partial(pg.surfarray.blit_array)
+        np_clip_partialfn = partial(np.clip, a_min=0, a_max=255)
+
+        for star in stars:
+            star_array: ndarray[Any, Any] = pixels3d_partialfn(star)  # Get the original color array
+            if pre.DEBUG_GAME_ASSERTS:
+                assert star_array.shape == (3, 3, 3)
+                assert star_array.dtype == np.uint8
+
+            # color_adjustments: NDArray[Any] = np.round(10 * (random() * randint(-4, 4))) // 10  # -1.0:3.0
+            color_adjustments = next(ccc)
+            adjusted_color_array: NDArray[np.bool_] = np_clip_partialfn(star_array + color_adjustments)  # Apply color adjustments
+
+            blit_array_partialfn(star, adjusted_color_array)  # Update the surface with the adjusted color
+
+        return stars
+
+    @staticmethod
+    def initialize_assets():
+        stars: list[pg.SurfaceType] = Assets.create_star_surfaces()
 
         # need these for reference for animation workaround
         player_alpha = (255, 190)[randint(0, 1)]
@@ -70,7 +158,15 @@ class Assets:
         # Player action states
         # TODO: add player_idle_surf_frames
         player_run_surf = pre.create_surface_withalpha_partialfn(size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERRUN, alpha=0)  # player_run_surf.fill(pre.COLOR.PLAYERRUN)  @ use black for invisibility
-        player_jump_surf_frames = [pre.create_surface_withalpha_partialfn(size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP, alpha=player_alpha - 16 * (i * 4) + 1) for i in range(5)]
+        player_jump_surf_frames = [
+            pre.create_surface_withalpha_partialfn(
+                size=pre.SIZE.PLAYERJUMP,
+                fill_color=pre.COLOR.PLAYERJUMP,
+                # alpha=player_alpha - 16 * (i * 4) + 1, # Wed Apr 24 08:48:18 PM IST 2024
+                alpha=player_alpha - 16 * (i * 2) + 1,  # Wed Apr 24 08:50:00 PM IST 2024
+            )
+            for i in range(5)
+        ]
 
         enemy_surf = pg.Surface(pre.SIZE.ENEMY).convert()
         enemy_surf.set_colorkey(pre.BLACK)
@@ -96,11 +192,14 @@ class Assets:
         decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
         large_decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
 
+        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNTRAND.FLAMEPARTICLE)]
+        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNTRAND.FLAMEPARTICLE)]
+
         return Assets(
             entity=dict(enemy=enemy_surf.copy(), player=player_entity_surf.copy()),
             misc_surf=dict(background=pg.Surface(pre.DIMENSIONS).convert(), gun=pg.Surface((14, 7)).convert(), projectile=pg.Surface((5, 2)).convert()),
             misc_surfs=dict(
-                stars=[star_surf.copy() for _ in range(pre.COUNT.STAR)],  # TODO: rename to stars
+                stars=stars,  # TODO: rename to stars
             ),
             tiles=dict(
                 # grid tiles
@@ -124,7 +223,8 @@ class Assets:
             ),
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
-                    flame=pre.Animation(list(pre.create_surfaces_partialfn(pre.COUNTRAND.FLAMEPARTICLE, pre.RED, pre.SIZE.FLAMEPARTICLE)), img_dur=24, loop=False),  # torch flame particle
+                    flame=pre.Animation(flame_particles, img_dur=24, loop=False),  # torch flame particle
+                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=False),  # torch flame particle
                     particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.CHARCOAL, (2, 2))), img_dur=20, loop=False),  # player dash particle
                 )
             ),

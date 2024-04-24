@@ -17,7 +17,7 @@ jump = 3  # Jump height
 speed = 5 # Movement speed
 
 [game.world.stars]
-count = 32 # 16 <= count <= 64
+count = 64 # 16 <= count <= 64
 
 # Miscellaneous Decorations
 [game.misc.decorations]

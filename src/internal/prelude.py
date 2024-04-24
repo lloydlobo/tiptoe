@@ -24,10 +24,13 @@ RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
 
 
+# fmt:off
 class ParticleKind(Enum):
     # class AnimationMiscAssets:
-    FLAME = "flame"
-    LEAF = "leaf"
+    FLAME           = "flame"
+    FLAMEGLOW       = "flameglow"
+    LEAF            = "leaf"
+# fmt:on
 
 
 class EntityKind(Enum):
@@ -289,8 +292,8 @@ TILE_SIZE           = 16
 
 
 # fmt: off
-SCREEN_WIDTH        = 640
-SCREEN_HEIGHT       = 480
+SCREEN_WIDTH        = 960 or 640
+SCREEN_HEIGHT       = 630 or 480
 
 DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
 DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
@@ -339,7 +342,7 @@ GREEN               = hsl_to_rgb(120, 1, 0.25)
 MIDNIGHT            = (2, 2, 3)
 OLIVE               = hsl_to_rgb(60, 1, 0.25)
 OLIVEMID            = hsl_to_rgb(60, 0.4, 0.25)
-ORANGE              = hsl_to_rgb(10,1,1)
+ORANGE              = hsl_to_rgb(10,0.5,0.5)
 PINK                = hsl_to_rgb(300, 0.26, 0.18)
 PURPLE              = hsl_to_rgb(300, 1, 0.25)
 PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
@@ -362,15 +365,17 @@ class COUNT:
 
 @dataclass
 class COUNTRAND:
-    FLAMEPARTICLE   = randint(6, 64)        # (0,20) OG
+    FLAMEPARTICLE   = randint(36, 64)        # (0,20) OG
 # fmt: on
+
 
 # fmt: off
 @dataclass
 class SIZE:
     ENEMY           = (8, 16)
-    ENEMYJUMP       = (ENEMY[0], ENEMY[1]-1)
-    FLAMEPARTICLE   = (3, 3)
+    ENEMYJUMP       = (ENEMY[0], ENEMY[1] - 1)
+    FLAMEPARTICLE   = (6,6)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
+    FLAMEGLOWPARTICLE = FLAMEPARTICLE[0] ** 2, FLAMEPARTICLE[1] ** 2   # use 6,6 if a circles else 3,3 if particle is rect
     FLAMETORCH      = (1, 7)
     PLAYER          = (8, TILE_SIZE)
     PLAYERJUMP      = (PLAYER[0] - 1, PLAYER[1])
@@ -383,18 +388,21 @@ class SIZE:
 # fmt: off
 @dataclass
 class COLOR:
-    BG              = hsl_to_rgb(0, 0.618, 0.328)
-    BGCOLOR         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
+    BG              = hsl_to_rgb(240, 0.328, 0.128)
     BGCOLORDARK     = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
     BGCOLORDARKER   = hsl_to_rgb(240, 0.3, 0.04)
     BGCOLORDARKGLOW = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
-    ENEMY           = (hsl_to_rgb(180, 0.4, 0.25), hsl_to_rgb(0, 0.1618, 0.618))[randint(0,1)]
+    BGMIRAGE        = hsl_to_rgb(240, 0.2, 0.07) # used to set colorkey for stars
+    ENEMY           = hsl_to_rgb(10,0.3,0.08) #(hsl_to_rgb(180, 0.4, 0.25), )[randint(0,1)]
+    FGSTARS         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
     FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
+    FLAME           = hsl_to_rgb(0, 0.618, 0.328)
+    FLAMEGLOW       = (20,20,30) # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
     GRASS           = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER          = (1, 1, 1)
-    PLAYERSTAR      = PINK
-    PLAYERJUMP      = hsl_to_rgb(0, 0.618, 0.328)
+    PLAYERJUMP      = PINK or hsl_to_rgb(0, 0.618, 0.328)
     PLAYERRUN       = (1, 1, 1)
+    PLAYERSTAR      = PINK
     PORTAL1         = (255, 255, 255)
     PORTAL2         = (15, 20, 25)
     STAR            = PINK
@@ -475,6 +483,7 @@ AUTOTILE_MAP = {
 @dataclass
 class Surfaces:
 
+    # expensive computation if run inside game loop
     @staticmethod
     def compute_vignette_scaled(surf: pg.SurfaceType, scale: int = 2, a: int = 255):
         w, h = surf.get_width() * scale, surf.get_height() * scale
@@ -490,6 +499,7 @@ class Surfaces:
                 dy = y - h * 0.5
                 dist = math.sqrt(dx * dx + dy * dy)
 
+                # imprecise here
                 factor = 1.0 - dist * w_half_inv
                 r = abs(int(255 * factor))
                 g = abs(int(255 * factor))
@@ -513,36 +523,12 @@ class Surfaces:
                 dist = math.sqrt(dx * dx + dy * dy)
 
                 factor = 1.0 - dist * w_half_inv
+                # imprecise here
                 r = abs(int(255 * factor))
                 g = abs(int(255 * factor))
                 b = abs(int(255 * factor))
                 surf.set_at((x, y), (r, g, b, a))
                 seen.add((x, y))
-
-        # Add thick window border
-        if 0:
-            for y in range(h):
-                for x in range(w):
-                    for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
-                        nx, ny = x + offx, y + offy
-                        if not (0 < nx < w and 0 < ny < h):
-                            if not (nx, ny) in seen:
-                                surf.set_at((x, y), (8, 8, 8, 230))
-
-        # for y in range(h):
-        #     for x in range(w):
-        #         for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
-        #             nx, ny = x + delta * offx, y + delta * offy
-        #             if (0 <= nx < w and 0 <= ny < h):
-        #                 if (nx, ny) in seen:
-        #                     # print(f"{x,y}")
-        #                     surf.set_at((x, y), (120, 102, 120, 30))
-        #                 else:
-        #                     delta += 1
-        #             else:
-        #                 delta -= 1
-
-        print(f"{w, h=}")
 
     @staticmethod
     def compute_vignette(surf: pg.SurfaceType, a: int = 255):
@@ -572,30 +558,6 @@ class Surfaces:
                 surf.set_at((x, y), (r, g, b, a))
 
         print(f"{w, h=}")
-
-    # @staticmethod
-    # def compute_vignette(w: int, h: int):
-    #     xcenter, ycenter = w / 2, h / 2
-    #     max_dist = math.hypot(xcenter, ycenter)
-    #
-    #     # Pre-compute vignette effect
-    #     vignette_surface = pg.Surface((w, h))
-    #     vignette_surface_array = pg.surfarray.pixels2d(vignette_surface)  # type: ignore
-    #     # vignette_surface_array[:, :] = [
-    #     x = [
-    #         [
-    #             int(255 * (1 - (math.hypot(x - xcenter, y - ycenter) / max_dist)))
-    #             #################
-    #             for _ in range(2)
-    #             #################
-    #         ]
-    #         for y in range(h // 2)
-    #         for x in range(w // 2)
-    #     ]
-    #     print(len(x), len(x[0]))
-    #     pprint(x, compact=True, width=w)
-    #     del vignette_surface_array
-    #     return vignette_surface
 
 
 def create_surface(
@@ -656,6 +618,19 @@ def create_surfaces(
 
 create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
 create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
+
+
+def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
+    surf = pg.Surface(size).convert()
+    center = size[0] / 2, size[1] / 2
+    radius = center[0]
+    pg.draw.circle(surf, fill_color, center, radius)
+    surf.set_colorkey(colorkey)
+    return surf
+
+
+create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
+create_circle_surf_partialfn.__doc__ = """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
 
 
 #########################
