@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import math
 from collections import deque
 from enum import Enum
+from pprint import pprint
 from random import randint, random
-from typing import TYPE_CHECKING, Final, Optional
+from time import time
+from typing import TYPE_CHECKING, Final, Literal, Optional
 
 import internal.prelude as pre
 from internal.tilemap import Tilemap
+
 
 if TYPE_CHECKING:
     from tiptoe import Game
@@ -40,9 +44,8 @@ class PhysicalEntity:
         self._terminal_velocity_y: Final = 5  # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
         self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))  # 0.1333333333.. (makes jumping possible to 3x player height)
 
-        self.anim_offset = pg.Vector2(
-            -3, -3  # note: should be an int.
-        )  # Workaround for padding used in animated sprites states like run jump to avoid collisions or rendering overflows outside of hit-box for entity
+        self.anim_offset = pg.Vector2(-1, -1)  # | Workaround for padding used in animated sprites states like run jump
+        # Note: should be an int                 | to avoid collisions or rendering overflows outside of hit-box for entity
 
         self.action: Optional[Action] = None
         self.set_action(Action.IDLE)
@@ -125,8 +128,10 @@ class PhysicalEntity:
 class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.ENEMY, pos, size)
+        self._max_alert_time: Final = (60 * 2.5) * 2  # aiming for alert for 5 seconds as if the enemy stops moving the agitation isn't shown for that time period?
 
         self.walking_timer = 0
+        self.alert_timer = 0
 
         self._lookahead_x: Final = 7  # (-7px west or 7px east) from center
         self._lookahead_y: Final = 23  # 23px south
@@ -136,8 +141,8 @@ class Enemy(PhysicalEntity):
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
 
-        self.alert_timer = 0
         self._always_alert = True  # added it just for fun. remove it for real gameplay
+        self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         # Pre-calculations before inheriting PhysicalEntity update
@@ -155,11 +160,17 @@ class Enemy(PhysicalEntity):
                     case (True, False, False):
                         dx = -self._moveby_x if self.flip else self._moveby_x
                         movement += pg.Vector2(dx, 0)
+                        # print(self.alert_timer, end=' ')
 
                         # Calculate moving average for smooth/erratic movement
                         if self.alert_timer or self._always_alert:
                             avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
-                            movement.x += 0.1 * round(avg_mvmt_x * 3.28)
+                            boost_x = 3.28 + 2  # 3.28
+                            movement.x += 0.1 * round(avg_mvmt_x * boost_x)
+
+                            # TODO: remove extra_crazy after demo
+                            extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops
+                            movement.y -= extra_crazy
                         self.movement_history_x.append(dx)
 
                     case _:
@@ -168,11 +179,35 @@ class Enemy(PhysicalEntity):
                 self.alert_timer = max(0, self.alert_timer - 1)
                 self.walking_timer = max(0, self.walking_timer - 1)  # timer: decrement. becomes 0 or static once every walk cycle to begin spawning a projectile
 
-                # Interaction: can now shoot while static
+                # if 0:  # JFL :)
+                #     if self.rect().colliderect(self.game.player.rect()):
+                #         e_pos = f"{int(self.pos.x), int(self.pos.y)}"
+                #         p_pos = f"{int(self.game.player.pos.x), int(self.game.player.pos.y)}"
+                #         e_dir = "e-face-left" if self.flip else "e-face-right"
+                #         time_time: float = time()
+                #         record = (time_time, e_dir, (e_pos, p_pos))
+                #         if record not in self.history_contact_with_player:  # _type:ignore
+                #             pprint(self.history_contact_with_player)  # _type:ignore
+                #             print("enemy contact player", len(self.history_contact_with_player))
+                #         if self.game.player.dash_time >= self.game.player.dash_time_burst_1 - self.game.player.dash_time_burst_2:
+                #             print("dashed")
+                #         self.history_contact_with_player.appendleft(record)  # _type:ignore
+
+                # Enemy interaction: can now shoot while static!!
                 if not self.walking_timer:
-                    # TODO: calculate distance between player and enemy
-                    if 0:
+                    # Calculate distance between player and enemy
+                    dist_pe = self.game.player.pos - self.pos
+                    if abs(dist_pe.y) < pre.TILE_SIZE:
+                        self.alert_timer = self._max_alert_time
+                        print(f"{dist_pe=}")
                         pass
+                    pass
+
+                    # death by rect collision????
+
+                    # else:
+                    #     self.scanned_pos.clear()
+
                     # TODO: replenish alert timer if enemy spots player
                     if 0:
                         self.alert_timer = randint(30 * 2, 120 * 2)
@@ -213,8 +248,9 @@ class Player(PhysicalEntity):
         self._jumps: Final = 1
         self._max_air_time: Final = 5
         self._max_dash_time: Final = 60  # directional velocity vector
-        self._dash_time_burst_1: Final = self._max_dash_time
-        self._dash_time_burst_2: Final = 50
+        self.dash_time_burst_1: Final = self._max_dash_time
+        self.dash_time_burst_2: Final = 50
+        # self.dash_time_stream: Final = 10
 
         # Timers
         self.air_time = 0
@@ -257,7 +293,7 @@ class Player(PhysicalEntity):
                 self.set_action(Action.IDLE)  # Player IDLE state blends into the nearby color and can't be seen by enemies
 
         # Handle dash
-        if abs(self.dash_time) in {self._dash_time_burst_1, self._dash_time_burst_2}:
+        if abs(self.dash_time) in {self.dash_time_burst_1, self.dash_time_burst_2}:
             # TODO: spawn dash burst particles
             pass
         if self.dash_time > 0:  # 0:60
@@ -311,5 +347,133 @@ class Player(PhysicalEntity):
         Hide the player during initial dash burst for 10 frames
         Render burst of particles before and after dash and render a stream of particles during the dash
         """
-        if abs(self.dash_time) <= self._dash_time_burst_2:
+        if abs(self.dash_time) <= self.dash_time_burst_2:
             super().render(surf, offset)
+        # else player is invincible and invisible
+
+
+"""
+Wed Apr 24 06:38:49 PM IST 2024
+    deque([(1713964061.9896417, 'e-face-left', ('(240, 32)', '(237, 32)')),
+           (1713964061.9707654, 'e-face-left', ('(241, 32)', '(246, 32)')),
+           (1713964058.0381913, 'e-face-right', ('(291, 32)', '(293, 32)')),
+           (1713964053.4319324, 'e-face-right', ('(189, 32)', '(189, 32)')),
+           (1713964048.8090303, 'e-face-left', ('(202, 32)', '(209, 32)')),
+           (1713964048.7927675, 'e-face-left', ('(203, 32)', '(209, 32)')),
+           (1713964048.7729623, 'e-face-left', ('(204, 32)', '(209, 32)')),
+           (1713964048.7554986, 'e-face-left', ('(204, 32)', '(209, 32)')),
+           (1713964048.7385905, 'e-face-left', ('(205, 32)', '(209, 32)')),
+           (1713964048.721735, 'e-face-left', ('(206, 32)', '(209, 32)')),
+           (1713964048.704961, 'e-face-left', ('(206, 32)', '(209, 32)')),
+           (1713964048.688162, 'e-face-left', ('(207, 32)', '(209, 32)')),
+           (1713964048.6705403, 'e-face-left', ('(208, 32)', '(209, 32)')),
+           (1713964048.654289, 'e-face-left', ('(208, 32)', '(209, 32)')),
+           (1713964048.637389, 'e-face-left', ('(209, 32)', '(209, 32)')),
+           (1713964048.6207702, 'e-face-left', ('(210, 32)', '(209, 32)')),
+           (1713964048.6042001, 'e-face-left', ('(211, 32)', '(209, 32)')),
+           (1713964048.58783, 'e-face-left', ('(211, 32)', '(209, 32)')),
+           (1713964048.5712888, 'e-face-left', ('(212, 32)', '(209, 32)')),
+           (1713964048.5547907, 'e-face-left', ('(213, 32)', '(209, 32)')),
+           (1713964048.5389752, 'e-face-left', ('(213, 32)', '(209, 32)')),
+           (1713964048.5212402, 'e-face-left', ('(214, 32)', '(209, 32)')),
+           (1713964048.5034754, 'e-face-left', ('(215, 32)', '(209, 32)')),
+           (1713964048.4877558, 'e-face-left', ('(215, 32)', '(209, 32)')),
+           (1713964048.4717875, 'e-face-left', ('(216, 32)', '(209, 32)')),
+           (1713964046.4511201, 'e-face-left', ('(243, 32)', '(237, 32)')),
+           (1713964046.4345365, 'e-face-left', ('(244, 32)', '(246, 32)')),
+           (1713964045.5948856, 'e-face-left', ('(281, 32)', '(288, 32)')),
+           (1713964045.5772123, 'e-face-left', ('(281, 32)', '(288, 32)')),
+           (1713964045.5593374, 'e-face-left', ('(282, 32)', '(288, 32)')),
+           (1713964045.5423868, 'e-face-left', ('(283, 32)', '(288, 32)')),
+           (1713964045.5254648, 'e-face-left', ('(283, 32)', '(288, 32)')),
+           (1713964045.5088181, 'e-face-left', ('(284, 32)', '(288, 32)')),
+           (1713964045.4916656, 'e-face-left', ('(285, 32)', '(288, 32)')),
+           (1713964045.474993, 'e-face-left', ('(285, 32)', '(288, 32)')),
+           (1713964045.4586277, 'e-face-left', ('(286, 32)', '(288, 32)')),
+           (1713964045.4422865, 'e-face-left', ('(287, 32)', '(288, 32)')),
+           (1713964045.4258285, 'e-face-left', ('(288, 32)', '(288, 32)')),
+           (1713964045.409118, 'e-face-left', ('(288, 32)', '(288, 32)')),
+           (1713964045.393071, 'e-face-left', ('(289, 32)', '(288, 32)')),
+           (1713964045.3774922, 'e-face-left', ('(290, 32)', '(288, 32)')),
+           (1713964045.360984, 'e-face-left', ('(290, 32)', '(288, 32)')),
+           (1713964045.344959, 'e-face-left', ('(291, 32)', '(288, 32)')),
+           (1713964045.3267052, 'e-face-left', ('(292, 32)', '(288, 32)')),
+           (1713964045.3077047, 'e-face-left', ('(292, 32)', '(288, 32)')),
+           (1713964045.291059, 'e-face-left', ('(293, 32)', '(288, 32)')),
+           (1713964045.2748382, 'e-face-left', ('(294, 32)', '(288, 32)')),
+           (1713964045.2586634, 'e-face-left', ('(295, 32)', '(288, 32)')),
+           (1713964045.2428951, 'e-face-left', ('(295, 32)', '(288, 32)')),
+           (1713964041.4347827, 'e-face-right', ('(254, 32)', '(247, 32)')),
+           (1713964041.418044, 'e-face-right', ('(253, 32)', '(247, 32)')),
+           (1713964041.4028215, 'e-face-right', ('(253, 32)', '(247, 32)')),
+           (1713964041.3875556, 'e-face-right', ('(252, 32)', '(247, 32)')),
+           (1713964041.371632, 'e-face-right', ('(251, 32)', '(247, 32)')),
+           (1713964041.355926, 'e-face-right', ('(251, 32)', '(247, 32)')),
+           (1713964041.3391201, 'e-face-right', ('(250, 32)', '(247, 32)')),
+           (1713964041.3225977, 'e-face-right', ('(249, 32)', '(247, 32)')),
+           (1713964041.3074193, 'e-face-right', ('(248, 32)', '(247, 32)')),
+           (1713964041.2907696, 'e-face-right', ('(248, 32)', '(247, 32)')),
+           (1713964041.2753384, 'e-face-right', ('(247, 32)', '(247, 32)')),
+           (1713964041.2589593, 'e-face-right', ('(246, 32)', '(247, 32)')),
+           (1713964041.2426426, 'e-face-right', ('(246, 32)', '(247, 32)')),
+           (1713964041.2264535, 'e-face-right', ('(245, 32)', '(247, 32)')),
+           (1713964041.20952, 'e-face-right', ('(244, 32)', '(247, 32)')),
+           (1713964041.193247, 'e-face-right', ('(244, 32)', '(247, 32)')),
+           (1713964041.1767647, 'e-face-right', ('(243, 32)', '(247, 32)')),
+           (1713964041.1601684, 'e-face-right', ('(242, 32)', '(247, 32)')),
+           (1713964041.1437523, 'e-face-right', ('(241, 32)', '(247, 32)')),
+           (1713964041.127156, 'e-face-right', ('(241, 32)', '(247, 32)')),
+           (1713964041.1110845, 'e-face-right', ('(240, 32)', '(247, 32)')),
+           (1713964038.2243853, 'e-face-right', ('(167, 32)', '(160, 32)')),
+           (1713964038.2076352, 'e-face-right', ('(167, 32)', '(160, 32)')),
+           (1713964038.1912184, 'e-face-right', ('(166, 32)', '(160, 32)')),
+           (1713964038.175467, 'e-face-right', ('(166, 32)', '(160, 32)')),
+           (1713964038.156516, 'e-face-right', ('(165, 32)', '(160, 32)')),
+           (1713964038.1369078, 'e-face-right', ('(164, 32)', '(160, 32)')),
+           (1713964038.1198149, 'e-face-right', ('(164, 32)', '(160, 32)')),
+           (1713964038.1028335, 'e-face-right', ('(163, 32)', '(160, 32)')),
+           (1713964038.086036, 'e-face-right', ('(163, 32)', '(160, 32)')),
+           (1713964038.0697258, 'e-face-right', ('(162, 32)', '(160, 32)')),
+           (1713964038.052996, 'e-face-right', ('(162, 32)', '(160, 32)')),
+           (1713964038.036721, 'e-face-right', ('(161, 32)', '(160, 32)')),
+           (1713964038.0200157, 'e-face-right', ('(161, 32)', '(160, 32)')),
+           (1713964038.0026534, 'e-face-right', ('(161, 32)', '(160, 32)')),
+           (1713964037.9862387, 'e-face-right', ('(160, 32)', '(160, 32)')),
+           (1713964037.9699142, 'e-face-right', ('(160, 32)', '(160, 32)')),
+           (1713964037.9524043, 'e-face-right', ('(160, 32)', '(160, 32)')),
+           (1713964037.936448, 'e-face-right', ('(160, 32)', '(160, 32)')),
+           (1713964037.9207802, 'e-face-left', ('(160, 32)', '(160, 32)')),
+           (1713964037.9041502, 'e-face-left', ('(160, 32)', '(160, 32)')),
+           (1713964037.8834908, 'e-face-left', ('(161, 32)', '(160, 32)')),
+           (1713964037.867336, 'e-face-left', ('(162, 32)', '(160, 32)')),
+           (1713964037.8513367, 'e-face-left', ('(162, 32)', '(160, 32)')),
+           (1713964037.8345664, 'e-face-left', ('(163, 32)', '(160, 32)')),
+           (1713964037.8170195, 'e-face-left', ('(164, 32)', '(160, 32)')),
+           (1713964037.8007066, 'e-face-left', ('(164, 32)', '(160, 32)')),
+           (1713964037.7848005, 'e-face-left', ('(165, 32)', '(160, 32)')),
+           (1713964037.7693536, 'e-face-left', ('(166, 32)', '(160, 32)')),
+           (1713964037.7529182, 'e-face-left', ('(167, 32)', '(160, 32)')),
+           (1713964037.7371526, 'e-face-left', ('(167, 32)', '(160, 32)')),
+           (1713964037.4318607, 'e-face-left', ('(181, 32)', '(177, 32)')),
+           (1713964037.4148474, 'e-face-left', ('(181, 32)', '(186, 32)')),
+           (1713964034.7434077, 'e-face-left', ('(260, 32)', '(267, 32)')),
+           (1713964034.7270463, 'e-face-left', ('(260, 32)', '(267, 32)')),
+           (1713964034.7110572, 'e-face-left', ('(261, 32)', '(267, 32)')),
+           (1713964034.6956165, 'e-face-left', ('(262, 32)', '(267, 32)')),
+           (1713964034.6795309, 'e-face-left', ('(262, 32)', '(267, 32)')),
+           (1713964034.663023, 'e-face-left', ('(263, 32)', '(267, 32)')),
+           (1713964034.6467125, 'e-face-left', ('(264, 32)', '(267, 32)')),
+           (1713964034.631061, 'e-face-left', ('(264, 32)', '(267, 32)')),
+           (1713964034.6153016, 'e-face-left', ('(265, 32)', '(267, 32)')),
+           (1713964034.5995936, 'e-face-left', ('(266, 32)', '(267, 32)')),
+           (1713964034.583123, 'e-face-left', ('(267, 32)', '(267, 32)')),
+           (1713964034.5671496, 'e-face-left', ('(267, 32)', '(267, 32)')),
+           (1713964034.550338, 'e-face-left', ('(268, 32)', '(267, 32)')),
+           (1713964034.5347009, 'e-face-left', ('(269, 32)', '(267, 32)')),
+           (1713964034.5189173, 'e-face-left', ('(269, 32)', '(267, 32)')),
+           (1713964034.5028317, 'e-face-left', ('(270, 32)', '(267, 32)')),
+           (1713964034.4871984, 'e-face-left', ('(271, 32)', '(267, 32)')),
+           (1713964034.4709213, 'e-face-left', ('(271, 32)', '(267, 32)'))],
+          maxlen=120)
+    enemy contact player 120
+"""

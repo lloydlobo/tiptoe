@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
+from pprint import pprint
 from random import randint
 from typing import Any, Dict, Final, Generator, Sequence, Tuple, Union
 
@@ -272,7 +273,7 @@ DEBUG_EDITOR_HUD        = True
 
 DEBUG_GAME_ASSERTS      = True
 DEBUG_GAME_CACHEINFO    = False
-DEBUG_GAME_HUD          = True
+DEBUG_GAME_HUD          = False
 DEBUG_GAME_PROFILER     = False
 DEBUG_GAME_STRESSTEST   = False
 # fmt: on
@@ -339,7 +340,7 @@ MIDNIGHT            = (2, 2, 3)
 OLIVE               = hsl_to_rgb(60, 1, 0.25)
 OLIVEMID            = hsl_to_rgb(60, 0.4, 0.25)
 ORANGE              = hsl_to_rgb(10,1,1)
-PINK                = hsl_to_rgb(60 * 5, 0.26, 0.18)
+PINK                = hsl_to_rgb(300, 0.26, 0.18)
 PURPLE              = hsl_to_rgb(300, 1, 0.25)
 PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
 RED                 = hsl_to_rgb(0, 0.618, 0.328)
@@ -362,18 +363,19 @@ class COUNT:
 @dataclass
 class COUNTRAND:
     FLAMEPARTICLE   = randint(6, 64)        # (0,20) OG
-
-
 # fmt: on
-
 
 # fmt: off
 @dataclass
 class SIZE:
     ENEMY           = (8, 16)
+    ENEMYJUMP       = (ENEMY[0], ENEMY[1]-1)
     FLAMEPARTICLE   = (3, 3)
     FLAMETORCH      = (1, 7)
-    PLAYER          = (8, TILE_SIZE - 1)
+    PLAYER          = (8, TILE_SIZE)
+    PLAYERJUMP      = (PLAYER[0] - 1, PLAYER[1])
+    PLAYERRUN       = (PLAYER[0] + 1, PLAYER[1] - 1)
+    PORTAL          = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
     STAR            = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
 # fmt: on
 
@@ -383,16 +385,20 @@ class SIZE:
 class COLOR:
     BG              = hsl_to_rgb(0, 0.618, 0.328)
     BGCOLOR         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
-    STAR            = hsl_to_rgb(300, 0.26, 0.18)
+    BGCOLORDARK     = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
+    BGCOLORDARKER   = hsl_to_rgb(240, 0.3, 0.04)
+    BGCOLORDARKGLOW = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
     ENEMY           = (hsl_to_rgb(180, 0.4, 0.25), hsl_to_rgb(0, 0.1618, 0.618))[randint(0,1)]
+    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
     GRASS           = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER          = (1, 1, 1)
+    PLAYERSTAR      = PINK
     PLAYERJUMP      = hsl_to_rgb(0, 0.618, 0.328)
     PLAYERRUN       = (1, 1, 1)
     PORTAL1         = (255, 255, 255)
     PORTAL2         = (15, 20, 25)
+    STAR            = PINK
     STONE           = (1, 1, 1)
-    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
 # fmt: on
 
 
@@ -464,6 +470,132 @@ AUTOTILE_MAP = {
 
 ###################
 # PYGAME SURFACES #
+
+
+@dataclass
+class Surfaces:
+
+    @staticmethod
+    def compute_vignette_scaled(surf: pg.SurfaceType, scale: int = 2, a: int = 255):
+        w, h = surf.get_width() * scale, surf.get_height() * scale
+        w_half = w / 2.0
+        w_half_inv = 1 / w_half
+        # a = 255
+
+        # Apply vignette effect
+        for y in range(h):
+            for x in range(w):
+                # Calculate distance from center
+                dx = x - w * 0.5
+                dy = y - h * 0.5
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                factor = 1.0 - dist * w_half_inv
+                r = abs(int(255 * factor))
+                g = abs(int(255 * factor))
+                b = abs(int(255 * factor))
+                surf.set_at((x - w // scale * 2, y - h // scale * 2), (r, g, b, a))
+
+    @staticmethod
+    def compute_vignette_include_corners(surf: pg.SurfaceType, a: int = 255):
+        w, h = surf.get_width(), surf.get_height()
+        w_half = w / 2.0
+        w_half_inv = 1 / w_half
+
+        seen: set[tuple[int, int]] = set()
+        # Apply vignette effect
+        for y in range(h):
+            for x in range(w):
+                # continue
+                # Calculate distance from center
+                dx = x - w * 0.5
+                dy = y - h * 0.5
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                factor = 1.0 - dist * w_half_inv
+                r = abs(int(255 * factor))
+                g = abs(int(255 * factor))
+                b = abs(int(255 * factor))
+                surf.set_at((x, y), (r, g, b, a))
+                seen.add((x, y))
+
+        # Add thick window border
+        if 0:
+            for y in range(h):
+                for x in range(w):
+                    for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
+                        nx, ny = x + offx, y + offy
+                        if not (0 < nx < w and 0 < ny < h):
+                            if not (nx, ny) in seen:
+                                surf.set_at((x, y), (8, 8, 8, 230))
+
+        # for y in range(h):
+        #     for x in range(w):
+        #         for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
+        #             nx, ny = x + delta * offx, y + delta * offy
+        #             if (0 <= nx < w and 0 <= ny < h):
+        #                 if (nx, ny) in seen:
+        #                     # print(f"{x,y}")
+        #                     surf.set_at((x, y), (120, 102, 120, 30))
+        #                 else:
+        #                     delta += 1
+        #             else:
+        #                 delta -= 1
+
+        print(f"{w, h=}")
+
+    @staticmethod
+    def compute_vignette(surf: pg.SurfaceType, a: int = 255):
+        w, h = surf.get_width(), surf.get_height()
+        w_half = w / 2.0
+        w_half_inv = 1 / w_half
+        # a = 255
+
+        # Apply vignette effect
+        for y in range(h):
+            for x in range(w):
+                for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
+                    nx, ny = x + offx, y + offy
+                    if not (0 <= nx < w and 0 <= ny < h):
+                        # print(nx, ny)
+                        continue
+
+                # Calculate distance from center
+                dx = x - w * 0.5
+                dy = y - h * 0.5
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                factor = 1.0 - dist * w_half_inv
+                r = abs(int(255 * factor))
+                g = abs(int(255 * factor))
+                b = abs(int(255 * factor))
+                surf.set_at((x, y), (r, g, b, a))
+
+        print(f"{w, h=}")
+
+    # @staticmethod
+    # def compute_vignette(w: int, h: int):
+    #     xcenter, ycenter = w / 2, h / 2
+    #     max_dist = math.hypot(xcenter, ycenter)
+    #
+    #     # Pre-compute vignette effect
+    #     vignette_surface = pg.Surface((w, h))
+    #     vignette_surface_array = pg.surfarray.pixels2d(vignette_surface)  # type: ignore
+    #     # vignette_surface_array[:, :] = [
+    #     x = [
+    #         [
+    #             int(255 * (1 - (math.hypot(x - xcenter, y - ycenter) / max_dist)))
+    #             #################
+    #             for _ in range(2)
+    #             #################
+    #         ]
+    #         for y in range(h // 2)
+    #         for x in range(w // 2)
+    #     ]
+    #     print(len(x), len(x[0]))
+    #     pprint(x, compact=True, width=w)
+    #     del vignette_surface_array
+    #     return vignette_surface
 
 
 def create_surface(
@@ -628,3 +760,134 @@ class Iterutils:
         print()
         # t=it.tee()
         # takew=it.takewhile()
+
+
+"""
+
+vignette effect:
+
+VERSION 1:
+PYTHON
+        from dataclasses import dataclass
+        from pygame import BLEND_ALPHA_SDL2, BLEND_RGBA_MULT
+        
+        @dataclass
+        class GameDisplayConfig:
+            dreamlike: int
+            noir: int
+            moody: int
+            blend_flag: int
+        
+            def create_display(self, bgcolor):
+                if self.dreamlike:
+                    return self._create_display(bgcolor, alpha=17)
+                elif self.noir:
+                    return self._create_display(bgcolor, fill_color=(174 * 0.2, 226 * 0.2, 255 * 0.3), vignette_range=(24, 28), color_key=pre.BLACK if self.noir_spotlight else None)
+                elif self.moody:
+                    return self._create_display(bgcolor, alpha=255 // 2, color_key=pre.BLACK)
+                else:
+                    return self._create_display(bgcolor, fill_color=(174 * 0.2, 226 * 0.2, 255 * 0.3), vignette_range=(10, 20) if randint(10, 20) else min(8, 255 // 13))
+        
+            def _create_display(self, bgcolor, alpha=None, fill_color=None, vignette_range=None, color_key=None):
+                display = pg.Surface(pre.DIMENSIONS_HALF, self.blend_flag).convert_alpha()
+                if fill_color:
+                    display.fill(fill_color)
+                    if vignette_range:
+                        vignette_value = vignette_range[1] if bgcolor == pre.COLOR.BGCOLORDARK else (vignette_range[0] if bgcolor == pre.COLOR.BGCOLORDARKER else vignette_range[1])
+                        pre.Surfaces.compute_vignette(display, vignette_value)
+                if alpha is not None:
+                    display.set_alpha(alpha)
+                if color_key is not None:
+                    display.set_colorkey(color_key)
+                return display
+        
+        display_config = GameDisplayConfig(
+            dreamlike=0,
+            noir=1,
+            moody=0,
+            blend_flag=BLEND_ALPHA_SDL2
+        )
+        
+        self.display_3 = display_config.create_display(self.bgcolor)
+
+
+VERSION 1:
+RUST
+        use rand::Rng;
+        
+        #[derive(Debug)]
+        struct GameDisplayConfig {
+            dreamlike: bool,
+            noir: bool,
+            moody: bool,
+            blend_flag: u32,
+        }
+        
+        impl GameDisplayConfig {
+            fn create_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
+                if self.dreamlike {
+                    self.create_dreamlike_display(bgcolor)
+                } else if self.noir {
+                    self.create_noir_display(bgcolor)
+                } else if self.moody {
+                    self.create_moody_display(bgcolor)
+                } else {
+                    self.create_default_display(bgcolor)
+                }
+            }
+        
+            fn create_dreamlike_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
+                self._create_display(bgcolor, Some(17), None, None, None)
+            }
+        
+            fn create_noir_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
+                let fill_color = (174 * 2 / 10, 226 * 2 / 10, 255 * 3 / 10);
+                let vignette_range = Some((24, 28));
+                let color_key = None; // pre.BLACK if self.noir_spotlight else None
+                self._create_display(bgcolor, None, Some(fill_color), vignette_range, color_key)
+            }
+        
+            fn create_moody_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
+                self._create_display(bgcolor, Some(255 / 2), None, None, Some(pre::BLACK))
+            }
+        
+            fn create_default_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
+                let fill_color = (174 * 2 / 10, 226 * 2 / 10, 255 * 3 / 10);
+                let vignette_range = if rand::thread_rng().gen_range(10, 20) { Some((10, 20)) } else { Some((8, 255 / 13)) };
+                self._create_display(bgcolor, None, Some(fill_color), vignette_range, None)
+            }
+        
+            fn _create_display(&self, bgcolor: (u8, u8, u8), alpha: Option<u8>, fill_color: Option<(u8, u8, u8)>, vignette_range: Option<(u8, u8)>, color_key: Option<Color>) -> Surface {
+                let mut display = Surface::new(pre::DIMENSIONS_HALF, self.blend_flag).convert_alpha();
+                if let Some(fill_color) = fill_color {
+                    display.fill(fill_color);
+                    if let Some(vignette_range) = vignette_range {
+                        let vignette_value = match bgcolor {
+                            pre::COLOR::BGCOLORDARK => vignette_range.1,
+                            pre::COLOR::BGCOLORDARKER => vignette_range.0,
+                            _ => vignette_range.1,
+                        };
+                        pre::Surfaces.compute_vignette(&mut display, vignette_value);
+                    }
+                }
+                if let Some(alpha) = alpha {
+                    display.set_alpha(alpha);
+                }
+                if let Some(color_key) = color_key {
+                    display.set_colorkey(color_key);
+                }
+                display
+            }
+        }
+        
+        let display_config = GameDisplayConfig {
+            dreamlike: false,
+            noir: true,
+            moody: false,
+            blend_flag: BLEND_ALPHA_SDL2,
+        };
+        
+        let display_3 = display_config.create_display(self.bgcolor);
+
+
+"""

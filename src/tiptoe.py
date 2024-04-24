@@ -3,8 +3,6 @@ import itertools as it
 import math
 from collections import deque
 from os import listdir, path
-from pathlib import Path
-from pprint import pprint
 from random import randint, random
 from sys import exit
 from typing import Final
@@ -30,9 +28,38 @@ class Game:
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         pg.display.set_caption(pre.CAPTION)
         pg.display._set_autoresize(False)  # type: ignore |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+        self.bgcolor = pre.COLOR.BGCOLORDARK
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
+        if (__dreamlike := 0) and __dreamlike:
+            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
+            pre.Surfaces.compute_vignette(surf=self.display_3)
+            self.display_3.set_alpha(17)
+        elif (__noir := 1) and __noir:
+            display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
+            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
+            self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
+            if self.bgcolor == pre.COLOR.BGCOLORDARK:
+                pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
+            elif self.bgcolor == pre.COLOR.BGCOLORDARKER:
+                pre.Surfaces.compute_vignette(self.display_3, 17)
+            else:
+                pre.Surfaces.compute_vignette(self.display_3, 23)
+            if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
+                self.display_3.set_colorkey(pre.BLACK)
+        elif (__moody := 0) and __moody:
+            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
+            self.display_3.set_colorkey(pre.BLACK)
+            self.display_3.set_alpha(255 // 2)
+            pre.Surfaces.compute_vignette(surf=self.display_3)
+            self.display_3.set_alpha(14)
+        else:
+            self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
+            self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
+            pre.Surfaces.compute_vignette(self.display_3, 255)
+            self.display_3.fill(pre.COLOR.BGCOLORDARKGLOW)
+            pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
         self.font_size = max(10, 11)
         self.font = pg.font.SysFont(name=("monospace"), size=self.font_size, bold=True)  # or name=pg.font.get_default_font()
@@ -45,8 +72,6 @@ class Game:
         self.config_handler = pre.ConfigHandler(config_path=pre.SRC_PATH / "config.toml")
         try:
             self.config_handler.load_game_config()
-            if 0:
-                pprint(self.config_handler.config)
         except Exception as e:
             print(f"Error loading game configuration: {e}")
 
@@ -62,6 +87,9 @@ class Game:
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(pre.SIZE.PLAYER))
+        # self.playerstar = PlayerStar(
+        #     self,
+        # )
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
@@ -89,18 +117,12 @@ class Game:
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
 
-        # DECORATIVE SPAWNERS
+        # SPAWNERS
         self.flametorch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
-
         spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
-        # TILE SPAWNERS
         self.portal_spawners: list[Portal] = []
-        # ENTITY SPAWNERS
         self.enemies: list[Enemy] = []
-        for spawner in self.tilemap.extract(
-            id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), map(int, spawner_kinds))),
-            keep=False,
-        ):
+        for spawner in self.tilemap.extract(id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), map(int, spawner_kinds))), keep=False):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
                     self.player.pos = spawner.pos.copy()  # coerce to a mutable list if pos is a tuple
@@ -109,20 +131,18 @@ class Game:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
                 case pre.SpawnerKind.PORTAL:
                     self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
-
         if pre.DEBUG_GAME_ASSERTS:
             assert self.player is not None, f"want a spawned player. got {self.player}"
             assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
             assert (val := len(self.portal_spawners)) > 0, f"want atleast 1 spawned portal. got {val}"
 
-        # Particles go on display, but they are added after the displays merge
-        # so they don't receive the outline
+        # Particles go on display, but they are added after the displays merge so they don't receive the outline
         self.particles: list[Particle] = []
 
         # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
         # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
-        self._scroll_ease = pg.Vector2(1 / 30, 1 / 16)
+        self._scroll_ease = pg.Vector2(1 / 25, 1 / 25)
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
@@ -131,35 +151,14 @@ class Game:
 
     def run(self) -> None:
         bg: pg.Surface = self.assets.misc_surf["background"]
-        bg.set_colorkey(pre.BLACK)
-        bg.fill(pre.COLOR.BGCOLOR)
+        bg.fill(self.bgcolor)
 
-        if pre.DEBUG_GAME_STRESSTEST:
-            i = 0
-            j = 0
-
-        _last_get_tick = pg.time.get_ticks()
+        self.last_tick_recorded = pg.time.get_ticks()
+        # _last_get_tick = pg.time.get_ticks()
         running = True
         while running:
             self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
-
-            # REGION: start | debug: resizable screen
-            if pre.DEBUG_GAME_STRESSTEST:
-                i += 1  # type: ignore
-                i = i % self.display.get_width()
-                j += i % 2  # type: ignore
-                j = j % self.display.get_height()
-                # self.display.fill((255, 0, 255))
-                pg.draw.circle(self.display, (0, 0, 0), (100, 100), 20)
-                pg.draw.circle(self.display, (0, 0, 200), (0, 0), 10)
-                pg.draw.circle(self.display, (200, 0, 0), (160, 120), 30)
-                pg.draw.line(self.display, (250, 250, 0), (0, 120), (160, 0))
-                pg.draw.circle(self.display, (255, 255, 255), (i, j), 5)
-                #
-                # ^ see github:pygame/examples/resizing_new.py
-                # ====
-            # ENDREGION
 
             self.screenshake = max(0, self.screenshake - 1)
 
@@ -168,7 +167,8 @@ class Game:
                 self.transition += 1
                 if self.transition > self._transition_hi:
                     self.level = min(self.level + 1, self._level_map_count - 1)
-                    bg.fill(next(self.bg_color_cycle))
+                    if (__recycle_background_color := 0) and __recycle_background_color:
+                        bg.fill(next(self.bg_color_cycle))
                     self.load_level(self.level)
 
             if self.transition < self._transition_mid:
@@ -193,12 +193,6 @@ class Game:
             mouse_pos = raw_mouse_pos + render_scroll
 
             # torche flame particle: created each frame randomly
-            #   x=torch_rect.x + (random() * torch_rect.w),
-            #   y=torch_rect.y + (random() * torch_rect.h),
-            #   x=randint(-1, 1),
-            #   or torch_rect.y + (-1 * randint(-2, 8)) - torch_rect.h / 2, # shorter flame
-            #   x=(torch_rect.x + randint(-1, 1) * pre.SIZE.FLAMETORCH[0] - min(pre.SIZE.FLAMETORCH[1] / 2, torch_rect.w / 2)),
-            #   y=torch_rect.y + (-1 * randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1])) - torch_rect.h,  # longer flame
             self.particles.extend(
                 Particle(
                     game=self,
@@ -216,10 +210,7 @@ class Game:
 
             # stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
-            if (_enable_star_masks := 0) and _enable_star_masks:
-                self.stars.render(self.display, render_scroll)
-            else:  # display_2 blitting avoids masks depth
-                self.stars.render(self.display_2, render_scroll)
+            self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
 
             # tilemap: render
             self.tilemap.render(self.display, render_scroll)
@@ -238,37 +229,14 @@ class Game:
                 if kill_animation:
                     self.enemies.remove(enemy)
 
-            if 1:
-                # player: halo concept glow spot
-                # TODO: init halo sprite in load or init methods.... and choose a smaller surface no whole screen-size to blit circle on
-                # halo:init
-                halo_radius = pre.SIZE.STAR[0] * 0.64  #  or round((self.player.size.x // 2) * (0.25 or 1))
-                halo_size = pg.Vector2(halo_radius, halo_radius)
-                halo_center = pg.Vector2(160, 120)
-                halo_surf_size = self.display.get_size()
-                halo_offset_factor = (0, 0.5)[1]  # if 0 then top-left of player is halop center
-                halo_offset_with_player = self.player.size * halo_offset_factor
-                halo_dest = self.player.pos - (halo_size / pre.TILE_SIZE + halo_center - halo_offset_with_player) - pg.Vector2(render_scroll)
-                halo_color = pre.PINK or self.bg_colors[1]
-                halo_glitch_speed_multiplier = (0.5) or (random() * 0.618 * randint(6, 9))  # should sync this to "Bee Gees: staying alive bpm"
-                # halo:update
-                if 0:
-                    if (_with_halo_glitch := randint(0, pre.FPS_CAP)) and _with_halo_glitch in {8, 13, 21, 34, 55}:
-                        if (_cur_tick := pg.time.get_ticks()) - _last_get_tick >= (pre.FPS_CAP * self.clock.get_time()) * halo_glitch_speed_multiplier:
-                            _last_get_tick = _cur_tick  # cycle through color almost every "one second ^^^^^^^^^^^^^^^
-                            halo_color = pre.PINK
-                    else:
-                        halo_color = pre.PINK
-                # halo:render
-                halo_surf = pg.Surface(halo_surf_size).convert()
-                halo_surf.set_colorkey(pre.BLACK)
-                pg.draw.circle(halo_surf, halo_color, halo_center, halo_radius)
-                _ = self.display.blit(halo_surf, (halo_dest))  # use returned rect in debug HUD
-
             # player: update and render
             if not self.dead:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
+
+            # if not self.dead:
+            #     self.playerstar.update()
+            #     self.playerstar.render(self.display,render_scroll)
 
             # mask: before particles
             display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
@@ -284,12 +252,9 @@ class Game:
                 particle.render(self.display, render_scroll)
                 if kill_animation:
                     self.particles.remove(particle)
-
-                # 0.035 avoids particle to loop from minus one to one
-                # 0.3 controls amplitude
+                # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
                 if particle.kind == pre.ParticleKind.FLAME:
                     particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1) // 2
-                    pass
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
@@ -316,13 +281,11 @@ class Game:
                         self.movement.right = False
 
             # RENDER: DISPLAY
-
             # blit: display on display_2 and then blit display_2 on screen for depth effect
+            self.display.blit(self.display_3, (0, 0))
             self.display_2.blit(self.display, (0, 0))
-
-            # todo: screenshake effect via offset for screen blit
+            # TODO: screenshake effect via offset for screen blit
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
-
             if pre.DEBUG_GAME_HUD:
                 if pre.DEBUG_GAME_STRESSTEST and (abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2):
                     render_debug_hud(self, render_scroll=render_scroll, mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)))
@@ -332,7 +295,6 @@ class Game:
             # DRAW: FINAL DISPLAY
             pg.display.flip()  # update: whole screen
             self.clock_dt = self.clock.tick(pre.FPS_CAP)
-
             if pre.DEBUG_GAME_HUD:
                 self.clock_dt_recent_values.appendleft(self.clock_dt)
                 if len(self.clock_dt_recent_values) == pre.FPS_CAP:
@@ -340,12 +302,49 @@ class Game:
 
         # end `while running:`
         assert running == False
-
         if pre.DEBUG_GAME_CACHEINFO:  # cache
             print(f"{pre.hsl_to_rgb.cache_info() = }")
-
         pg.quit()
         exit()
+
+
+class PlayerStar:
+    def __init__(self, game: Game) -> None:
+        """
+        player: halo summoning: concept glow spot
+        """
+        self.game = game
+        self.halo_radius = pre.SIZE.STAR[0] * 0.64  #  or round((self.player.size.x // 2) * (0.25 or 1))
+        self.halo_size = pg.Vector2(self.halo_radius, self.halo_radius)
+        self.halo_center = pg.Vector2(160, 120)
+        self.halo_surf_size = pre.SIZE.PLAYER
+        self.halo_offset_factor = (0, 0.5)[1]  # if 0 then top-left of player is halop center
+        self.halo_offset_with_player = self.game.player.size * self.halo_offset_factor
+
+        self.halo_color = pre.COLOR.PLAYERSTAR or pre.PINK or self.game.bg_colors[1]
+        self._last_tick = None
+        self.halo_surf = pg.Surface(self.halo_surf_size).convert()
+        self.halo_surf.set_colorkey(pre.BLACK)
+
+        # halo:update
+        self.halo_glitch_speed_multiplier = (0.5) or (random() * 0.618 * randint(6, 9))  # should sync this to "Bee Gees: staying alive bpm"
+
+    def update(self) -> None:
+        if 0:
+            if (_with_halo_glitch := randint(0, pre.FPS_CAP)) and _with_halo_glitch in {8, 13, 21, 34, 55}:
+                if (_cur_tick := pg.time.get_ticks()) - self.game.last_tick_recorded >= (pre.FPS_CAP * self.game.clock.get_time()) * self.halo_glitch_speed_multiplier:
+                    self._last_tick = _cur_tick  # cycle through color almost every "one second ^^^^^^^^^^^^^^^
+                    self.halo_color = pre.PINK
+            else:
+                self.halo_color = pre.PINK
+        self.halo_dest = self.game.player.pos - (self.halo_size / pre.TILE_SIZE + self.halo_center - self.halo_offset_with_player)
+        # self.halo_dest = self.player.pos - (halo_size / 2) - render_scroll
+
+    def render(self, surf: pg.SurfaceType, offset: tuple[int, int]) -> None:
+        pg.draw.circle(surface=surf, color=self.halo_color, center=self.halo_center, radius=self.halo_radius)
+        self.game.display.blit(source=surf, dest=(self.halo_dest))  # use returned rect in debug HUD
+        surf.blit(source=self.halo_surf, dest=(self.halo_dest - offset), special_flags=pg.BLEND_RGB_ADD)  # use returned rect in debug HUD
+        pass
 
 
 if __name__ == "__main__":

@@ -62,28 +62,24 @@ class Assets:
         star_surf.fill(pre.COLOR.STAR)  # awesome
 
         # need these for reference for animation workaround
-        player_size = pre.SIZE.PLAYER
-
-        enemy_size = (8, pre.TILE_SIZE - 1)
-        player_jump_size = (player_size[0] - 1, player_size[1])
-        player_run_size = (player_size[0] + 1, player_size[1] - 1)
-        portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
-
         player_alpha = (255, 190)[randint(0, 1)]
+
         # Player entity
         player_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
+
         # Player action states
         # TODO: add player_idle_surf_frames
-        player_run_surf = pre.create_surface_withalpha_partialfn(size=player_run_size, fill_color=pre.COLOR.PLAYERRUN, alpha=0)  # player_run_surf.fill(pre.COLOR.PLAYERRUN)  @ use black for invisibility
-        player_jump_surf_frames = [pre.create_surface_withalpha_partialfn(size=player_jump_size, fill_color=pre.COLOR.PLAYERJUMP, alpha=player_alpha - 16 * (i * 4) + 1) for i in range(5)]
+        player_run_surf = pre.create_surface_withalpha_partialfn(size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERRUN, alpha=0)  # player_run_surf.fill(pre.COLOR.PLAYERRUN)  @ use black for invisibility
+        player_jump_surf_frames = [pre.create_surface_withalpha_partialfn(size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP, alpha=player_alpha - 16 * (i * 4) + 1) for i in range(5)]
 
-        enemy_surf = pg.Surface(enemy_size).convert()
+        enemy_surf = pg.Surface(pre.SIZE.ENEMY).convert()
         enemy_surf.set_colorkey(pre.BLACK)
         enemy_surf.fill(pre.COLOR.ENEMY)
-        portal_surf_1 = pg.Surface(portal_size).convert()
+
+        portal_surf_1 = pg.Surface(pre.SIZE.PORTAL).convert()
         portal_surf_1.set_colorkey(pre.BLACK)
         portal_surf_1.fill(pre.COLOR.PORTAL1)
-        portal_surf_2 = pg.Surface(portal_size).convert()
+        portal_surf_2 = pg.Surface(pre.SIZE.PORTAL).convert()
         portal_surf_2.set_colorkey(pre.BLACK)
         portal_surf_2.fill(pre.COLOR.PORTAL2)
 
@@ -117,13 +113,13 @@ class Assets:
             ),
             animations_entity=Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(list(pre.create_surfaces_partialfn(9, color=pre.COLOR.PLAYER, size=(player_size[0], player_size[1]))), img_dur=6),
+                    idle=pre.Animation(list(pre.create_surfaces_partialfn(9, color=pre.COLOR.PLAYER, size=pre.SIZE.PLAYER)), img_dur=6),
                     run=pre.Animation([player_run_surf.copy(), player_run_surf.copy()], img_dur=4),
                     jump=pre.Animation(player_jump_surf_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
                     idle=pre.Animation([enemy_surf.copy()], img_dur=6),
-                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, color=pre.COLOR.ENEMY, size=(enemy_size[0], enemy_size[1] - 1))), img_dur=4),
+                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
                 ),
             ),
             animations_misc=Assets.AnimationMiscAssets(
