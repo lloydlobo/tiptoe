@@ -223,8 +223,8 @@ class Assets:
             ),
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
-                    flame=pre.Animation(flame_particles, img_dur=24, loop=False),  # torch flame particle
-                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=False),  # torch flame particle
+                    flame=pre.Animation(flame_particles, img_dur=24, loop=True),
+                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=True),
                     particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.CHARCOAL, (2, 2))), img_dur=20, loop=False),  # player dash particle
                 )
             ),

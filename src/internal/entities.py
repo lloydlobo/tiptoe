@@ -4,6 +4,7 @@ import math
 import time
 from collections import deque
 from enum import Enum
+from pprint import pprint
 from random import randint, random
 from typing import TYPE_CHECKING, Final, Literal, Optional
 
@@ -199,8 +200,17 @@ class Enemy(PhysicalEntity):
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         self.alert_timer = self._max_alert_time
                         # print(f"{dist_pe=}")
+                        dir = -1 if self.flip else 1
+                        self.game.projectiles.append(
+                            pre.Projectile(
+                                pos=[self.pos.x + dir * 4, self.pos.y],
+                                velocity=dir * 7,
+                                timer=7,
+                            )
+                        )
                         pass
                     pass
+                    pprint(self.game.projectiles)
 
                     # death by rect collision????
 

@@ -24,6 +24,16 @@ RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
 
 
+Number = Union[int, float]
+
+
+@dataclass
+class Projectile:
+    pos: list[Number]  # [x, y]
+    velocity: Number  # directional velocity : left (-ve) : right (+ve)
+    timer: int  # frame timer
+
+
 # fmt:off
 class ParticleKind(Enum):
     # class AnimationMiscAssets:
@@ -374,14 +384,16 @@ class COUNTRAND:
 class SIZE:
     ENEMY           = (8, 16)
     ENEMYJUMP       = (ENEMY[0], ENEMY[1] - 1)
-    FLAMEPARTICLE   = (6,6)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
-    FLAMEGLOWPARTICLE = FLAMEPARTICLE[0] ** 2, FLAMEPARTICLE[1] ** 2   # use 6,6 if a circles else 3,3 if particle is rect
-    FLAMETORCH      = (1, 7)
+    FLAMEPARTICLE   = (4,5)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
+    FLAMETORCH      = (3, 12)
     PLAYER          = (8, TILE_SIZE)
     PLAYERJUMP      = (PLAYER[0] - 1, PLAYER[1])
     PLAYERRUN       = (PLAYER[0] + 1, PLAYER[1] - 1)
     PORTAL          = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
     STAR            = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
+
+    # Derived Constants
+    FLAMEGLOWPARTICLE = (FLAMEPARTICLE[0] + 1, FLAMEPARTICLE[1] + 1)  # use 6,6 if a circles else 3,3 if particle is rect
 # fmt: on
 
 
@@ -395,9 +407,10 @@ class COLOR:
     BGMIRAGE        = hsl_to_rgb(240, 0.2, 0.07) # used to set colorkey for stars
     ENEMY           = hsl_to_rgb(10,0.3,0.08) #(hsl_to_rgb(180, 0.4, 0.25), )[randint(0,1)]
     FGSTARS         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
-    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
     FLAME           = hsl_to_rgb(0, 0.618, 0.328)
-    FLAMEGLOW       = (20,20,30) # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
+    TRANSPARENTGLOW = (20,20,20)
+    FLAMEGLOW       = (30,30,20) # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
+    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
     GRASS           = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER          = (1, 1, 1)
     PLAYERJUMP      = PINK or hsl_to_rgb(0, 0.618, 0.328)

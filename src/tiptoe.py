@@ -121,6 +121,8 @@ class Game:
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
 
+        self.projectiles: list[pre.Projectile] = []
+
         # SPAWNERS
         self.flametorch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
         spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
@@ -185,10 +187,13 @@ class Game:
                 if self.dead >= self._dead_hi:
                     self.load_level(self.level)
 
-            # camera: update and parallax
-            #     'where we want camera to be' - 'where we are or what we have' / '30', so further player is faster camera moves and vice-versa we
-            #     can use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing
-            #     by thirty if camera is off by 1px not an issue, but rendering tiles could be. note: use 0 round off for smooth camera
+            # Camera: update and parallax
+            #   [where we want camera to be]-[where we are or what we have]/25,
+            #   So further player is faster camera moves and vice-versa we can
+            #   use round on scroll increment to smooth out jumper
+            #   scrolling & also multiplying by point zero thirty two instead
+            #   of dividing by thirty if camera is off by 1px not an issue, but
+            #   rendering tiles could be. note: use 0 round off for smooth camera.
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -196,35 +201,35 @@ class Game:
             raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
             mouse_pos = raw_mouse_pos + render_scroll
 
-            # torche flame particle: created each frame randomly
+            # Flametorch: particle animation
+            odds_of_flame: float = 0.49999 or 49_999 * 0.00001
             self.particles.extend(
                 Particle(
                     game=self,
-                    p_kind=pre.ParticleKind.FLAME,
-                    # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
+                    p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
                     pos=pg.Vector2(
-                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[1] / 2, flametorch_rect.w / 2)),
-                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 8) - flametorch_rect.h / 2),
+                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
+                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - flametorch_rect.h / 2),
                     ),
-                    velocity=pg.Vector2(-0.1, 0.3),
+                    velocity=pg.Vector2(-0.0001, 0.0003),
                     frame=pre.COUNTRAND.FLAMEPARTICLE,
                 )
                 for flametorch_rect in self.flametorch_spawners.copy()
-                if random() * (49_999 / 100_000) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
             )  # big number is to control spawn rate
             self.particles.extend(
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAMEGLOW,
                     pos=pg.Vector2(
-                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[1] / 2, flametorch_rect.w / 2)),
-                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 8) - flametorch_rect.h / 2),
+                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, flametorch_rect.w / 4)),
+                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 4),
                     ),
-                    velocity=pg.Vector2(-0.1, 0.3),
+                    velocity=pg.Vector2(-0.0001, 0.0003),
                     frame=pre.COUNTRAND.FLAMEPARTICLE,
                 )
                 for flametorch_rect in self.flametorch_spawners.copy()
-                if random() * (49_999 / 100_000) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)
             )  # big number is to control spawn rate
 
             # stars: backdrop update and render
@@ -253,6 +258,32 @@ class Game:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
 
+            # particles:
+            #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
+            #   perf: if is_used then don't render, until next reset. so we can cycle through limited amount of particles
+            for particle in self.particles:
+                match particle.kind:
+                    case pre.ParticleKind.FLAME:
+                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
+                        kill_animation = particle.update()
+                        particle.render(self.display_2, render_scroll)
+                        if kill_animation:
+                            self.particles.remove(particle)
+                        # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
+                    case pre.ParticleKind.FLAMEGLOW:
+                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
+                        particle.pos.y += math.sin(particle.animation.frame * 1.035) * 0.3
+                        kill_animation = particle.update()
+                        img = particle.animation.img().copy()
+                        self.display_2.blit(
+                            source=img,
+                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 1),
+                            special_flags=pg.BLEND_RGB_ADD,
+                        )
+                        if kill_animation:
+                            self.particles.remove(particle)
+                    case _:
+                        pass
             # if not self.dead:
             #     self.playerstar.update()
             #     self.playerstar.render(self.display,render_scroll)
@@ -262,33 +293,6 @@ class Game:
             display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
             for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 self.display_2.blit(display_silhouette, offset)
-
-            # particles:
-            #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
-            #   perf: if is_used then don't render, until next reset. so we can cycle through limited amount of particles
-            for particle in self.particles:
-                match particle.kind:
-                    case pre.ParticleKind.FLAME:
-                        kill_animation = particle.update()
-                        particle.render(self.display, render_scroll)
-                        if kill_animation:
-                            self.particles.remove(particle)
-                        # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
-                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1) // 2
-                    case pre.ParticleKind.FLAMEGLOW:
-                        # particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3
-                        # particle.pos.y += math.sin(particle.animation.frame * 1.035) * 0.3
-                        kill_animation = particle.update()
-                        img = particle.animation.img().copy()
-                        self.display.blit(
-                            source=img,
-                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2),
-                            special_flags=pg.BLEND_RGB_ADD,
-                        )
-                        if kill_animation:
-                            self.particles.remove(particle)
-                    case _:
-                        pass
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
