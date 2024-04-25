@@ -16,7 +16,7 @@ from internal.hud import render_debug_hud
 from internal.particle import Particle
 from internal.spawner import Portal
 from internal.stars import Stars
-from internal.tilemap import Tilemap
+from internal.tilemap import Tilemap, pos_to_loc
 
 
 class Game:
@@ -255,10 +255,35 @@ class Game:
                 if kill_animation:
                     self.enemies.remove(enemy)
 
-            # player: update and render
+            # Player: update and render
             if not self.dead:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
+            # if not self.dead:
+            #     self.playerstar.update()
+            #     self.playerstar.render(self.display,render_scroll)
+
+            # Gun: Projectiles
+            #   when adding something new to camera like this to the world
+            #   always think about how camera should apply on what one is
+            #   working on. e.g. HUD does not need camera scroll, but if
+            #   working on something in the world, one needs camera scroll.
+            #   also other way around, something in the world. Convert from
+            #   screen space to world space backwards. Note that halving
+            #   dimensions of image gets its center for the camera
+            for projectile in self.projectiles:
+                projectile.pos[0] += projectile.velocity
+                projectile.timer += 1
+                img = self.assets.misc_surf["projectile"]
+                dest = pg.Vector2(projectile.pos) - render_scroll
+                self.display.blit(img, dest)
+                prj_x, prj_y = int(projectile.pos[0]), int(projectile.pos[1])
+                if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(prj_x, prj_y)):
+                    self.projectiles.remove(projectile)
+                    # self.sfx["hit"].play(0.5)
+                    pass
+                elif projectile.timer > 360:
+                    self.projectiles.remove(projectile)
 
             # particles:
             #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
@@ -286,19 +311,6 @@ class Game:
                             self.particles.remove(particle)
                     case _:
                         pass
-            for projectile in self.projectiles:
-                projectile.pos[0] += projectile.velocity
-                projectile.timer += 1
-                img = self.assets.misc_surf["projectile"]
-                dest = pg.Vector2(projectile.pos) - render_scroll
-                self.display.blit(img, dest)
-                # print(projectile)
-                if projectile.timer > 360:
-                    self.projectiles.remove(projectile)
-            # if not self.dead:
-            #     self.playerstar.update()
-            #     self.playerstar.render(self.display,render_scroll)
-
             # mask: before particles
             display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
             display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))

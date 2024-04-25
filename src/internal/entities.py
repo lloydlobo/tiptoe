@@ -198,21 +198,13 @@ class Enemy(PhysicalEntity):
                     dist_pe = self.game.player.pos - self.pos
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         self.alert_timer = self._max_alert_time
-                        # print(f"{dist_pe=}")
+                        projectile_gun_offsetx = 4
+                        projectile_gun_offsety = 5
                         dir = -1 if self.flip else 1
-                        self.game.projectiles.append(
-                            pre.Projectile(
-                                pos=[self.pos.x + dir * 4, self.pos.y],
-                                velocity=dir * 7,
-                                timer=7,
-                            )
-                        )
-                        pass
-                    pass
-                    # pprint(self.game.projectiles)
+                        pos = [(self.pos.x + dir * projectile_gun_offsetx), self.pos.y + projectile_gun_offsety]
+                        self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 7, timer=7))
 
                     # death by rect collision????
-
                     # else:
                     #     self.scanned_pos.clear()
 
