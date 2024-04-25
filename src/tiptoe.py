@@ -384,7 +384,7 @@ class Game:
                     self.clock_dt_recent_values.pop()
 
         # end `while running:`
-        assert running == False
+        assert not running
 
         if pre.DEBUG_GAME_CACHEINFO:  # cache
             print(f"{pre.hsl_to_rgb.cache_info() = }")

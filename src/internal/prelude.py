@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
-from pprint import pprint
 from random import randint
 from typing import Any, Dict, Final, Generator, Sequence, Tuple, Union
 
@@ -293,25 +292,25 @@ DEBUG_GAME_STRESSTEST   = False
 
 
 # fmt: off
-CAMERA_SPEED        = 2  # use with editor camera move fast around the world
-FPS_CAP             = 60
-RENDER_SCALE        = 2  # for editor
-SCALE               = 0.5
-TILE_SIZE           = 16
+CAMERA_SPEED            = 2  # use with editor camera move fast around the world
+FPS_CAP                 = 60
+RENDER_SCALE            = 2  # for editor
+SCALE                   = 0.5
+TILE_SIZE               = 16
 # fmt: on
 
 
 # fmt: off
-SCREEN_WIDTH        = 960 or 640
-SCREEN_HEIGHT       = 630 or 480
+SCREEN_WIDTH            = 960 or 640
+SCREEN_HEIGHT           = 630 or 480
 
-DIMENSIONS          = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
-DIMENSIONS_HALF     = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
+DIMENSIONS              = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
+DIMENSIONS_HALF         = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
 # fmt: on
 
 # fmt: off
-CAPTION             = "tiptoe"
-CAPTION_EDITOR      = "tiptoe level editor"
+CAPTION                 = "tiptoe"
+CAPTION_EDITOR          = "tiptoe level editor"
 # fmt: on
 
 # fmt: off
@@ -327,70 +326,70 @@ SRC_DATA_IMAGES_ENTITIES_PATH   = SRC_DATA_IMAGES_PATH / "entities"
 
 # aliases for directory paths
 # fmt: off
-ENTITY_PATH         = SRC_DATA_IMAGES_ENTITIES_PATH
-FONT_PATH           = None
-IMGS_PATH           = SRC_DATA_IMAGES_PATH 
-INPUTSTATE_PATH     = None  
-MAP_PATH            = SRC_DATA_MAP_PATH
-SOUNDS_PATH         = None
-SPRITESHEET_PATH    = None
+ENTITY_PATH             = SRC_DATA_IMAGES_ENTITIES_PATH
+FONT_PATH               = None
+IMGS_PATH               = SRC_DATA_IMAGES_PATH 
+INPUTSTATE_PATH         = None  
+MAP_PATH                = SRC_DATA_MAP_PATH
+SOUNDS_PATH             = None
+SPRITESHEET_PATH        = None
 # fmt: on
 
 
 # colors:
 # fmt: off
-BEIGE               = (15, 20, 25)
-BGDARK              = hsl_to_rgb(234, 0.1618, 0.0618)
-BGDARKER            = hsl_to_rgb(234, 0.1618, 0.0328)
-BLACK               = (0, 0, 0)
-BLACKMID            = (1, 1, 1)
-CHARCOAL            = (10, 10, 10)
-CREAM               = hsl_to_rgb(0, 0.1618, 0.618)
-DARKGRAY            = (20, 20, 20)
-GRAY                = hsl_to_rgb(0, 0, 0.5)
-GREEN               = hsl_to_rgb(120, 1, 0.25)
-MIDNIGHT            = (2, 2, 3)
-OLIVE               = hsl_to_rgb(60, 1, 0.25)
-OLIVEMID            = hsl_to_rgb(60, 0.4, 0.25)
-ORANGE              = hsl_to_rgb(10,0.5,0.5)
-PINK                = hsl_to_rgb(300, 0.26, 0.18)
-PURPLE              = hsl_to_rgb(300, 1, 0.25)
-PURPLEMID           = hsl_to_rgb(300, 0.3, 0.0828)
-RED                 = hsl_to_rgb(0, 0.618, 0.328)
-SILVER              = hsl_to_rgb(0, 0, 0.75)
-TEAL                = hsl_to_rgb(180, 0.4, 0.25)
-TRANSPARENT         = (0, 0, 0, 0)
-WHITE               = (255, 255, 255)
-YELLOW              = hsl_to_rgb(60, 0.6, 0.3)
-YELLOWMID           = hsl_to_rgb(60, 0.4, 0.25)
+BEIGE                   = (15, 20, 25)
+BGDARK                  = hsl_to_rgb(234, 0.1618, 0.0618)
+BGDARKER                = hsl_to_rgb(234, 0.1618, 0.0328)
+BLACK                   = (0, 0, 0)
+BLACKMID                = (1, 1, 1)
+CHARCOAL                = (10, 10, 10)
+CREAM                   = hsl_to_rgb(0, 0.1618, 0.618)
+DARKGRAY                = (20, 20, 20)
+GRAY                    = hsl_to_rgb(0, 0, 0.5)
+GREEN                   = hsl_to_rgb(120, 1, 0.25)
+MIDNIGHT                = (2, 2, 3)
+OLIVE                   = hsl_to_rgb(60, 1, 0.25)
+OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
+ORANGE                  = hsl_to_rgb(10,0.5,0.5)
+PINK                    = hsl_to_rgb(300, 0.26, 0.18)
+PURPLE                  = hsl_to_rgb(300, 1, 0.25)
+PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
+RED                     = hsl_to_rgb(0, 0.618, 0.328)
+SILVER                  = hsl_to_rgb(0, 0, 0.75)
+TEAL                    = hsl_to_rgb(180, 0.4, 0.25)
+TRANSPARENT             = (0, 0, 0, 0)
+WHITE                   = (255, 255, 255)
+YELLOW                  = hsl_to_rgb(60, 0.6, 0.3)
+YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
 # fmt: on
 
 
 # fmt: off
 @dataclass
 class COUNT:
-    STAR            = (TILE_SIZE or 16)
+    STAR                = (TILE_SIZE or 16)
     # FLAMEPARTICLE   = (TILE_SIZE or 16)
 
 
 @dataclass
 class COUNTRAND:
-    FLAMEPARTICLE   = randint(36, 64)        # (0,20) OG
+    FLAMEPARTICLE       = randint(36, 64)        # (0,20) OG
 # fmt: on
 
 
 # fmt: off
 @dataclass
 class SIZE:
-    ENEMY           = (8, 16)
-    ENEMYJUMP       = (ENEMY[0], ENEMY[1] - 1)
-    FLAMEPARTICLE   = (4,5)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
-    FLAMETORCH      = (3, 12)
-    PLAYER          = (8, TILE_SIZE)
-    PLAYERJUMP      = (PLAYER[0] - 1, PLAYER[1])
-    PLAYERRUN       = (PLAYER[0] + 1, PLAYER[1] - 1)
-    PORTAL          = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
-    STAR            = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
+    ENEMY               = (8, 16)
+    ENEMYJUMP           = (ENEMY[0], ENEMY[1] - 1)
+    FLAMEPARTICLE       = (4,5)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
+    FLAMETORCH          = (3, 12)
+    PLAYER              = (TILE_SIZE//1, TILE_SIZE)
+    PLAYERJUMP          = (PLAYER[0] - 1, PLAYER[1])
+    PLAYERRUN           = (PLAYER[0] + 1, PLAYER[1] - 1)
+    PORTAL              = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
+    STAR                = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
 
     # Derived Constants
     FLAMEGLOWPARTICLE = (FLAMEPARTICLE[0] + 1, FLAMEPARTICLE[1] + 1)  # use 6,6 if a circles else 3,3 if particle is rect
@@ -400,26 +399,26 @@ class SIZE:
 # fmt: off
 @dataclass
 class COLOR:
-    BG              = hsl_to_rgb(240, 0.328, 0.128)
-    BGCOLORDARK     = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
-    BGCOLORDARKER   = hsl_to_rgb(240, 0.3, 0.04)
-    BGCOLORDARKGLOW = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
-    BGMIRAGE        = hsl_to_rgb(240, 0.2, 0.07) # used to set colorkey for stars
-    ENEMY           = hsl_to_rgb(10,0.3,0.08) #(hsl_to_rgb(180, 0.4, 0.25), )[randint(0,1)]
-    FGSTARS         = hsl_to_rgb(240, 0.3, 0.10) # used to set colorkey for stars
-    FLAME           = hsl_to_rgb(0, 0.618, 0.328)
-    TRANSPARENTGLOW = (20,20,20)
-    FLAMEGLOW       = (30,30,20) # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
-    FLAMETORCH      = hsl_to_rgb(300, 0.5, 0.045)
-    GRASS           = hsl_to_rgb(0, 0.618, 0.328)
-    PLAYER          = (1, 1, 1)
-    PLAYERJUMP      = PINK or hsl_to_rgb(0, 0.618, 0.328)
-    PLAYERRUN       = (1, 1, 1)
-    PLAYERSTAR      = PINK
-    PORTAL1         = (255, 255, 255)
-    PORTAL2         = (15, 20, 25)
-    STAR            = PINK
-    STONE           = (1, 1, 1)
+    BG                  = hsl_to_rgb(240, 0.328, 0.128)
+    BGCOLORDARK         = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
+    BGCOLORDARKER       = hsl_to_rgb(240, 0.3, 0.04)
+    BGCOLORDARKGLOW     = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
+    BGMIRAGE            = hsl_to_rgb(240, 0.2, 0.07)  # used to set colorkey for stars
+    ENEMY               = hsl_to_rgb(10, 0.3, 0.08)  # (hsl_to_rgb(180, 0.4, 0.25), )[randint(0,1)]
+    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)  # used to set colorkey for stars
+    FLAME               = hsl_to_rgb(0, 0.618, 0.328)
+    TRANSPARENTGLOW     = (20, 20, 20)
+    FLAMEGLOW           = (30, 30, 20)  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
+    FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
+    GRASS               = hsl_to_rgb(0, 0.618, 0.328)
+    PLAYER              = (4, 2, 0)
+    PLAYERJUMP          = PINK or hsl_to_rgb(0, 0.618, 0.328)
+    PLAYERRUN           = (1, 1, 1)
+    PLAYERSTAR          = PINK
+    PORTAL1             = (255, 255, 255)
+    PORTAL2             = (15, 20, 25)
+    STAR                = PINK
+    STONE               = (1, 1, 1)
 # fmt: on
 
 
