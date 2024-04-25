@@ -1,4 +1,5 @@
 import itertools as it
+import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -6,7 +7,20 @@ from enum import Enum, IntEnum, auto
 from functools import lru_cache, partial, reduce
 from pathlib import Path
 from random import randint
-from typing import Any, Dict, Final, Generator, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Final,
+    Generator,
+    Protocol,
+    Sequence,
+    SupportsFloat,
+    SupportsIndex,
+    Tuple,
+    TypeAlias,
+    TypeVar,
+    Union,
+)
 
 import pygame as pg
 import toml
@@ -15,19 +29,25 @@ import toml
 #########
 # TYPES #
 
+# This typehint is used when a math function like sin or cos accepts an angle.
+# Ported from math.py via typing.py
+SupportsFloatOrIndex: TypeAlias = SupportsFloat | SupportsIndex
 
 # This typehint is used when a function would return an RGBA table.
-# note: ported from pygame source file: _common.py
+# Ported from pygame source file: _common.py
 RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
 
+# Ported from pygame source file: _common.py
+Coordinate = Union[Tuple[float, float], Sequence[float], pg.Vector2]
 
-Number = Union[int, float]
+
+Number = int | float
 
 
 @dataclass
 class Projectile:
-    pos: list[Number]  # [x, y]
+    pos: pg.Vector2  # [x, y]
     velocity: Number  # directional velocity : left (-ve) : right (+ve)
     timer: int  # frame timer
 
@@ -284,7 +304,7 @@ DEBUG_EDITOR_HUD        = True
 
 DEBUG_GAME_ASSERTS      = True
 DEBUG_GAME_CACHEINFO    = False
-DEBUG_GAME_HUD          = False
+DEBUG_GAME_HUD          = True
 DEBUG_GAME_PROFILER     = False
 DEBUG_GAME_STRESSTEST   = False
 # fmt: on
@@ -351,6 +371,7 @@ MIDNIGHT                = (2, 2, 3)
 OLIVE                   = hsl_to_rgb(60, 1, 0.25)
 OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
 ORANGE                  = hsl_to_rgb(10,0.5,0.5)
+PINKLIGHT               = hsl_to_rgb(300, 0.26, 0.4)
 PINK                    = hsl_to_rgb(300, 0.26, 0.18)
 PURPLE                  = hsl_to_rgb(300, 1, 0.25)
 PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
@@ -646,6 +667,108 @@ def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: 
 create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
 create_circle_surf_partialfn.__doc__ = """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
 
+
+########
+# MATH #
+
+
+class Math:
+    """Collection of utility functions for mathematical operations."""
+
+    @staticmethod
+    def advance_vec2(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
+        """
+        Advances a 2D vector (pg.Vector2) by a given angle and amount.
+
+        Args:
+            vec2: The pg.Vector2 object representing the 2D vector to advance.
+            angle: The angle in radians to move the vector.
+            amount: The distance to move the vector along the specified angle.
+
+        This function modifies the `vec2` object in-place and returns None.
+        """
+        vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
+
+    @staticmethod
+    def advance_float2(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
+        """
+        Advances a 2D point represented by a list of floats by a given angle and amount.
+
+        Args:
+            point2: A list of two floats representing the x and y coordinates of the 2D point.
+            angle: The angle in radians to move the point.
+            amount: The distance to move the point along the specified angle.
+
+        This function modifies the `point2` list in-place and returns None.
+
+        Raises:
+            AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
+        """
+        if DEBUG_GAME_ASSERTS:
+            assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+
+        point2[0] += math.cos(angle) * amount
+        point2[1] += math.sin(angle) * amount
+
+    @staticmethod
+    def advance_int2(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
+        """
+        Advances a 2D point represented by a list of integers by a given angle and amount.
+
+        **Important:** This function uses floor division (`//`) to convert potentially floating-point
+                      calculations to integers before assigning them to the list elements.
+
+        Args:
+            point2: A list of two integers representing the x and y coordinates of the 2D point.
+            angle: The angle in radians to move the point.
+            amount: The distance to move the point along the specified angle.
+
+        This function modifies the `point2` list in-place and returns None.
+
+        Raises:
+            AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
+        """
+        if DEBUG_GAME_ASSERTS:
+            assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+
+        point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
+        point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
+
+
+# class Math:
+#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
+#     @staticmethod
+#     def advance_vec2(vec2: pg.Vector2, angle: _SupportsFloatOrIndex, amount: Number) -> None:
+#         """NOTE: Mutates vec2 parameter and returns None"""
+#         # vec2.x += math.cos(angle) * amount
+#         # vec2.y += math.sin(angle) * amount
+#         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
+#
+#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
+#     @staticmethod
+#     def advance_float2(point2: list[float], angle: _SupportsFloatOrIndex, amount: Number) -> None:
+#         """NOTE: Mutates point2 parameter and returns None"""
+#         if DEBUG_GAME_ASSERTS:
+#             assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+#         """
+#         Diagnostics:
+#         1. No overloads for "__setitem__" match the provided arguments [reportCallIssue]
+#         2. Argument of type "float" cannot be assigned to parameter "value" of type "int" in function "__setitem__"
+#              "float" is incompatible with "int" [reportArgumentType]
+#         """
+#         point2[0] += math.cos(angle) * amount
+#         point2[1] += math.sin(angle) * amount
+#
+#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
+#     @staticmethod
+#     def advance_int2(point2: list[int], angle: _SupportsFloatOrIndex, amount: Number) -> None:
+#         """NOTE: Mutates point2 parameter and returns None"""
+#         if DEBUG_GAME_ASSERTS:
+#             assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+#
+#         point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
+#         point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
+#
 
 #########################
 # FUNCUTILS & ITERUTILS #

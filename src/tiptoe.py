@@ -4,6 +4,7 @@ import math
 import time
 from collections import deque
 from os import listdir, path
+from pprint import pprint
 from random import randint, random
 from sys import exit
 from typing import Final
@@ -15,6 +16,7 @@ from internal.assets import Assets
 from internal.entities import Action, Enemy, Player
 from internal.hud import render_debug_hud
 from internal.particle import Particle
+from internal.spark import Spark
 from internal.spawner import Portal
 from internal.stars import Stars
 from internal.tilemap import Tilemap, pos_to_loc
@@ -27,16 +29,14 @@ class Game:
         display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
-        pg.display._set_autoresize(False)  # type: ignore |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+        pg.display._set_autoresize(False)  # type: ignore
+        # ^ |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
         pg.display.set_caption(pre.CAPTION)
-        # pg.display.set_caption(f"{pre.CAPTION} - {pg.time.Clock().get_fps():.0f}fps")
-        # pg.display.set_caption(f"{pre.CAPTION} - {self.clock.get_fps():.0f}fps")
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
-        # self.bgcolor = (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK, pre.COLOR.BGCOLORDARKER)[randint(0, 2)]
-        self.bgcolor = (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK)[randint(0, 1)]
+        self.bgcolor = pre.COLOR.BGMIRAGE or (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK)[randint(0, 1)]
 
         if pre.DEBUG_GAME_STRESSTEST:
             if (__dreamlike := 0) and __dreamlike:
@@ -65,7 +65,7 @@ class Game:
                 self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
                 self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
                 pre.Surfaces.compute_vignette(self.display_3, 255)
-                self.display_3.fill(pre.COLOR.BGCOLORDARKGLOW)
+                self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
                 pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
         self.font_size = max(10, 11)
@@ -82,7 +82,8 @@ class Game:
         except Exception as e:
             print(f"Error loading game configuration: {e}")
 
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)  # perf: figure how to make it optional. have to assign regardless of None
+        # perf: figure how to make it optional. have to assign regardless of None
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         self._star_count: Final[int] = min(64, max(16, self.config_handler.game_world_stars.get("count", pre.TILE_SIZE * 2)))  # can panic if we get a float or string
 
@@ -102,7 +103,8 @@ class Game:
         self._dead_mid: Final = 10
         self._dead_hi: Final = 40
 
-        # transition: abs(self.transition) == 30 => opaque screen see nothing | abs(self.transition) == 0 see eeverything; load level when completely black
+        # Transition: abs(self.transition) == 30 => opaque screen see nothing |
+        # abs(self.transition) == 0 see eeverything; load level when completely black
         self._transition_lo: Final = -30
         self._transition_mid: Final = 0
         self._transition_hi: Final = 30
@@ -117,13 +119,12 @@ class Game:
 
         self._max_screenshake: Final = pre.TILE_SIZE
         self.screenshake = 0
-        # if pre.DEBUG_GAME_HUD:
-        #     self.render_debug_partialfn = partial()
 
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
 
         self.projectiles: list[pre.Projectile] = []
+        self.sparks: list[Spark] = []
 
         # SPAWNERS
         self.flametorch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
@@ -147,8 +148,10 @@ class Game:
         # Particles go on display, but they are added after the displays merge so they don't receive the outline
         self.particles: list[Particle] = []
 
-        # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
-        # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
+        # 1/16 on y axis make camera less choppy and also doesn't hide player
+        # falling off the screen at free fall. 1/30 for x axis, gives fast
+        # horizontal slinky camera motion! Also 16 is a perfect square. note:
+        # camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
         self._scroll_ease = pg.Vector2(1 / 25, 1 / 25)
 
@@ -164,8 +167,7 @@ class Game:
 
         self.last_tick_recorded = pg.time.get_ticks()
         # _last_get_tick = pg.time.get_ticks()
-        running = True
-        while running:
+        while 1:
             self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
 
@@ -193,10 +195,10 @@ class Game:
             # Camera: update and parallax
             #   [where we want camera to be]-[where we are or what we have]/25,
             #   So further player is faster camera moves and vice-versa we can
-            #   use round on scroll increment to smooth out jumper
-            #   scrolling & also multiplying by point zero thirty two instead
-            #   of dividing by thirty if camera is off by 1px not an issue, but
-            #   rendering tiles could be. note: use 0 round off for smooth camera.
+            #   use round on scroll increment to smooth out jumper scrolling &
+            #   also multiplying by point zero thirty two instead of dividing
+            #   by thirty if camera is off by 1px not an issue, but rendering
+            #   tiles could be. note: use 0 round off for smooth camera.
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -283,55 +285,72 @@ class Game:
                 prj_x, prj_y = int(projectile.pos[0]), int(projectile.pos[1])
                 if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(prj_x, prj_y)):
                     self.projectiles.remove(projectile)
-                    # todo: append sparks
+
+                    spark_speed, direction = 0.5, math.pi if projectile.velocity > 0 else 0  # unit circle direction (0 left, right math.pi)
+                    self.sparks.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(4)])  # projectile hit solid object -> sparks bounce opposite to that direction
+
                     # self.sfx["hitwall"].play(0.5)
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
                 elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
                     if self.player.rect().collidepoint(prj_x, prj_y):
-                        if self.player.action == Action.IDLE and self.dead_hit_skipped_counter < 2:  # player invincible camouflaged one with the world
+                        if self.player.action == Action.IDLE and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter:  # player invincible camouflaged one with the world
                             self.projectiles.remove(projectile)
                             self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
+                            self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2)) for _ in range(30))
                             # self.sfx["hitwall"].play(0.5)
                             pass
-                        else:
+                        else:  # player leaves world
                             self.projectiles.remove(projectile)
                             self.dead += 1
                             self.dead_hit_skipped_counter = 0
                             self.screenshake = max(self._max_screenshake, self.screenshake - 1)
-                            for i in range(30):
-                                # todo: append sparks
+                            self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2, color=pre.PINKLIGHT)) for _ in range(30))
+                            self.particles.extend(
+                                (
+                                    Particle(
+                                        self,
+                                        p_kind=pre.ParticleKind.FLAME,
+                                        pos=pg.Vector2(self.player.rect().center),
+                                        velocity=(pg.Vector2((math.cos(random() * math.pi * 2 + math.pi) * random() * 5 * 0.5, math.cos(random() * math.pi + math.pi) * random() * math.pi * 0.5))),
+                                        frame=randint(0, 7),
+                                    )
+                                    for _ in range(30)
+                                )
+                            )
+                            if 0:  # avoiding incorrect code
+                                # TODO: self.particles.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(30)])  # projectile hit solid object -> sparks bounce opposite to that direction
+                                # TODO: self.sfx["hit"].play(0.5)
                                 pass
-                            # self.sfx["hit"].play(0.5)
 
-            # mask: before particles
+            for spark in self.sparks.copy():
+                kill_animation = spark.update()
+                spark.render(self.display, offset=render_scroll)
+                if kill_animation:
+                    self.sparks.remove(spark)
+
+            # Display Mask: before particles
             display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
             display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-            for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                 self.display_2.blit(display_silhouette, offset)
 
-            # particles:
-            #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
-            #   perf: if is_used then don't render, until next reset. so we can cycle through limited amount of particles
+            # Particles:
             for particle in self.particles:
                 match particle.kind:
                     case pre.ParticleKind.FLAME:
                         particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
                         kill_animation = particle.update()
-                        particle.render(self.display_2, render_scroll)
+                        particle.render(self.display, render_scroll)
                         if kill_animation:
                             self.particles.remove(particle)
-                        # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
-                    case pre.ParticleKind.FLAMEGLOW:
+                    case pre.ParticleKind.FLAMEGLOW:  # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
                         particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
                         particle.pos.y += math.sin(particle.animation.frame * 1.035) * 0.3
                         kill_animation = particle.update()
                         img = particle.animation.img().copy()
-                        self.display_2.blit(
-                            source=img,
-                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2),  # ^ use center of the image as origin
-                            special_flags=pg.BLEND_RGB_ADD,
-                        )
+                        # ideal is display, but display_2 looks cool for flameglow
+                        self.display_2.blit(source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD)  # ^ use center of the image as origin
                         if kill_animation:
                             self.particles.remove(particle)
                     case _:
@@ -339,9 +358,11 @@ class Game:
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                    running = False
+                    shutdown()
+                    assert 0, "unreachable"
                 if event.type == pg.QUIT:
-                    running = False
+                    shutdown()
+                    assert 0, "unreachable"
                 if event.type == pg.VIDEORESIZE:
                     self.screen = pg.display.get_surface()
                 if event.type == pg.KEYDOWN:
@@ -362,12 +383,14 @@ class Game:
                         self.movement.right = False
 
             # RENDER: DISPLAY
-            # blit: display on display_2 and then blit display_2 on screen for depth effect
+
             if pre.DEBUG_GAME_STRESSTEST:
                 self.display.blit(self.display_3, (0, 0))
-            self.display_2.blit(self.display, (0, 0))
+
+            self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
             # TODO: screenshake effect via offset for screen blit
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
+
             if pre.DEBUG_GAME_HUD:
                 if pre.DEBUG_GAME_STRESSTEST and (abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2):
                     render_debug_hud(self, render_scroll=render_scroll, mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)))
@@ -377,19 +400,18 @@ class Game:
             # DRAW: FINAL DISPLAY
             pg.display.flip()  # update: whole screen
             self.clock_dt = self.clock.tick(pre.FPS_CAP)
+
             if pre.DEBUG_GAME_HUD:
                 self.clock_dt_recent_values.appendleft(self.clock_dt)
                 if len(self.clock_dt_recent_values) == pre.FPS_CAP:
                     self.clock_dt_recent_values.pop()
 
-        # end `while running:`
-        assert not running
 
-        if pre.DEBUG_GAME_CACHEINFO:  # cache
-            print(f"{pre.hsl_to_rgb.cache_info() = }")
-
-        pg.quit()
-        exit()
+def shutdown():
+    if pre.DEBUG_GAME_CACHEINFO:  # cache
+        print(f"{pre.hsl_to_rgb.cache_info() = }")
+    pg.quit()
+    exit()
 
 
 class PlayerStar:

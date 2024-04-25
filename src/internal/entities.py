@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import math
-import time
 from collections import deque
 from enum import Enum
-from pprint import pprint
 from random import randint, random
 from typing import TYPE_CHECKING, Final, Literal, Optional
 
@@ -159,17 +157,12 @@ class Enemy(PhysicalEntity):
                     case (True, False, False):
                         dx = -self._moveby_x if self.flip else self._moveby_x
                         movement += pg.Vector2(dx, 0)
-                        # print(self.alert_timer, end=' ')
-
-                        # Calculate moving average for smooth/erratic movement
-                        if self.alert_timer:
+                        if self.alert_timer:  # Calculate moving average for smooth/erratic movement
                             avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
                             boost_x = 3.28 + 2  # 3.28
                             movement.x += 0.1 * round(avg_mvmt_x * boost_x)
-
-                            # TODO: remove extra_crazy after demo
                             extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops
-                            movement.y -= extra_crazy
+                            movement.y -= extra_crazy  # TODO: remove extra_crazy after demo
                         self.movement_history_x.append(dx)
 
                     case _:
@@ -178,40 +171,24 @@ class Enemy(PhysicalEntity):
                 self.alert_timer = max(0, self.alert_timer - 1)
                 self.walking_timer = max(0, self.walking_timer - 1)  # timer: decrement. becomes 0 or static once every walk cycle to begin spawning a projectile
 
-                # if 0:  # JFL :)
-                #     if self.rect().colliderect(self.game.player.rect()):
-                #         e_pos = f"{int(self.pos.x), int(self.pos.y)}"
-                #         p_pos = f"{int(self.game.player.pos.x), int(self.game.player.pos.y)}"
-                #         e_dir = "e-face-left" if self.flip else "e-face-right"
-                #         time_time: float = time()
-                #         record = (time_time, e_dir, (e_pos, p_pos))
-                #         if record not in self.history_contact_with_player:  # _type:ignore
-                #             pprint(self.history_contact_with_player)  # _type:ignore
-                #             print("enemy contact player", len(self.history_contact_with_player))
-                #         if self.game.player.dash_time >= self.game.player.dash_time_burst_1 - self.game.player.dash_time_burst_2:
-                # print("dashed")
-                #         self.history_contact_with_player.appendleft(record)  # _type:ignore
-
                 # Enemy interaction: can now shoot while static!!
-                if not self.walking_timer:
-                    # Calculate distance between player and enemy
+                if not self.walking_timer:  # Calculate distance between player and enemy
                     dist_pe = self.game.player.pos - self.pos
-
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         self.alert_timer = self._max_alert_time
                         projectile_gun_offsetx = 4
                         projectile_gun_offsety = 5
                         dir = -1 if self.flip else 1
-                        pos = [(self.pos.x + dir * projectile_gun_offsetx), self.pos.y + projectile_gun_offsety]
+                        pos = pg.Vector2((self.pos.x + dir * projectile_gun_offsetx), self.pos.y + projectile_gun_offsety)
                         self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 7, timer=7))
 
                     # death by rect collision????
                     # else:
                     #     self.scanned_pos.clear()
 
-                    # TODO: replenish alert timer if enemy spots player
-                    if 0:
-                        self.alert_timer = randint(30 * 2, 120 * 2)
+                    if 1:  # TODO: replenish alert timer if enemy spots player
+                        if random() < 0.01:
+                            self.alert_timer = randint(30 * 2, 120 * 2)
                         pass
 
             case False if random() < 0.01:  # Timer replenish (1% chance or one in every .67 seconds)
@@ -248,6 +225,7 @@ class Player(PhysicalEntity):
         self._dash_thrust: Final = 8
         self._jumps: Final = 2
         self._max_air_time: Final = 5
+        self.max_dead_hit_skipped_counter: Final = 3
         self._max_dash_time: Final = 60  # directional velocity vector
         self.dash_time_burst_1: Final = self._max_dash_time
         self.dash_time_burst_2: Final = 50
