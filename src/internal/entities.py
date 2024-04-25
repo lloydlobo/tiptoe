@@ -196,6 +196,7 @@ class Enemy(PhysicalEntity):
                 if not self.walking_timer:
                     # Calculate distance between player and enemy
                     dist_pe = self.game.player.pos - self.pos
+
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         self.alert_timer = self._max_alert_time
                         projectile_gun_offsetx = 4

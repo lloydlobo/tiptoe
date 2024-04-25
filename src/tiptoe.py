@@ -1,6 +1,7 @@
 import cProfile
 import itertools as it
 import math
+import time
 from collections import deque
 from os import listdir, path
 from random import randint, random
@@ -11,7 +12,7 @@ import pygame as pg
 
 import internal.prelude as pre
 from internal.assets import Assets
-from internal.entities import Enemy, Player
+from internal.entities import Action, Enemy, Player
 from internal.hud import render_debug_hud
 from internal.particle import Particle
 from internal.spawner import Portal
@@ -116,6 +117,7 @@ class Game:
         self.load_level(self.level)
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
 
+        self._max_screenshake: Final = pre.TILE_SIZE
         self.screenshake = 0
         # if pre.DEBUG_GAME_HUD:
         #     self.render_debug_partialfn = partial()
@@ -154,6 +156,7 @@ class Game:
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
+        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
         self.touched_portal = False
         self.transition = self._transition_lo
 
@@ -277,13 +280,31 @@ class Game:
                 img = self.assets.misc_surf["projectile"]
                 dest = pg.Vector2(projectile.pos) - render_scroll
                 self.display.blit(img, dest)
+
+                # Post projectile render: update
                 prj_x, prj_y = int(projectile.pos[0]), int(projectile.pos[1])
                 if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(prj_x, prj_y)):
                     self.projectiles.remove(projectile)
-                    # self.sfx["hit"].play(0.5)
-                    pass
+                    # todo: append sparks
+                    # self.sfx["hitwall"].play(0.5)
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
+                elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
+                    if self.player.rect().collidepoint(prj_x, prj_y):
+                        if self.player.action == Action.IDLE and self.dead_hit_skipped_counter < 2:  # player invincible camouflaged one with the world
+                            self.projectiles.remove(projectile)
+                            self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
+                            # self.sfx["hitwall"].play(0.5)
+                            pass
+                        else:
+                            self.projectiles.remove(projectile)
+                            self.dead += 1
+                            self.dead_hit_skipped_counter = 0
+                            self.screenshake = max(self._max_screenshake, self.screenshake - 1)
+                            for i in range(30):
+                                # todo: append sparks
+                                pass
+                            # self.sfx["hit"].play(0.5)
 
             # particles:
             #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
