@@ -94,9 +94,7 @@ class Game:
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(pre.SIZE.PLAYER))
-        # self.playerstar = PlayerStar(
-        #     self,
-        # )
+        # self.playerstar = PlayerStar(self)
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
@@ -216,7 +214,7 @@ class Game:
                         x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
                         y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - flametorch_rect.h / 2),
                     ),
-                    velocity=pg.Vector2(-0.0001, 0.0003),
+                    velocity=pg.Vector2(-0.1, 0.3),
                     frame=pre.COUNTRAND.FLAMEPARTICLE,
                 )
                 for flametorch_rect in self.flametorch_spawners.copy()
@@ -227,14 +225,14 @@ class Game:
                     game=self,
                     p_kind=pre.ParticleKind.FLAMEGLOW,
                     pos=pg.Vector2(
-                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, flametorch_rect.w / 4)),
-                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 4),
+                        x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, flametorch_rect.w / 4)),
+                        y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
                     ),
-                    velocity=pg.Vector2(-0.0001, 0.0003),
-                    frame=pre.COUNTRAND.FLAMEPARTICLE,
+                    velocity=pg.Vector2(-0.1, 0.1),
+                    frame=pre.COUNT.FLAMEGLOW,
                 )
                 for flametorch_rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)
+                if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
             )  # big number is to control spawn rate
 
             # stars: backdrop update and render
@@ -306,6 +304,12 @@ class Game:
                                 pass
                             # self.sfx["hit"].play(0.5)
 
+            # mask: before particles
+            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
+            display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+            for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                self.display_2.blit(display_silhouette, offset)
+
             # particles:
             #   perf: add a is_used flag to particle, so as to avoid GC allocating memory
             #   perf: if is_used then don't render, until next reset. so we can cycle through limited amount of particles
@@ -325,18 +329,13 @@ class Game:
                         img = particle.animation.img().copy()
                         self.display_2.blit(
                             source=img,
-                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 1),
+                            dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2),  # ^ use center of the image as origin
                             special_flags=pg.BLEND_RGB_ADD,
                         )
                         if kill_animation:
                             self.particles.remove(particle)
                     case _:
                         pass
-            # mask: before particles
-            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
-            display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-            for offset in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                self.display_2.blit(display_silhouette, offset)
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:

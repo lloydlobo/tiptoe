@@ -1,5 +1,4 @@
 import itertools as it
-import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -369,6 +368,7 @@ YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
 @dataclass
 class COUNT:
     STAR                = (TILE_SIZE or 16)
+    FLAMEGLOW           = 1
     # FLAMEPARTICLE   = (TILE_SIZE or 16)
 
 
@@ -392,7 +392,7 @@ class SIZE:
     STAR                = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
 
     # Derived Constants
-    FLAMEGLOWPARTICLE = (FLAMEPARTICLE[0] + 1, FLAMEPARTICLE[1] + 1)  # use 6,6 if a circles else 3,3 if particle is rect
+    FLAMEGLOWPARTICLE   = (round(FLAMEPARTICLE[0] ** 1.618  * 1), round(FLAMEPARTICLE[1] ** 1.618  * 1))  # use 6,6 if a circles else 3,3 if particle is rect
 # fmt: on
 
 
@@ -408,7 +408,7 @@ class COLOR:
     FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)  # used to set colorkey for stars
     FLAME               = hsl_to_rgb(0, 0.618, 0.328)
     TRANSPARENTGLOW     = (20, 20, 20)
-    FLAMEGLOW           = (30, 30, 20)  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
+    FLAMEGLOW           = (20, 20, randint(70,90))  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
     FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
     GRASS               = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER              = (4, 2, 0)
@@ -636,7 +636,9 @@ def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: 
     surf = pg.Surface(size).convert()
     center = size[0] / 2, size[1] / 2
     radius = center[0]
-    pg.draw.circle(surf, fill_color, center, radius)
+    rect = pg.draw.circle(surf, BLACK, center, radius * 2)
+    rect = pg.draw.ellipse(surf, fill_color, rect)
+    rect = pg.draw.circle(surf, RED, center, radius)
     surf.set_colorkey(colorkey)
     return surf
 
