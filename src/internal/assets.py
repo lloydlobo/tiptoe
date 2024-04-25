@@ -73,8 +73,8 @@ class Assets:
     animations_entity: "AnimationEntityAssets"
     animations_misc: "AnimationMiscAssets"
 
-    entity: dict[str, pg.Surface]
-    tiles: dict[str, list[pg.Surface]]
+    entity: dict[str, pg.SurfaceType]
+    tiles: dict[str, list[pg.SurfaceType]]
 
     misc_surf: dict[str, pg.SurfaceType]
     misc_surfs: dict[str, list[pg.SurfaceType]]
@@ -121,7 +121,7 @@ class Assets:
         # color_adjustments: NDArray[Any] = np.array(lst)  # array([-3,  0,  0])
         lst: list[int] = [round(10 * (random() * randint(-4, 4))) // 10 for _ in range(pre.COUNT.STAR)]
         color_adjustments: NDArray[Any] = np.array(lst)  # array([-3,  0,  0])
-        pprint(color_adjustments)
+        # pprint(color_adjustments)
         ccc = it.cycle(color_adjustments)
 
         # Generate stars with adjusted colors
@@ -179,6 +179,8 @@ class Assets:
         portal_surf_2.set_colorkey(pre.BLACK)
         portal_surf_2.fill(pre.COLOR.PORTAL2)
 
+        misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.TEAL)
+
         asset_tiles_decor_variations = (
             (2, pre.GREEN, (4, 8)),  # variants 0,1 (TBD)
             (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH),  # variants 2,3 (torch)
@@ -197,7 +199,11 @@ class Assets:
 
         return Assets(
             entity=dict(enemy=enemy_surf.copy(), player=player_entity_surf.copy()),
-            misc_surf=dict(background=pg.Surface(pre.DIMENSIONS).convert(), gun=pg.Surface((14, 7)).convert(), projectile=pg.Surface((5, 2)).convert()),
+            misc_surf=dict(
+                background=pg.Surface(pre.DIMENSIONS).convert(),
+                gun=pg.Surface((14, 7)).convert(),
+                projectile=misc_surf_projectile,  # gun projectile?
+            ),
             misc_surfs=dict(
                 stars=stars,  # TODO: rename to stars
             ),

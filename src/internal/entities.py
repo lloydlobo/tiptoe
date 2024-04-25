@@ -141,7 +141,6 @@ class Enemy(PhysicalEntity):
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
 
-        self._always_alert = True  # added it just for fun. remove it for real gameplay
         self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
@@ -163,7 +162,7 @@ class Enemy(PhysicalEntity):
                         # print(self.alert_timer, end=' ')
 
                         # Calculate moving average for smooth/erratic movement
-                        if self.alert_timer or self._always_alert:
+                        if self.alert_timer:
                             avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
                             boost_x = 3.28 + 2  # 3.28
                             movement.x += 0.1 * round(avg_mvmt_x * boost_x)
@@ -210,7 +209,7 @@ class Enemy(PhysicalEntity):
                         )
                         pass
                     pass
-                    pprint(self.game.projectiles)
+                    # pprint(self.game.projectiles)
 
                     # death by rect collision????
 
@@ -293,8 +292,8 @@ class Player(PhysicalEntity):
                 # TODO:
                 #    self.game.sfx["land_anim"]
                 #    self.game.sfx.play("land", volume=0.5)
-                print(f"{time.time()}: render land anim")
-                print(f"{time.time()}: play land sound")
+                # print(f"{time.time()}: render land anim")
+                # print(f"{time.time()}: play land sound")
                 pass
             self.air_time = 0
             self.jumps = self._jumps

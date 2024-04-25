@@ -26,8 +26,10 @@ class Game:
         display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
-        pg.display.set_caption(pre.CAPTION)
         pg.display._set_autoresize(False)  # type: ignore |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+        pg.display.set_caption(pre.CAPTION)
+        # pg.display.set_caption(f"{pre.CAPTION} - {pg.time.Clock().get_fps():.0f}fps")
+        # pg.display.set_caption(f"{pre.CAPTION} - {self.clock.get_fps():.0f}fps")
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
@@ -284,6 +286,15 @@ class Game:
                             self.particles.remove(particle)
                     case _:
                         pass
+            for projectile in self.projectiles:
+                projectile.pos[0] += projectile.velocity
+                projectile.timer += 1
+                img = self.assets.misc_surf["projectile"]
+                dest = pg.Vector2(projectile.pos) - render_scroll
+                self.display.blit(img, dest)
+                # print(projectile)
+                if projectile.timer > 360:
+                    self.projectiles.remove(projectile)
             # if not self.dead:
             #     self.playerstar.update()
             #     self.playerstar.render(self.display,render_scroll)

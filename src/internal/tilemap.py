@@ -56,9 +56,9 @@ class Tilemap:
         self.offgrid_tiles: set[TileItem] = set()  # PERF: use set?
         self.tile_size = tile_size
         self.tilemap: dict[str, TileItem] = {}  # use defaultdict?
-        print(self.offgrid_tiles)
+        # print(self.offgrid_tiles)
         self.offgrid_tiles.add(TileItem(pre.TileKind.STONE, 0, pg.Vector2(0, 0)))
-        print(self.offgrid_tiles)
+        # print(self.offgrid_tiles)
 
         # derived local like variables
         self.game_assets_tiles = self.game.assets.tiles
@@ -191,20 +191,20 @@ class Tilemap:
                         tile_neighbors[ngbr_loc].add((-dx, -dy))
 
             if (sorted_ngbrs := tuple(sorted(neighbors))) in self._autotile_map:
-                print(f"OG:::{sorted_ngbrs}")
+                # print(f"OG:::{sorted_ngbrs}")
                 tile.variant = self._autotile_map[sorted_ngbrs]
 
             for ngbr_loc, directions in tile_neighbors.items():
-                print(ngbr_loc, directions)
+                # print(ngbr_loc, directions)
                 if len(directions) > 1:
                     ngbr_tile = self.tilemap[self._locfmt_p_fn(ngbr_loc[0], ngbr_loc[1])]
                     sorted_ngbrs = tuple(sorted(directions))
-                    print(f"not OG:::{sorted_ngbrs}")
+                    # print(f"not OG:::{sorted_ngbrs}")
                     # print(f"{tile.pos,ngbr_loc,directions,ngbr_tile.pos,sorted_ngbrs = }")
                     # print(sorted_ngbrs)
                     if sorted_ngbrs in self._autotile_map:
                         # FIXME: this is redundant as it is not direcly mutating self.tilema. should mutate `tile`
-                        print(f"{tile,ngbr_loc, ngbr_tile = }")
+                        # print(f"{tile,ngbr_loc, ngbr_tile = }")
                         ngbr_tile.variant = self._autotile_map[sorted_ngbrs]
 
             # print(neighbors, tile_neighbors)
