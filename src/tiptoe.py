@@ -1,13 +1,21 @@
 import cProfile
 import itertools as it
 import math
+import sys
 import time
 from collections import deque
+from dataclasses import dataclass, field
+from enum import IntEnum, auto
+from functools import partial
 from os import listdir, path
-from pprint import pprint
+from pathlib import Path
+from pprint import pprint  # type: ignore
 from random import randint, random
-from sys import exit
-from typing import Final
+from typing import Final, Optional
+
+
+if sys.version_info >= (3, 12):
+    from types import GenericAlias
 
 import pygame as pg
 
@@ -19,7 +27,56 @@ from internal.particle import Particle
 from internal.spark import Spark
 from internal.spawner import Portal
 from internal.stars import Stars
-from internal.tilemap import Tilemap, pos_to_loc
+from internal.tilemap import Tilemap
+
+
+class AppState(IntEnum):
+    GAMESTATE = auto(0)
+    MENUSTATE = auto()
+
+
+class GameState(IntEnum):
+    PLAY = auto(0)
+    PAUSE = auto()
+    EXIT = auto()
+
+
+@dataclass
+class Button:
+    text: str
+    pos: pg.Vector2
+    size: pg.Vector2
+    # rect:pg.Rect= field(init=True)
+    # rect: pg.Rect = field(default_factory=lambda: pg.Rect(pos.x, pos.y, size.x, size.y))
+    rect: pg.Rect = field(default_factory=lambda: pg.Rect(0, 0, pre.TILE_SIZE * 4, pre.TILE_SIZE * 3))
+
+    def draw(self, surf: pg.SurfaceType, fill_color: pre.ColorValue) -> None:
+        pg.draw.rect(surf, fill_color, self.rect)
+
+
+class UIButton:
+    def __init__(self, text: str, pos: pg.Vector2, size: pg.Vector2):
+        self.text = text
+        self.rect = pg.Rect(pos.x, pos.y, size.x, size.y)
+        return self
+
+    def draw(self, surf: pg.SurfaceType, fill_color: pre.ColorValue):
+        pg.draw.rect(surf, fill_color, self.rect)
+
+
+@dataclass
+class Textz:
+    font_size: int
+    font: pg.font.FontType
+    bold: bool = False
+
+    # def __post_init__(self):
+    #     self.font = pg.font.SysFont("monospace", self.font_size, bold=self.bold)
+
+    def render(self, surf: pg.SurfaceType, pos: tuple[int, int], text: str, color: pre.ColorValue = pg.Color('white')):
+        text_surface = self.font.render(text, True, color)
+        text_rect = text_surface.get_rect(center=pos)
+        surf.blit(text_surface, text_rect)
 
 
 class Game:
@@ -43,7 +100,7 @@ class Game:
                 self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
                 pre.Surfaces.compute_vignette(surf=self.display_3)
                 self.display_3.set_alpha(17)
-            elif (__noir := 1) and __noir:
+            elif (__noir := 0) and __noir:
                 display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
                 self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
                 self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
@@ -55,12 +112,15 @@ class Game:
                     pre.Surfaces.compute_vignette(self.display_3, 23)
                 if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
                     self.display_3.set_colorkey(pre.BLACK)
-            elif (__moody := 0) and __moody:
-                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
-                self.display_3.set_colorkey(pre.BLACK)
-                self.display_3.set_alpha(255 // 2)
+            elif (__moody := 1) and __moody:
+                # blitting with special flags and it works!!
+                # self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2).convert_alpha()
+                self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2)
+                # self.display_3.set_colorkey(pre.BLACK)
+                # self.display_3.set_alpha(255 // 2)
+                # self.display_3.set_alpha(255 // 2)
                 pre.Surfaces.compute_vignette(surf=self.display_3)
-                self.display_3.set_alpha(14)
+                # self.display_3.set_alpha(14)
             else:
                 self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
                 self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
@@ -68,24 +128,32 @@ class Game:
                 self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
                 pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
-        self.font_size = max(10, 11)
-        self.font = pg.font.SysFont(name=("monospace"), size=self.font_size, bold=True)  # or name=pg.font.get_default_font()
+        self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"
+        self.font = pg.font.Font(self.fontface_path, 18)  # author suggest using font size in multiples of 9.
+        if pre.DEBUG_GAME_HUD:
+            try:
+                self.font_hud = pg.font.SysFont(name=("Julia Mono"), size=12, bold=True)
+            except:
+                self.font_hud = pg.font.SysFont(name=("monospace"), size=11, bold=True)
 
         self.clock = pg.time.Clock()
         self.clock_dt = 0
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
 
-        self.config_handler = pre.ConfigHandler(config_path=pre.SRC_PATH / "config.toml")
-        try:
-            self.config_handler.load_game_config()
-        except Exception as e:
-            print(f"Error loading game configuration: {e}")
+        def get_user_config(filepath: Path) -> pre.UserConfig:
+            config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
+            if not config:
+                print("error while reading configuration file at", repr(filepath))
+                return pre.UserConfig.from_dict({})
+            return pre.UserConfig.from_dict(config)
+
+        self.config_handler = get_user_config(pre.CONFIG_PATH)
 
         # perf: figure how to make it optional. have to assign regardless of None
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
-        self._star_count: Final[int] = min(64, max(16, self.config_handler.game_world_stars.get("count", pre.TILE_SIZE * 2)))  # can panic if we get a float or string
+        self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
 
         self.assets = Assets.initialize_assets()
 
@@ -385,7 +453,7 @@ class Game:
             # RENDER: DISPLAY
 
             if pre.DEBUG_GAME_STRESSTEST:
-                self.display.blit(self.display_3, (0, 0))
+                self.display.blit(self.display_3, (0, 0), special_flags=pg.BLEND_RGB_MULT)
 
             self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
             # TODO: screenshake effect via offset for screen blit
@@ -411,46 +479,105 @@ def shutdown():
     if pre.DEBUG_GAME_CACHEINFO:  # cache
         print(f"{pre.hsl_to_rgb.cache_info() = }")
     pg.quit()
-    exit()
+    sys.exit()
 
 
-class PlayerStar:
-    def __init__(self, game: Game) -> None:
-        """
-        player: halo summoning: concept glow spot
-        """
-        self.game = game
-        self.halo_radius = pre.SIZE.STAR[0] * 0.64  #  or round((self.player.size.x // 2) * (0.25 or 1))
-        self.halo_size = pg.Vector2(self.halo_radius, self.halo_radius)
-        self.halo_center = pg.Vector2(160, 120)
-        self.halo_surf_size = pre.SIZE.PLAYER
-        self.halo_offset_factor = (0, 0.5)[1]  # if 0 then top-left of player is halop center
-        self.halo_offset_with_player = self.game.player.size * self.halo_offset_factor
+def loading_screen(game: Game):
+    loading_screen_duration_sec = 4
 
-        self.halo_color = pre.COLOR.PLAYERSTAR or pre.PINK or self.game.bg_colors[1]
-        self._last_tick = None
-        self.halo_surf = pg.Surface(self.halo_surf_size).convert()
-        self.halo_surf.set_colorkey(pre.BLACK)
+    count = 0
+    max_count: Final = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
 
-        # halo:update
-        self.halo_glitch_speed_multiplier = (0.5) or (random() * 0.618 * randint(6, 9))  # should sync this to "Bee Gees: staying alive bpm"
+    clock = pg.time.Clock()
 
-    def update(self) -> None:
-        if 0:
-            if (_with_halo_glitch := randint(0, pre.FPS_CAP)) and _with_halo_glitch in {8, 13, 21, 34, 55}:
-                if (_cur_tick := pg.time.get_ticks()) - self.game.last_tick_recorded >= (pre.FPS_CAP * self.game.clock.get_time()) * self.halo_glitch_speed_multiplier:
-                    self._last_tick = _cur_tick  # cycle through color almost every "one second ^^^^^^^^^^^^^^^
-                    self.halo_color = pre.PINK
-            else:
-                self.halo_color = pre.PINK
-        self.halo_dest = self.game.player.pos - (self.halo_size / pre.TILE_SIZE + self.halo_center - self.halo_offset_with_player)
-        # self.halo_dest = self.player.pos - (halo_size / 2) - render_scroll
+    cycle_loading_dots: it.cycle[str] = it.cycle(["loading", "loading*  ", "loading** ", "loading***"])
 
-    def render(self, surf: pg.SurfaceType, offset: tuple[int, int]) -> None:
-        pg.draw.circle(surface=surf, color=self.halo_color, center=self.halo_center, radius=self.halo_radius)
-        self.game.display.blit(source=surf, dest=(self.halo_dest))  # use returned rect in debug HUD
-        surf.blit(source=self.halo_surf, dest=(self.halo_dest - offset), special_flags=pg.BLEND_RGB_ADD)  # use returned rect in debug HUD
-        pass
+    bgcolor = pre.CHARCOAL
+    base_font_size = 16
+    base_font_size *= 3
+    title_textz = Textz(math.floor(base_font_size // 0.618 // 2), game.font, bold=True)
+    loading_textz = Textz(math.floor(base_font_size // 1.618 // 2), game.font)
+
+    w, h = pre.DIMENSIONS_HALF
+    title_textz_offy = 4 * pre.TILE_SIZE
+    loading_textz_offy = 8 * pre.TILE_SIZE
+    loading_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), loading_textz_offy))
+    if pre.DEBUG_GAME_ASSERTS:
+        assert loading_textz_offy >= 2 * pre.TILE_SIZE
+
+    title_str = pre.CAPTION
+    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
+    loading_textz_drawfn = partial(loading_textz.render, pos=(w // 2, h - loading_textz_offy), color=pre.WHITE)
+
+    loading_timer = 0
+    loading_text_str = next(cycle_loading_dots)
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_start = time.perf_counter()
+
+    while count < max_count:
+        game.display.fill(bgcolor)
+
+        if count >= 5:  # fade in
+            if loading_timer >= math.floor(60 * 0.7):
+                loading_text_str = next(cycle_loading_dots)
+                loading_timer = 0
+
+            if count + 80 >= max_count:
+                loading_text_str = "  oadingl  "
+            if count + 70 >= max_count:
+                loading_text_str = " adinglo  "
+            if count + 65 >= max_count:
+                loading_text_str = " dingloa  "
+            if count + 54 >= max_count:
+                loading_text_str = " ingload  "
+            if count + 44 >= max_count:
+                loading_text_str = " ngloadi  "
+            if count + 40 >= max_count:
+                loading_text_str = " gloadin  "
+            if count + 34 >= max_count:
+                loading_text_str = " loading  "
+            if count + 27 >= max_count:
+                loading_text_str = "  summoning  "
+
+            title_textz_drawfn(game.display)
+            loading_textz_drawfn(game.display, text=loading_text_str)
+
+        loading_timer += 1
+        count += 1
+
+        # pixel art effect for drop-shadow depth
+        display_mask: pg.Mask = pg.mask.from_surface(game.display)
+        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            game.display_2.blit(display_silhouette, offset)
+
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.QUIT:
+                pg.quit()
+                sys.exit()
+
+        game.display_2.blit(game.display, (0, 0))
+        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+
+        pg.display.flip()
+        clock.tick(pre.FPS_CAP)
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_end = time.perf_counter()
+        t_elapsed = t_end - t_start  # type: ignore
+        ok = count == max_count
+        did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
+        assert ok
+        assert did_not_drop_frames
+
+
+def options_menu():
+    # TODO:
+    pass
 
 
 if __name__ == "__main__":
@@ -458,4 +585,14 @@ if __name__ == "__main__":
         cProfile.run("Game().load_level(0)", sort="cumulative")
         cProfile.run("Game().run()", sort="cumulative")
 
-    Game().run()
+    game = Game()
+    loading_screen(game=game)
+
+    if (__tmp_todo := 0) and __tmp_todo:
+        game = Game()
+        while game.running:  # type:ignore
+            game.run()
+    if (__tmp_todo := 0) and __tmp_todo:
+        game.cur_menu.run(game.display, (0, 0))  # type: ignore
+
+    game.run()

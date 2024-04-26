@@ -12,6 +12,7 @@ from typing import (
     Dict,
     Final,
     Generator,
+    Optional,
     Protocol,
     Sequence,
     SupportsFloat,
@@ -171,6 +172,92 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
 
 
 @dataclass
+class UserConfig:
+    """
+    Configuration options for the game application.
+
+    Usage:
+        ```python
+        def get_user_config(filepath: Path) -> AppConfig:
+            config: Optional[dict[str, str]] = AppConfig.read_user_config(filepath=filepath)
+            if not config:
+                print("error while reading configuration file at", repr(filepath))
+                return AppConfig.from_dict({})
+            return AppConfig.from_dict(config)
+        ```
+    """
+
+    blur_enabled: bool
+    blur_passes: int
+    blur_size: int
+    blur_vibrancy: float
+    col_shadow: str
+    drop_shadow: bool
+    enemy_jump: int
+    enemy_speed: int
+    window_height: int
+    window_width: int
+    player_dash: int
+    player_jump: int
+    player_speed: int
+    shadow_range: int
+    sound_volume: float
+    star_count: int
+
+    @classmethod
+    def from_dict(cls, config_dict: dict[str, str]):
+        """
+        Create an AppConfig instance from a dictionary.
+
+        Handles converting string values to appropriate data types and setting defaults for missing keys.
+        """
+        return cls(
+            blur_enabled=config_dict.get('blur_enabled', 'false').lower() == 'true',
+            blur_passes=int(config_dict.get('blur_passes', '1')),
+            blur_size=int(config_dict.get('blur_size', '3')),
+            blur_vibrancy=float(config_dict.get('blur_vibrancy', '0.0')),
+            col_shadow=config_dict.get('col_shadow', '000000'),
+            drop_shadow=config_dict.get('drop_shadow', 'false').lower() == 'true',
+            enemy_jump=int(config_dict.get('enemy_jump', '0')),
+            enemy_speed=int(config_dict.get('enemy_speed', '0')),
+            window_height=int(config_dict.get('window_height', '480')),
+            window_width=int(config_dict.get('window_width', '640')),
+            player_dash=int(config_dict.get('player_dash', '0')),
+            player_jump=int(config_dict.get('player_jump', '0')),
+            player_speed=int(config_dict.get('player_speed', '0')),
+            shadow_range=int(config_dict.get('shadow_range', '1')),
+            sound_volume=float(config_dict.get('sound_volume', '0.0')),
+            star_count=int(config_dict.get('star_count', '0')),
+        )
+
+    @staticmethod
+    def read_user_config(filepath: Path) -> Optional[dict[str, str]]:
+        """
+        Read configuration file and return a dictionary.
+
+        Skips comments, empty lines, and returns None if file doesn't exist.
+        """
+        if not filepath.is_file():
+            print(f"error while locating file at {repr(filepath)}")
+            return None
+
+        if DEBUG_GAME_PRINTLOG:
+            print(f"reading configuration file at {repr(filepath)}")
+
+        with open(filepath, "r") as f:
+            return {
+                k: v
+                for line in f
+                if (l := line.strip()) and not l.startswith("#")
+                for k, v in [
+                    l.split(
+                        maxsplit=1,
+                    )
+                ]
+            }
+
+
+@dataclass
 class ConfigHandler:
     def __init__(self, config_path: Path) -> None:
         self._path: Final[Path] = config_path
@@ -303,6 +390,8 @@ DEBUG_EDITOR_ASSERTS    = True
 DEBUG_EDITOR_HUD        = True
 
 DEBUG_GAME_ASSERTS      = True
+DEBUG_GAME_PRINTLOG     = False
+DEBUG_GAME_LOGGING      = True
 DEBUG_GAME_CACHEINFO    = False
 DEBUG_GAME_HUD          = True
 DEBUG_GAME_PROFILER     = False
@@ -345,8 +434,9 @@ SRC_DATA_IMAGES_ENTITIES_PATH   = SRC_DATA_IMAGES_PATH / "entities"
 
 # aliases for directory paths
 # fmt: off
+CONFIG_PATH             = SRC_PATH / "config"
 ENTITY_PATH             = SRC_DATA_IMAGES_ENTITIES_PATH
-FONT_PATH               = None
+FONT_PATH               = SRC_DATA_PATH / "font"
 IMGS_PATH               = SRC_DATA_IMAGES_PATH 
 INPUTSTATE_PATH         = None  
 MAP_PATH                = SRC_DATA_MAP_PATH
@@ -596,7 +686,7 @@ class Surfaces:
 def create_surface(
     size: tuple[int, int],
     colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int],
+    fill_color: tuple[int, int, int] | ColorValue,
 ) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
@@ -1000,6 +1090,4 @@ RUST
         };
         
         let display_3 = display_config.create_display(self.bgcolor);
-
-
 """

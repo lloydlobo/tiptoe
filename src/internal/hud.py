@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 def render_debug_hud(game: Game, render_scroll: tuple[int, int], mouse_pos: Optional[tuple[int, int]] = None) -> None:
     t_size = pre.TILE_SIZE
     antialias = False
-    key_w = 12
-    val_w = 12
+    key_w = 14
+    val_w = 14
     line_height = game.font.get_linesize()
-    text_color = pre.GREEN or pre.CREAM
+    text_color = pre.CREAM
     key_fillchar = " "
     val_fillchar = " "  # non monospace fonts look uneven vertically in tables
 
@@ -51,7 +51,7 @@ def render_debug_hud(game: Game, render_scroll: tuple[int, int], mouse_pos: Opti
 
     # TODO: render on a surface then render surface on screen
     blit_text_partialfn = partial(game.screen.blit)
-    render_font_partial = partial(game.font.render)
+    render_font_partial = partial(game.font_hud.render)
     start_row = start_col = t_size * 0.5
 
     for index, text in enumerate(hud_elements):

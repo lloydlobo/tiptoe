@@ -1,0 +1,50 @@
+# config
+
+# <- this is a comment
+
+#================================
+# Game Window Configuration
+#================================
+window_width    960
+window_height   630
+# 960x630, 640x480
+
+#================================
+# Player Entity Configuration
+#================================
+player_dash       8
+player_jump       3
+player_speed      5
+
+#================================
+# Enemy Entity Configuration
+#================================
+enemy_jump        3
+enemy_speed       5
+
+#================================
+# World Configuration
+#================================
+star_count        18
+# ^ (16 <= star_count <= 64)
+
+#================================
+# Miscellaneous Decorations
+#================================
+drop_shadow       true
+shadow_range      1
+col_shadow        000000
+# ^ (HEX color of the shadow - black)
+
+#================================
+# Miscellaneous Blur Effect
+#================================
+blur_enabled      false
+blur_size         3
+blur_passes       1
+blur_vibrancy     0.1696
+
+#================================
+# Sound Configuration
+#================================
+sound_volume      0.7
