@@ -105,32 +105,39 @@ class Tilemap:
 
     def extract(self, id_pairs: list[tuple[str, int]], keep: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
+
         if pre.DEBUG_EDITOR_ASSERTS:  # perf: use a context manager
-            GridKind = namedtuple(typename="GridKind", field_names=["offgrid", "ongrid"])
+            GridKind = namedtuple(typename="GridKind", field_names=["offgrid", "ongrid"])  # type: ignore
             gk = GridKind("offgrid", "ongrid")
-            q = deque()
+            q = deque()  # type: ignore
+
         try:  # use itertools.chain?
             for tile in self.offgrid_tiles.copy():
                 if pre.DEBUG_EDITOR_ASSERTS:
-                    q.appendleft((gk.offgrid, tile))
+                    q.appendleft((gk.offgrid, tile))  # type: ignore
                 if (tile.kind.value, tile.variant) in id_pairs:
                     matches.append(deepcopy(tile))
                     if not keep:
                         self.offgrid_tiles.remove(tile)
+
             for loc, tile in self.tilemap.items():
                 if pre.DEBUG_EDITOR_ASSERTS:
-                    q.appendleft((gk.ongrid, tile))
+                    q.appendleft((gk.ongrid, tile))  # type: ignore
                 if (tile.kind.value, tile.variant) in id_pairs:
-                    matches.append(deepcopy(tile))
-                    matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
-                    matches[-1].pos *= self.tile_size
+                    matches.append(deepcopy(tile))  # make clean copy of tile data, to avoid modification to original reference
+                    # deepcopy does the next 2 things
+                    #   matches.append(tile.copy())
+                    #   matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
+                    matches[-1].pos *= self.tile_size  # convert to pixel coordinates
                     if not keep:
                         del self.tilemap[loc]
         except RuntimeError as e:
             if pre.DEBUG_EDITOR_ASSERTS:
-                print(f"{e}:\n\twas the spawner tile placed ongrid?\n\t{q[0]}")
+                print(f"{e}:\n\twas the spawner tile placed ongrid?\n\t{q[0]}")  # type: ignore
+
             print(f"{e}", sys.stderr)
             sys.exit()
+
         return matches
 
     def in_tilemap(self, gridpos: tuple[int | float, int | float]) -> bool:
@@ -142,7 +149,7 @@ class Tilemap:
         dimensions_r = self._pg_rect_p_fn(0, 0, *self._dimensions)
         return dimensions_r.collidepoint(*gridpos)
 
-    def floodfill(self, tile):
+    def floodfill(self, tile):  # type: ignore
         pass
 
     # note: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`

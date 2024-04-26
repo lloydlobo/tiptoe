@@ -195,10 +195,24 @@ class Game:
         self.sparks: list[Spark] = []
 
         # SPAWNERS
-        self.flametorch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, 23, 13) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
+        self.flametorch_spawners = [
+            pg.Rect(
+                4 + torch.pos.x,
+                4 + torch.pos.y,
+                pre.SIZE.FLAMETORCH[0],
+                pre.SIZE.FLAMETORCH[1],
+                # 23
+                # 13
+            )
+            for torch in self.tilemap.extract(
+                [("decor", 2)],
+                keep=True,
+            )
+        ]
         spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
+
         for spawner in self.tilemap.extract(id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), map(int, spawner_kinds))), keep=False):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
@@ -284,6 +298,37 @@ class Game:
                         x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
                         y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - flametorch_rect.h / 2),
                     ),
+                    velocity=pg.Vector2(-0.1, -0.3),  # slightly to left and down
+                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEPARTICLE,  # these need to be lambdas
+                )
+                for flametorch_rect in self.flametorch_spawners.copy()
+                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+            )  # big number is to control spawn rate
+            self.particles.extend(
+                Particle(
+                    game=self,
+                    p_kind=pre.ParticleKind.FLAMEGLOW,
+                    pos=pg.Vector2(
+                        x=(rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, rect.w / 4)),
+                        y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2),
+                    ),
+                    velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),  # moves up
+                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEGLOW,  # these need to be lambdas
+                )
+                for rect in self.flametorch_spawners.copy()
+                if (random() * odds_of_flame * 60) < (rect.w * rect.h)  # random * bignum pixel area (to avoid spawning particles at each frame)
+            )  # big number is to control spawn rate
+            """
+            NOTE: After fixing torch size problem. this is to be used vvvvvvv
+
+            self.particles.extend(
+                Particle(
+                    game=self,
+                    p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
+                    pos=pg.Vector2(
+                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 1, flametorch_rect.w / 1)),
+                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
+                    ),
                     velocity=pg.Vector2(-0.1, 0.3),
                     frame=pre.COUNTRAND.FLAMEPARTICLE,
                 )
@@ -295,8 +340,8 @@ class Game:
                     game=self,
                     p_kind=pre.ParticleKind.FLAMEGLOW,
                     pos=pg.Vector2(
-                        x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, flametorch_rect.w / 4)),
-                        y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
+                        x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
+                        y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 1, pre.SIZE.FLAMEPARTICLE[1] // 1) - flametorch_rect.h / 2),
                     ),
                     velocity=pg.Vector2(-0.1, 0.1),
                     frame=pre.COUNT.FLAMEGLOW,
@@ -304,6 +349,8 @@ class Game:
                 for flametorch_rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
             )  # big number is to control spawn rate
+
+            """
 
             # stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
@@ -335,13 +382,9 @@ class Game:
             #     self.playerstar.render(self.display,render_scroll)
 
             # Gun: Projectiles
-            #   when adding something new to camera like this to the world
-            #   always think about how camera should apply on what one is
-            #   working on. e.g. HUD does not need camera scroll, but if
-            #   working on something in the world, one needs camera scroll.
-            #   also other way around, something in the world. Convert from
-            #   screen space to world space backwards. Note that halving
-            #   dimensions of image gets its center for the camera
+            #   when adding something new to camera like this to the world always think about how camera should apply on what one is
+            #   working on. e.g. HUD does not need camera scroll, but if working on something in the world, one needs camera scroll.
+            #   also other way around, something in the world. Convert from screen space to world space backwards. Note that halving dimensions of image gets its center for the camera
             for projectile in self.projectiles:
                 projectile.pos[0] += projectile.velocity
                 projectile.timer += 1
@@ -404,21 +447,22 @@ class Game:
                 self.display_2.blit(display_silhouette, offset)
 
             # Particles:
-            for particle in self.particles:
+            for particle in self.particles.copy():
                 match particle.kind:
                     case pre.ParticleKind.FLAME:
-                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
                         kill_animation = particle.update()
                         particle.render(self.display, render_scroll)
+                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3  # * randint(-1, 1)
                         if kill_animation:
                             self.particles.remove(particle)
-                    case pre.ParticleKind.FLAMEGLOW:  # 0.035 avoids particle to loop from minus one to one, 0.3 controls amplitude
-                        particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
-                        particle.pos.y += math.sin(particle.animation.frame * 1.035) * 0.3
+                    case pre.ParticleKind.FLAMEGLOW:  # 0.035 avoids particle to loop from minus one to one of sine function, 0.3 controls amplitude
                         kill_animation = particle.update()
                         img = particle.animation.img().copy()
                         # ideal is display, but display_2 looks cool for flameglow
                         self.display_2.blit(source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD)  # ^ use center of the image as origin
+                        # particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
+                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3
+                        # particle.pos.y += math.sin(particle.animation.frame * 0.035) * 0.3
                         if kill_animation:
                             self.particles.remove(particle)
                     case _:
@@ -483,7 +527,7 @@ def shutdown():
 
 
 def loading_screen(game: Game):
-    loading_screen_duration_sec = 4
+    loading_screen_duration_sec = 3
 
     count = 0
     max_count: Final = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
@@ -523,28 +567,25 @@ def loading_screen(game: Game):
                 loading_text_str = next(cycle_loading_dots)
                 loading_timer = 0
 
-            if count + 80 >= max_count:
+            if count + 75 > max_count:
                 loading_text_str = "  oadingl  "
-            if count + 70 >= max_count:
+            if count + 70 > max_count:
                 loading_text_str = " adinglo  "
-            if count + 65 >= max_count:
+            if count + 65 > max_count:
                 loading_text_str = " dingloa  "
-            if count + 54 >= max_count:
+            if count + 54 > max_count:
                 loading_text_str = " ingload  "
-            if count + 44 >= max_count:
+            if count + 44 > max_count:
                 loading_text_str = " ngloadi  "
-            if count + 40 >= max_count:
+            if count + 40 > max_count:
                 loading_text_str = " gloadin  "
-            if count + 34 >= max_count:
+            if count + 34 > max_count:
                 loading_text_str = " loading  "
             if count + 27 >= max_count:
-                loading_text_str = "  summoning  "
+                loading_text_str = "  summons  "
 
             title_textz_drawfn(game.display)
             loading_textz_drawfn(game.display, text=loading_text_str)
-
-        loading_timer += 1
-        count += 1
 
         # pixel art effect for drop-shadow depth
         display_mask: pg.Mask = pg.mask.from_surface(game.display)
@@ -565,6 +606,8 @@ def loading_screen(game: Game):
 
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
+        loading_timer += 1
+        count += 1
 
     if pre.DEBUG_GAME_ASSERTS:
         t_end = time.perf_counter()

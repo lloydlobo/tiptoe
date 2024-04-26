@@ -484,8 +484,10 @@ class COUNT:
 
 
 @dataclass
-class COUNTRAND:
-    FLAMEPARTICLE       = randint(36, 64)        # (0,20) OG
+class COUNTRANDOMFRAMES:
+    """Random frame count to start on.""" 
+    FLAMEGLOW           = randint(0, 20)        # (0,20) OG or (36,64)
+    FLAMEPARTICLE       = randint(0, 20)        # (0,20) OG or (36,64)
 # fmt: on
 
 

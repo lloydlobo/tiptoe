@@ -130,6 +130,7 @@ class Enemy(PhysicalEntity):
 
         self.walking_timer = 0
         self.alert_timer = 0
+        self.alert_boost_factor: Final = 2
 
         self._lookahead_x: Final = 7  # (-7px west or 7px east) from center
         self._lookahead_y: Final = 23  # 23px south
@@ -139,13 +140,14 @@ class Enemy(PhysicalEntity):
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
 
+        self._alertness_enabled: Final = True
+
         self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
+        # self.laser_ray = pre.create_surface((7, 2), pre.BLACK, pre.GREEN)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
-        # Pre-calculations before inheriting PhysicalEntity update
-        match (self.walking_timer > 0):
-            case True:
-                # Movement via timer
+        match (self.walking_timer > 0):  # Pre-calculations before inheriting PhysicalEntity update
+            case True:  # Movement via timer
                 lookahead_x = -self._lookahead_x if self.flip else self._lookahead_x
                 lookahead = pg.Vector2(self.rect().centerx + lookahead_x, self.pos.y + self._lookahead_y)
                 solid_ahead = tilemap.maybe_solid_gridtile_bool(lookahead)
@@ -153,48 +155,61 @@ class Enemy(PhysicalEntity):
                 match solid_ahead, self.collisions.left, self.collisions.right:
                     case (True, True, _) | (True, _, True):
                         self.flip = not self.flip
-
                     case (True, False, False):
                         dx = -self._moveby_x if self.flip else self._moveby_x
                         movement += pg.Vector2(dx, 0)
-                        if self.alert_timer:  # Calculate moving average for smooth/erratic movement
+
+                        if self._alertness_enabled and self.alert_timer:  # Calculate moving average for smooth/erratic movement
                             avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
-                            boost_x = 3.28 + 2  # 3.28
-                            movement.x += 0.1 * round(avg_mvmt_x * boost_x)
+                            if (_tmp_dbg_may_shoot_opposite_side := 0) and _tmp_dbg_may_shoot_opposite_side:
+                                boost_x = 3.28 + 2  # 3.28
+                                movement.x += 0.1 * round(avg_mvmt_x * boost_x)
                             extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops
                             movement.y -= extra_crazy  # TODO: remove extra_crazy after demo
-                        self.movement_history_x.append(dx)
 
+                        if self._alertness_enabled:
+                            self.movement_history_x.append(dx)
                     case _:
                         self.flip = not self.flip
 
-                self.alert_timer = max(0, self.alert_timer - 1)
-                self.walking_timer = max(0, self.walking_timer - 1)  # timer: decrement. becomes 0 or static once every walk cycle to begin spawning a projectile
+                # timer: decrement. becomes 0 or static once every walk cycle
+                # to begin spawning a projectile
+                if self._alertness_enabled:
+                    self.alert_timer = max(0, self.alert_timer - 1)
+                self.walking_timer = max(0, self.walking_timer - 1)
 
                 # Enemy interaction: can now shoot while static!!
-                if not self.walking_timer:  # Calculate distance between player and enemy
-                    dist_pe = self.game.player.pos - self.pos
-                    if abs(dist_pe.y) < pre.TILE_SIZE:
-                        self.alert_timer = self._max_alert_time
-                        projectile_gun_offsetx = 4
-                        projectile_gun_offsety = 5
+                if not self.walking_timer:  # fixme: found a glitch, at high rate of fire, even blocks can't stop bullet from hitting player
+                    dist_btw_player_enemy = self.game.player.pos - self.pos  # Calculate distance between player and enemy
+                    if abs(dist_btw_player_enemy.y) < pre.TILE_SIZE:
+                        if self._alertness_enabled:
+                            self.alert_timer = self._max_alert_time
+                        _tmp_projectile_gun_offsetx, _tmp_projectile_gun_offsety = 4, 5
                         dir = -1 if self.flip else 1
-                        pos = pg.Vector2((self.pos.x + dir * projectile_gun_offsetx), self.pos.y + projectile_gun_offsety)
+                        print(f"{dist_btw_player_enemy,dir =}")
+                        print(f"{self.game.player.pos =}")
+
+                        pos = pg.Vector2((self.pos.x + dir * _tmp_projectile_gun_offsetx), self.pos.y + _tmp_projectile_gun_offsety)
                         self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 7, timer=7))
+                        # increase firing rate... if idle player just stays as soolid block to deter to move
+                        if self.game.player.action == Action.IDLE:  # idle player is shapeshifted to a stone -_-
+                            if randint(0, 1):  # | need some delay (hesitation) to fire inanimate obj. maybe change timer or velocity
+                                for i in range(2):
+                                    self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 2, timer=7 + 2 * (1 + i)))
 
-                    # death by rect collision????
-                    # else:
-                    #     self.scanned_pos.clear()
-
-                    if 1:  # TODO: replenish alert timer if enemy spots player
-                        if random() < 0.01:
+                    if self._alertness_enabled:
+                        if (self.walking_timer <= self._max_alert_time) and (random() < 0.01 * self.alert_boost_factor):  # 20% chance increase to get more alert
+                            prev_timer = self.alert_timer
                             self.alert_timer = randint(30 * 2, 120 * 2)
-                        pass
+                            if pre.DEBUG_GAME_ASSERTS:
+                                if self.alert_timer != 0:
+                                    err_context = f"{prev_timer,self.alert_timer,self._max_alert_time = }"
+                                    assert self.alert_timer >= prev_timer, err_context
 
-            case False if random() < 0.01:  # Timer replenish (1% chance or one in every .67 seconds)
+            case False if random() < 0.01:  # refill timer one in every 0.67 seconds
                 self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking
 
-            case _:
+            case _:  # todo: see what's cooking here...
                 pass
 
         super().update(tilemap, movement)
@@ -213,6 +228,49 @@ class Enemy(PhysicalEntity):
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
         super().render(surf, offset)
+        if self._alertness_enabled and self.alert_timer:
+            hue = min(255, max(0, abs(math.floor(self._max_alert_time - self.alert_timer) + 10)))
+            line_rect = pg.draw.line(
+                surface=surf,
+                color=pre.hsl_to_rgb(hue, 0.1, 0.1),
+                start_pos=self.pos - offset,
+                end_pos=self.game.player.pos - offset,
+                width=1,
+            )
+            # rect = pg.Rect(self.game.player.pos.x, self.pos.x, 2, 2)
+            # tmp_pos= self.pos.copy()
+            # angle=0
+            # vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
+
+            if 1:
+                l = self.game.player.pos.x, self.pos.y
+                m = self.pos.x, self.game.player.pos.y
+                dist_btw_player_enemy = self.game.player.pos - self.pos  # Calculate distance between player and enemy
+
+                def manhattan_dist(x1: pre.Number, y1: pre.Number, x2: pre.Number, y2: pre.Number) -> pre.Number:
+                    return abs(x1 - x2) + abs(y1 - y2)
+
+                corner_l = pg.Vector2(l)
+                corner_m = pg.Vector2(m)
+                player_corner_l_dist = manhattan_dist(*corner_l, *(self.game.player.pos))
+                player_corner_m_dist = manhattan_dist(*corner_m, *(self.game.player.pos))
+                logout = ((corner_l), (corner_m), math.floor(player_corner_l_dist), math.floor(player_corner_m_dist), (dist_btw_player_enemy))
+                # print(f"({logout}) ")
+                pg.draw.arc(
+                    surface=surf,
+                    color=pre.hsl_to_rgb(hue, 0.3, 0.3),
+                    rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist),
+                    #
+                    # Awesome ellipse
+                    #   start_angle=30,
+                    #   stop_angle=(math.pi * 120 // 2),
+                    # Great effect too
+                    # start_angle=45,
+                    # stop_angle=(360 - 45),
+                    start_angle=30,
+                    stop_angle=180 - 30,
+                    width=1,
+                )
 
 
 class Player(PhysicalEntity):

@@ -195,8 +195,8 @@ class Assets:
         decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
         large_decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
 
-        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNTRAND.FLAMEPARTICLE)]
-        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNTRAND.FLAMEPARTICLE)]
+        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(20)]
+        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(20)]
 
         return Assets(
             entity=dict(enemy=enemy_surf.copy(), player=player_entity_surf.copy()),
@@ -230,8 +230,8 @@ class Assets:
             ),
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
-                    flame=pre.Animation(flame_particles, img_dur=24, loop=True),
-                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=True),
+                    flame=pre.Animation(flame_particles, img_dur=20, loop=False),  # Set true for performance
+                    flameglow=pre.Animation(flameglow_particles, img_dur=20, loop=False),  # Set true for performance
                     particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.CHARCOAL, (2, 2))), img_dur=20, loop=False),  # player dash particle
                 )
             ),
