@@ -33,7 +33,6 @@ from internal.tilemap import Tilemap
 def quit_exit() -> NoReturn:
     if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
         print(f"{pre.hsl_to_rgb.cache_info() = }")
-
     pg.quit()
     sys.exit()
 
@@ -62,30 +61,16 @@ class Button:
     text: str
     pos: pg.Vector2
     size: pg.Vector2
-    # rect:pg.Rect= field(init=True)
-    # rect: pg.Rect = field(default_factory=lambda: pg.Rect(pos.x, pos.y, size.x, size.y))
     rect: pg.Rect = field(default_factory=lambda: pg.Rect(0, 0, pre.TILE_SIZE * 4, pre.TILE_SIZE * 3))
 
     def draw(self, surf: pg.SurfaceType, fill_color: pre.ColorValue) -> None:
         pg.draw.rect(surf, fill_color, self.rect)
 
 
-class UIButton:
-    def __init__(self, text: str, pos: pg.Vector2, size: pg.Vector2):
-        self.text = text
-        self.rect = pg.Rect(pos.x, pos.y, size.x, size.y)
-        return self
-
-    def draw(self, surf: pg.SurfaceType, fill_color: pre.ColorValue):
-        pg.draw.rect(surf, fill_color, self.rect)
-
-
 @dataclass
 class Textz:
-    # font_size: int
     font: pg.font.FontType
     bold: bool = False
-
     # def __post_init__(self):
     #     self.font = pg.font.SysFont("monospace", self.font_size, bold=self.bold)
 
@@ -98,51 +83,16 @@ class Textz:
 class Game:
     def __init__(self) -> None:
         pg.init()
-
         display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
-        pg.display._set_autoresize(False)  # type: ignore
-        # ^ |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+        pg.display._set_autoresize(False)  # type: ignore ^ |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
         pg.display.set_caption(pre.CAPTION)
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
         self.bgcolor = pre.COLOR.BGMIRAGE or (pre.COLOR.BGMIRAGE, pre.COLOR.BGCOLORDARK)[randint(0, 1)]
-
-        if pre.DEBUG_GAME_STRESSTEST:
-            if (__dreamlike := 0) and __dreamlike:
-                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
-                pre.Surfaces.compute_vignette(surf=self.display_3)
-                self.display_3.set_alpha(17)
-            elif (__noir := 0) and __noir:
-                display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
-                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
-                self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-                if self.bgcolor is pre.COLOR.BGCOLORDARK:
-                    pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
-                elif self.bgcolor is pre.COLOR.BGCOLORDARKER:
-                    pre.Surfaces.compute_vignette(self.display_3, 17)
-                else:
-                    pre.Surfaces.compute_vignette(self.display_3, 23)
-                if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
-                    self.display_3.set_colorkey(pre.BLACK)
-            elif (__moody := 1) and __moody:
-                # blitting with special flags and it works!!
-                # self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2).convert_alpha()
-                self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2)
-                # self.display_3.set_colorkey(pre.BLACK)
-                # self.display_3.set_alpha(255 // 2)
-                # self.display_3.set_alpha(255 // 2)
-                pre.Surfaces.compute_vignette(surf=self.display_3)
-                # self.display_3.set_alpha(14)
-            else:
-                self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
-                self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
-                pre.Surfaces.compute_vignette(self.display_3, 255)
-                self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-                pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
         # note: font author suggest using font size in multiples of 9.
         self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"
@@ -163,27 +113,22 @@ class Game:
 
         self.config_handler = get_user_config(pre.CONFIG_PATH)
 
-        # perf: figure how to make it optional. have to assign regardless of None
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-
         self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
 
         self.assets = Assets.initialize_assets()
-
-        self.sfx = {
-            # TODO:
-        }
+        self.sfx = {}  # TODO:
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(pre.SIZE.PLAYER))
-        # self.playerstar = PlayerStar(self)
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
+
+        self.screenshake = 0
 
         self._dead_lo: Final = 0
         self._dead_mid: Final = 10
         self._dead_hi: Final = 40
-
         # Transition: abs(self.transition) == 30 => opaque screen see nothing |
         # abs(self.transition) == 0 see eeverything; load level when completely black
         self._transition_lo: Final = -30
@@ -193,7 +138,6 @@ class Game:
         self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BGMIRAGE)
         self.bg_color_cycle = it.cycle(self.bg_colors)
 
-        self.screenshake = 0
         # load_level: declares and initializes level specific members
         self.level = 0
         self.load_level(self.level)
@@ -223,30 +167,11 @@ class Game:
         self.sparks: list[Spark] = []
 
         # SPAWNERS
-        self.flametorch_spawners = [
-            pg.Rect(
-                4 + torch.pos.x,
-                4 + torch.pos.y,
-                pre.SIZE.FLAMETORCH[0],
-                pre.SIZE.FLAMETORCH[1],
-                # 23
-                # 13
-            )
-            for torch in self.tilemap.extract(
-                [("decor", 2)],
-                keep=True,
-            )
-        ]
+        self.flametorch_spawners = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1]) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
-
-        key_spawner = str(pre.TileKind.SPAWNERS.value)
         val_spawner_kinds = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
-
-        for spawner in self.tilemap.extract(
-            id_pairs=list(zip(it.repeat(key_spawner, len(val_spawner_kinds)), val_spawner_kinds)),
-            keep=False,
-        ):
+        for spawner in self.tilemap.extract(id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(val_spawner_kinds)), val_spawner_kinds)), keep=False):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
                     self.player.pos = spawner.pos.copy()  # coerce to a mutable list if pos is a tuple
@@ -263,10 +188,8 @@ class Game:
         # Particles go on display, but they are added after the displays merge so they don't receive the outline
         self.particles: list[Particle] = []
 
-        # 1/16 on y axis make camera less choppy and also doesn't hide player
-        # falling off the screen at free fall. 1/30 for x axis, gives fast
-        # horizontal slinky camera motion! Also 16 is a perfect square. note:
-        # camera origin is top-left of screen
+        # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
+        # horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
         self._scroll_ease = pg.Vector2(1 / 25, 1 / 25)
 
@@ -281,7 +204,6 @@ class Game:
         bg.fill(self.bgcolor)
 
         self.last_tick_recorded = pg.time.get_ticks()
-        # _last_get_tick = pg.time.get_ticks()
         running = True
         while running:
             self.display.fill(pre.TRANSPARENT)
@@ -316,8 +238,7 @@ class Game:
                 if self.dead >= self._dead_hi:
                     self.load_level(self.level)
 
-            # Camera: update and parallax
-            #   [where we want camera to be]-[where we are or what we have]/25, So further player is faster camera moves and vice-versa we can
+            # Camera: update and parallax [where we want camera to be]-[where we are or what we have]/25, So further player is faster camera moves and vice-versa we can
             #   use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing
             #   by thirty if camera is off by 1px not an issue, but rendering tiles could be. note: use 0 round off for smooth camera.
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
@@ -332,64 +253,25 @@ class Game:
             self.particles.extend(
                 Particle(
                     game=self,
-                    p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
-                    pos=pg.Vector2(
-                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
-                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - flametorch_rect.h / 2),
-                    ),
-                    velocity=pg.Vector2(-0.1, -0.3),  # slightly to left and down
-                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEPARTICLE,  # these need to be lambdas
-                )
-                for flametorch_rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+                    p_kind=pre.ParticleKind.FLAME,
+                    pos=pg.Vector2(x=(rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, rect.w / 2)), y=(rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - rect.h / 2)),
+                    velocity=pg.Vector2(-0.1, -0.3),
+                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEPARTICLE,
+                )  # velocity slightly to left and down, frame these need to be lambdas
+                for rect in self.flametorch_spawners.copy()
+                if (random() * odds_of_flame) < (rect.w * rect.h)  # since torch is slim
             )  # big number is to control spawn rate
             self.particles.extend(
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAMEGLOW,
-                    pos=pg.Vector2(
-                        x=(rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, rect.w / 4)),
-                        y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2),
-                    ),
-                    velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),  # moves up
+                    pos=pg.Vector2(x=(rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, rect.w / 4)), y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2)),
+                    velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),
                     frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEGLOW,  # these need to be lambdas
                 )
                 for rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame * 60) < (rect.w * rect.h)  # random * bignum pixel area (to avoid spawning particles at each frame)
             )  # big number is to control spawn rate
-            """
-            NOTE: After fixing torch size problem. this is to be used vvvvvvv
-
-            self.particles.extend(
-                Particle(
-                    game=self,
-                    p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
-                    pos=pg.Vector2(
-                        x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 1, flametorch_rect.w / 1)),
-                        y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
-                    ),
-                    velocity=pg.Vector2(-0.1, 0.3),
-                    frame=pre.COUNTRAND.FLAMEPARTICLE,
-                )
-                for flametorch_rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
-            )  # big number is to control spawn rate
-            self.particles.extend(
-                Particle(
-                    game=self,
-                    p_kind=pre.ParticleKind.FLAMEGLOW,
-                    pos=pg.Vector2(
-                        x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
-                        y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 1, pre.SIZE.FLAMEPARTICLE[1] // 1) - flametorch_rect.h / 2),
-                    ),
-                    velocity=pg.Vector2(-0.1, 0.1),
-                    frame=pre.COUNT.FLAMEGLOW,
-                )
-                for flametorch_rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
-            )  # big number is to control spawn rate
-
-            """
 
             # stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
@@ -420,8 +302,7 @@ class Game:
             #     self.playerstar.update()
             #     self.playerstar.render(self.display,render_scroll)
 
-            # Gun: Projectiles
-            #   when adding something new to camera like this to the world always think about how camera should apply on what one is
+            # Gun: Projectiles when adding something new to camera like this to the world always think about how camera should apply on what one is
             #   working on. e.g. HUD does not need camera scroll, but if working on something in the world, one needs camera scroll.
             #   also other way around, something in the world. Convert from screen space to world space backwards. Note that halving dimensions of image gets its center for the camera
             for projectile in self.projectiles:
@@ -435,10 +316,8 @@ class Game:
                 prj_x, prj_y = int(projectile.pos[0]), int(projectile.pos[1])
                 if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(prj_x, prj_y)):
                     self.projectiles.remove(projectile)
-
                     spark_speed, direction = 0.5, math.pi if projectile.velocity > 0 else 0  # unit circle direction (0 left, right math.pi)
                     self.sparks.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(4)])  # projectile hit solid object -> sparks bounce opposite to that direction
-
                     # self.sfx["hitwall"].play(0.5)
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
@@ -468,7 +347,6 @@ class Game:
                                 # TODO: self.particles.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(30)])  # projectile hit solid object -> sparks bounce opposite to that direction
                                 # TODO: self.sfx["hit"].play(0.5)
                                 pass
-
             for spark in self.sparks.copy():
                 kill_animation = spark.update()
                 spark.render(self.display, offset=render_scroll)
@@ -495,9 +373,7 @@ class Game:
                         img = particle.animation.img().copy()
                         # ideal is display, but display_2 looks cool for flameglow
                         self.display_2.blit(source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD)  # ^ use center of the image as origin
-                        # particle.pos.x += math.sin(particle.animation.frame * 1.035) * 0.3 * randint(-1, 1)
                         particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3
-                        # particle.pos.y += math.sin(particle.animation.frame * 0.035) * 0.3
                         if kill_animation:
                             self.particles.remove(particle)
                     case _:
@@ -505,16 +381,15 @@ class Game:
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                    # running = False
-                    mainmenu_screen(self)
+                    # mainmenu_screen(self)
+                    running = False
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
                     quit_exit()
-                    assert 0, "unreachable"
                 if event.type == pg.QUIT:
                     quit_exit()
-                    assert 0, "unreachable"
                 if event.type == pg.VIDEORESIZE:
                     self.screen = pg.display.get_surface()
+
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_LEFT:
                         self.movement.left = True
@@ -533,10 +408,7 @@ class Game:
                         self.movement.right = False
 
             # RENDER: DISPLAY
-
-            if pre.DEBUG_GAME_STRESSTEST:
-                self.display.blit(self.display_3, (0, 0), special_flags=pg.BLEND_RGB_MULT)
-
+            # if pre.DEBUG_GAME_STRESSTEST: self.display.blit(self.display_3, (0, 0), special_flags=pg.BLEND_RGB_MULT)
             self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
             # TODO: screenshake effect via offset for screen blit
             self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
@@ -562,55 +434,43 @@ def loading_screen(game: Game):
     fade_in_frame_count: Final = 7  # same as for bullet projectiles
     max_count: Final[int] = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
     count = 0
-
     clock = pg.time.Clock()
-
     bgcolor = pre.CHARCOAL
     base_font_size = 16
     base_font_size *= 3
-
     _tmp_flag_loading_text_enabled: Final = False
     if _tmp_flag_loading_text_enabled:
         cycle_loading_indicator_dots: it.cycle[str] = it.cycle(["loading", "loading*  ", "loading** ", "loading***"])
     else:
         cycle_loading_indicator_dots: it.cycle[str] = it.cycle(["   ", "*  ", "** ", "***"])
-
     title_textz = Textz(game.font, bold=True)
     if _tmp_flag_loading_text_enabled:
         loading_textz = Textz(game.font_xs, bold=True)
     loading_indicator_textz = Textz(game.font_sm)
-
     w, h = pre.DIMENSIONS_HALF
     title_textz_offy = 4 * pre.TILE_SIZE
     if _tmp_flag_loading_text_enabled:
         loading_textz_offy = 8 * pre.TILE_SIZE
         loading_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), loading_textz_offy))
     loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
-
     if _tmp_flag_loading_text_enabled:
         if pre.DEBUG_GAME_ASSERTS:
             assert loading_textz_offy >= 2 * pre.TILE_SIZE  # type: ignore
-
     title_str = pre.CAPTION
     title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
     if _tmp_flag_loading_text_enabled:
         loading_textz_drawfn = partial(loading_textz.render, pos=(w // 2, h - loading_textz_offy), text="loading", color=pre.WHITE)  # type: ignore
     loading_indicator_textz_drawfn = partial(loading_indicator_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), color=pre.WHITE)
-
     loading_timer = 0
     loading_indicator_text_str = next(cycle_loading_indicator_dots)
-
     if pre.DEBUG_GAME_ASSERTS:
         t_start = time.perf_counter()
-
     while count < max_count:
         game.display.fill(bgcolor)
-
         if count >= fade_in_frame_count:  # fade in
             if loading_timer >= math.floor(60 * 0.7):
                 loading_indicator_text_str = next(cycle_loading_indicator_dots)
                 loading_timer = 0
-
             if count + 75 > max_count:
                 loading_indicator_text_str = "  oadingl  "
             if count + 70 > max_count:
@@ -627,12 +487,10 @@ def loading_screen(game: Game):
                 loading_indicator_text_str = " loading  "
             if count + 27 >= max_count:
                 loading_indicator_text_str = "  summons  "
-
             title_textz_drawfn(game.display)
             if _tmp_flag_loading_text_enabled:
                 loading_textz_drawfn(game.display)  # type: ignore
             loading_indicator_textz_drawfn(game.display, text=loading_indicator_text_str)
-
         # pixel art effect for drop-shadow depth
         display_mask: pg.Mask = pg.mask.from_surface(game.display)
         display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -646,13 +504,10 @@ def loading_screen(game: Game):
             if event.type == pg.QUIT:
                 pg.quit()
                 sys.exit()
-
         game.display_2.blit(game.display, (0, 0))
         game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
-
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
-
         loading_timer += 1
         count += 1
 
@@ -662,10 +517,10 @@ def loading_screen(game: Game):
         ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
         try:
-            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert ok, f"loading_screen: error in {repr('while')} loop execution logic. want {max_count}. got {count}"
             assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
         except AssertionError as e:
-            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
+            print(f"loading_screen: AssertionError while loading screen:\n\t{e}", file=sys.stderr)
             pass
 
 
@@ -722,14 +577,11 @@ def mainmenu_screen(game: Game):
                 sys.exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_RETURN:
-                    # running = False
                     try:
-                        running = False
                         game.run()
                     except:
                         print(f"error while running game from mainmenu_screen()", file=sys.stderr)
                         quit_exit()
-                    # TODO: go to Main Menu screen
 
         game.display_2.blit(game.display, (0, 0))
         game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
@@ -849,16 +701,75 @@ if __name__ == "__main__":
     if pre.DEBUG_GAME_PROFILER:
         cProfile.run("Game().load_level(0)", sort="cumulative")
         cProfile.run("Game().run()", sort="cumulative")
-
     game = Game()
     loading_screen(game=game)
     mainmenu_screen(game=game)
-    #   if (__tmp_todo := 0) and __tmp_todo:
-    #       game = Game()
-    #       while game.running:  # type:ignore
-    #           game.run()
-    #   if (__tmp_todo := 0) and __tmp_todo:
-    #       game.cur_menu.run(game.display, (0, 0))  # type: ignore
-    # game.run()
-    # mainmenu_screen(game=game)
-    # gameover_screen(game=game)
+
+# """
+# NOTE: After fixing torch size problem. this is to be used vvvvvvv
+#
+# self.particles.extend(
+#     Particle(
+#         game=self,
+#         p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
+#         pos=pg.Vector2(
+#             x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 1, flametorch_rect.w / 1)),
+#             y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
+#         ),
+#         velocity=pg.Vector2(-0.1, 0.3),
+#         frame=pre.COUNTRAND.FLAMEPARTICLE,
+#     )
+#     for flametorch_rect in self.flametorch_spawners.copy()
+#     if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+# )  # big number is to control spawn rate
+# self.particles.extend(
+#     Particle(
+#         game=self,
+#         p_kind=pre.ParticleKind.FLAMEGLOW,
+#         pos=pg.Vector2(
+#             x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
+#             y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 1, pre.SIZE.FLAMEPARTICLE[1] // 1) - flametorch_rect.h / 2),
+#         ),
+#         velocity=pg.Vector2(-0.1, 0.1),
+#         frame=pre.COUNT.FLAMEGLOW,
+#     )
+#     for flametorch_rect in self.flametorch_spawners.copy()
+#     if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
+# )  # big number is to control spawn rate
+#
+# """
+
+
+# 2024-04-27
+# if pre.DEBUG_GAME_STRESSTEST:
+#     if (__dreamlike := 0) and __dreamlike:
+#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
+#         pre.Surfaces.compute_vignette(surf=self.display_3)
+#         self.display_3.set_alpha(17)
+#     elif (__noir := 0) and __noir:
+#         display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
+#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
+#         self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
+#         if self.bgcolor is pre.COLOR.BGCOLORDARK:
+#             pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
+#         elif self.bgcolor is pre.COLOR.BGCOLORDARKER:
+#             pre.Surfaces.compute_vignette(self.display_3, 17)
+#         else:
+#             pre.Surfaces.compute_vignette(self.display_3, 23)
+#         if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
+#             self.display_3.set_colorkey(pre.BLACK)
+#     elif (__moody := 1) and __moody:
+#         # blitting with special flags and it works!!
+#         # self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2).convert_alpha()
+#         self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2)
+#         # self.display_3.set_colorkey(pre.BLACK)
+#         # self.display_3.set_alpha(255 // 2)
+#         # self.display_3.set_alpha(255 // 2)
+#         pre.Surfaces.compute_vignette(surf=self.display_3)
+#         # self.display_3.set_alpha(14)
+#     else:
+#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
+#         self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
+#         pre.Surfaces.compute_vignette(self.display_3, 255)
+#         self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
+#         pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
