@@ -192,7 +192,7 @@ class Enemy(PhysicalEntity):
                         pos = pg.Vector2((self.pos.x + dir * _tmp_projectile_gun_offsetx), self.pos.y + _tmp_projectile_gun_offsety)
                         self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 7, timer=7))
                         # increase firing rate... if idle player just stays as soolid block to deter to move
-                        if self.game.player.action == Action.IDLE:  # idle player is shapeshifted to a stone -_-
+                        if self.game.player.action is Action.IDLE:  # idle player is shapeshifted to a stone -_-
                             if randint(0, 1):  # | need some delay (hesitation) to fire inanimate obj. maybe change timer or velocity
                                 for i in range(2):
                                     self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 2, timer=7 + 2 * (1 + i)))
@@ -349,7 +349,7 @@ class Player(PhysicalEntity):
             self.dash_time = min(0, self.dash_time + 1)
         if abs(self.dash_time) > 50:  # at first ten frames of dash abs(60 -> 50)
             self.velocity.x = self._dash_thrust * (abs(self.dash_time) / self.dash_time)  # Modify speed based on direction
-            if abs(self.dash_time) == 51:
+            if abs(self.dash_time) is 51:
                 self.velocity.x *= 0.1  # Deceleration also acts as a cooldown for next trigger
             # TODO: spawn dash streeam particles
             pass
@@ -372,7 +372,7 @@ class Player(PhysicalEntity):
         """Initiate a dash action"""
         dash: Optional[bool] = None
 
-        match (self.dash_time == 0), self.flip:
+        match (self.dash_time is 0), self.flip:
             case True, False:
                 self.dash_time = self._max_dash_time
                 dash = True

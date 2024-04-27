@@ -11,7 +11,7 @@ from os import listdir, path
 from pathlib import Path
 from pprint import pprint  # type: ignore
 from random import randint, random
-from typing import Final, Optional
+from typing import Final, NoReturn, Optional
 
 
 if sys.version_info >= (3, 12):
@@ -104,9 +104,9 @@ class Game:
                 display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
                 self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
                 self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-                if self.bgcolor == pre.COLOR.BGCOLORDARK:
+                if self.bgcolor is pre.COLOR.BGCOLORDARK:
                     pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
-                elif self.bgcolor == pre.COLOR.BGCOLORDARKER:
+                elif self.bgcolor is pre.COLOR.BGCOLORDARKER:
                     pre.Surfaces.compute_vignette(self.display_3, 17)
                 else:
                     pre.Surfaces.compute_vignette(self.display_3, 23)
@@ -209,11 +209,16 @@ class Game:
                 keep=True,
             )
         ]
-        spawner_kinds = (pre.SpawnerKind.PLAYER, pre.SpawnerKind.ENEMY, pre.SpawnerKind.PORTAL)
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
 
-        for spawner in self.tilemap.extract(id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), map(int, spawner_kinds))), keep=False):
+        key_spawner = str(pre.TileKind.SPAWNERS.value)
+        val_spawner_kinds = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
+
+        for spawner in self.tilemap.extract(
+            id_pairs=list(zip(it.repeat(key_spawner, len(val_spawner_kinds)), val_spawner_kinds)),
+            keep=False,
+        ):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
                     self.player.pos = spawner.pos.copy()  # coerce to a mutable list if pos is a tuple
@@ -275,12 +280,9 @@ class Game:
                     self.load_level(self.level)
 
             # Camera: update and parallax
-            #   [where we want camera to be]-[where we are or what we have]/25,
-            #   So further player is faster camera moves and vice-versa we can
-            #   use round on scroll increment to smooth out jumper scrolling &
-            #   also multiplying by point zero thirty two instead of dividing
-            #   by thirty if camera is off by 1px not an issue, but rendering
-            #   tiles could be. note: use 0 round off for smooth camera.
+            #   [where we want camera to be]-[where we are or what we have]/25, So further player is faster camera moves and vice-versa we can
+            #   use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing
+            #   by thirty if camera is off by 1px not an issue, but rendering tiles could be. note: use 0 round off for smooth camera.
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
@@ -405,7 +407,7 @@ class Game:
                     self.projectiles.remove(projectile)
                 elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
                     if self.player.rect().collidepoint(prj_x, prj_y):
-                        if self.player.action == Action.IDLE and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter:  # player invincible camouflaged one with the world
+                        if self.player.action is Action.IDLE and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter:  # player invincible camouflaged one with the world
                             self.projectiles.remove(projectile)
                             self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
                             self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2)) for _ in range(30))
@@ -420,11 +422,7 @@ class Game:
                             self.particles.extend(
                                 (
                                     Particle(
-                                        self,
-                                        p_kind=pre.ParticleKind.FLAME,
-                                        pos=pg.Vector2(self.player.rect().center),
-                                        velocity=(pg.Vector2((math.cos(random() * math.pi * 2 + math.pi) * random() * 5 * 0.5, math.cos(random() * math.pi + math.pi) * random() * math.pi * 0.5))),
-                                        frame=randint(0, 7),
+                                        self, p_kind=pre.ParticleKind.FLAME, pos=pg.Vector2(self.player.rect().center), velocity=(pg.Vector2((math.cos(random() * math.pi * 2 + math.pi) * random() * 5 * 0.5, math.cos(random() * math.pi + math.pi) * random() * math.pi * 0.5))), frame=randint(0, 7)
                                     )
                                     for _ in range(30)
                                 )
@@ -470,10 +468,10 @@ class Game:
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                    shutdown()
+                    quit_exit()
                     assert 0, "unreachable"
                 if event.type == pg.QUIT:
-                    shutdown()
+                    quit_exit()
                     assert 0, "unreachable"
                 if event.type == pg.VIDEORESIZE:
                     self.screen = pg.display.get_surface()
@@ -515,15 +513,52 @@ class Game:
 
             if pre.DEBUG_GAME_HUD:
                 self.clock_dt_recent_values.appendleft(self.clock_dt)
-                if len(self.clock_dt_recent_values) == pre.FPS_CAP:
+                if len(self.clock_dt_recent_values) is pre.FPS_CAP:
                     self.clock_dt_recent_values.pop()
 
 
-def shutdown():
-    if pre.DEBUG_GAME_CACHEINFO:  # cache
+def quit_exit() -> NoReturn:
+    _tmp_allow = True
+    if _tmp_allow or pre.DEBUG_GAME_CACHEINFO:  # cache
         print(f"{pre.hsl_to_rgb.cache_info() = }")
     pg.quit()
     sys.exit()
+    # NoReturn from typing.py
+    """Special type indicating functions that never return.
+
+    Example::
+
+        from typing import NoReturn
+
+        def stop() -> NoReturn:
+            raise Exception('no way')
+
+    NoReturn can also be used as a bottom type, a type that
+    has no values. Starting in Python 3.11, the Never type should
+    be used for this concept instead. Type checkers should treat the two
+    equivalently.
+    """
+    # Never from typing.py
+    """The bottom type, a type that has no members.
+
+    This can be used to define a function that should never be
+    called, or a function that never returns::
+
+        from typing import Never
+
+        def never_call_me(arg: Never) -> None:
+            pass
+
+        def int_or_str(arg: int | str) -> None:
+            never_call_me(arg)  # type checker error
+            match arg:
+                case int():
+                    print("It's an int")
+                case str():
+                    print("It's a str")
+                case _:
+                    never_call_me(arg)  # OK, arg is of type Never
+    """
 
 
 def loading_screen(game: Game):
@@ -612,7 +647,7 @@ def loading_screen(game: Game):
     if pre.DEBUG_GAME_ASSERTS:
         t_end = time.perf_counter()
         t_elapsed = t_end - t_start  # type: ignore
-        ok = count == max_count
+        ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
         assert ok
         assert did_not_drop_frames

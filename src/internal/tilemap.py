@@ -6,7 +6,16 @@ import sys
 from collections import defaultdict, deque, namedtuple
 from copy import deepcopy
 from functools import partial, reduce
-from typing import TYPE_CHECKING, Final, Optional, TypedDict, Union
+from typing import (
+    TYPE_CHECKING,
+    Final,
+    Mapping,
+    MutableSequence,
+    Optional,
+    Sequence,
+    TypedDict,
+    Union,
+)
 
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
@@ -103,7 +112,9 @@ class Tilemap:
             if tile.kind in self._physics_tiles
         )
 
-    def extract(self, id_pairs: list[tuple[str, int]], keep: bool = False) -> list[TileItem]:
+    # def extract(self, id_pairs: list[tuple[str, int]], keep: bool = False) -> list[TileItem]:
+    # def extract(self, id_pairs: MutableSequence[tuple[str, int]], keep: bool = False) -> list[TileItem]:
+    def extract(self, id_pairs: Sequence[tuple[str, int]], keep: bool = False) -> list[TileItem]:
         matches: list[TileItem] = []
 
         if pre.DEBUG_EDITOR_ASSERTS:  # perf: use a context manager
@@ -258,7 +269,8 @@ class Tilemap:
         return (int(x // self.tile_size), int(y // self.tile_size))
 
     @staticmethod
-    def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
+    # def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
+    def offgrid_tiles_json_to_dataclass(data: Sequence[TileItemJSON]):  # -> list[TileItem]:
         return (TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data)
 
     @staticmethod
@@ -267,7 +279,8 @@ class Tilemap:
         return f"{int(vec2.x)};{int(vec2.y)}"
 
     @staticmethod
-    def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):
+    # def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):
+    def tilemap_json_to_dataclass(data: Mapping[str, TileItemJSON]):
         # PERF: needs optimization. use generators or ctx manager for file i/o?
         return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
 
@@ -343,7 +356,8 @@ loc_fmt = f"({{}};{{}})"
 locfmt_partial = partial(loc_fmt.format)
 
 
-def is_valid(map_data: list[list[int]], x: int, y: int) -> bool:
+# def is_valid(map_data: list[list[int]], x: int, y: int) -> bool:
+def is_valid(map_data: Sequence[list[int]], x: int, y: int) -> bool:
     if not (0 <= x < len(map_data) and 0 <= y < len(map_data[0])):
         # print(f"{locfmt_partial(x,y)}", end="\tcell out of bounds\n")
         return False
@@ -354,7 +368,7 @@ def is_valid(map_data: list[list[int]], x: int, y: int) -> bool:
     return True
 
 
-def floodfill(map_data: list[list[int]], x: int, y: int):
+def floodfill(map_data: Sequence[list[int]], x: int, y: int):
     if not is_valid(map_data, x, y):
         return
     # mark cell visited

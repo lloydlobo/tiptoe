@@ -48,6 +48,7 @@ class Spark:
         angle = self.angle
         speed = self.speed
         ofx, ofy = offset
+        # l, m = iter(offset) # if offest was a list with x,y value to be mutable
 
         # Calculate spark points
         dega, degc = (angle + 0), (angle + math.pi)

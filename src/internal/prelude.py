@@ -3,7 +3,7 @@ import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum, IntEnum, auto
+from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, partial, reduce
 from pathlib import Path
 from random import randint
@@ -54,14 +54,17 @@ class Projectile:
 
 
 # fmt:off
-class ParticleKind(Enum):
-    # class AnimationMiscAssets:
+@unique 
+class ParticleKind(Enum): 
+    """used for class AnimationMiscAssets"""
+
     FLAME           = "flame"
     FLAMEGLOW       = "flameglow"
     LEAF            = "leaf"
 # fmt:on
 
 
+@unique
 class EntityKind(Enum):
     PLAYER = "player"
     ENEMY = "enemy"
@@ -69,6 +72,7 @@ class EntityKind(Enum):
     PORTAL = "portal"
 
 
+@unique  # """Class decorator for enumerations ensuring unique member values."""
 class TileKind(Enum):
     DECOR = "decor"
     GRASS = "grass"
@@ -78,12 +82,17 @@ class TileKind(Enum):
     STONE = "stone"
 
 
-class SpawnerKind(IntEnum):
+# NOTE: ideally start with 1 (as 0 may be assumed as False)
+#   but we used 0,1,2 as variants for spawner 'tiles' while drawing the map.json via level editor in src/editor.py
+#   for the sake of the wrapping around all spawner variants, e.g. 0 1 2 0 1 2 ..... or it.cycle(...)
+@unique  # """Class decorator for enumerations ensuring unique member values."""
+class SpawnerKind(Enum):
     # auto(): Instances are replaced with an appropriate value in Enum class suites.
     PLAYER = 0
     ENEMY = 1
     PORTAL = 2
 
+    # PERF: use cls classmethod instead?
     def as_entity(self, entity_kind: EntityKind):
         match entity_kind:
             case EntityKind.PLAYER:
@@ -145,8 +154,7 @@ class Animation:
                 self.done = True
 
     def img(self) -> pg.Surface:
-        """Returns current image to render in animation cycle. Similar to
-        render phase in the '__init__ -> update -> render' cycle"""
+        """Returns current image to render in animation cycle. Similar to render phase in the '__init__ -> update -> render' cycle"""
 
         return self.images[int(self.frame * self._img_duration_inverse)]
 
@@ -164,19 +172,23 @@ def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, No
 
 
 def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
-    """
-    listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
-        @example:   load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
+    """listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
+
+    Example::
+
+        ```python
+        load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
+        ```
     """
     return [load_img(f"{Path(path) / img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
 
 
 @dataclass
 class UserConfig:
-    """
-    Configuration options for the game application.
+    """Configuration options for the game application.
 
-    Usage:
+    Usage::
+
         ```python
         def get_user_config(filepath: Path) -> AppConfig:
             config: Optional[dict[str, str]] = AppConfig.read_user_config(filepath=filepath)
@@ -232,8 +244,7 @@ class UserConfig:
 
     @staticmethod
     def read_user_config(filepath: Path) -> Optional[dict[str, str]]:
-        """
-        Read configuration file and return a dictionary.
+        """Read configuration file and return a dictionary.
 
         Skips comments, empty lines, and returns None if file doesn't exist.
         """
@@ -288,24 +299,26 @@ class ConfigHandler:
 
 @lru_cache(maxsize=32)
 def hex_to_rgb(s: str) -> tuple[int, int, int]:
-    """
-    HEX to RGB color:
-        The red, green and blue use 8 bits each, which have integer values from 0 to 255.
-        So the number of colors that can be generated is:
-        256×256×256 = 16777216 = 100000016
-        Hex to RGB conversion
-          - Get the 2 left digits of the hex color code and convert to decimal value to get the red color level.
-          - Get the 2 middle digits of the hex color code and convert to decimal value to get the green color level.
-          - Get the 2 right digits of the hex color code and convert to decimal value to get the blue color level.
-        Convert red hex color code FF0000 to RGB color: Hex = FF0000
-        R = FF16 = 25510, G = 0016 = 010, B = 0016 = 010
-        RGB = (255, 0, 0)
-        Source: https://www.rapidtables.com/convert/color/how-hex-to-rgb.html
+    """HEX to RGB color:
 
-    >>> assert hex_to_rgb("#ff0000") == (255, 0, 0)
-    >>> assert hex_to_rgb("ff0000") == (255, 0, 0)
-    >>> assert hex_to_rgb("#ffd700") == (255, 215, 0)
-    >>> assert hex_to_rgb("#FFD700") == (255, 215, 0)
+    The red, green and blue use 8 bits each, which have integer values from 0 to 255.
+    So the number of colors that can be generated is:
+    256×256×256 = 16777216 = 100000016
+    Hex to RGB conversion
+      - Get the 2 left digits of the hex color code and convert to decimal value to get the red color level.
+      - Get the 2 middle digits of the hex color code and convert to decimal value to get the green color level.
+      - Get the 2 right digits of the hex color code and convert to decimal value to get the blue color level.
+    Convert red hex color code FF0000 to RGB color: Hex = FF0000
+    R = FF16 = 25510, G = 0016 = 010, B = 0016 = 010
+    RGB = (255, 0, 0)
+    Source: https://www.rapidtables.com/convert/color/how-hex-to-rgb.html
+
+    Examples::
+
+        assert hex_to_rgb("#ff0000") == (255, 0, 0)
+        assert hex_to_rgb("ff0000") == (255, 0, 0)
+        assert hex_to_rgb("#ffd700") == (255, 215, 0)
+        assert hex_to_rgb("#FFD700") == (255, 215, 0)
     """
 
     base: Final = 16
@@ -321,31 +334,39 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
     return (int(s[0:2], base), int(s[2:4], base), int(s[4:6], base))
 
 
-@lru_cache(maxsize=32)
-def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int]:
-    """
-    Constraints: 0 ≤ H < 360, 0 ≤ S ≤ 1 and 0 ≤ L ≤ 1
+# @lru_cache(maxsize=32)
+@lru_cache(maxsize=2**12)
+def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int] | ColorValue:
+    """Convert hsl to rgb color value.
 
-    >>> assert hsl_to_rgb(0, 0, 0) == (0, 0, 0)             # black
-    >>> assert hsl_to_rgb(0, 0, 1) == (255, 255, 255)       # white
-    >>> assert hsl_to_rgb(0, 1, 0.5) == (255, 0, 0)         # red
-    >>> assert hsl_to_rgb(120, 1, 0.5) == (0, 255, 0)       # lime green
-    >>> assert hsl_to_rgb(240, 1, 0.5) == (0, 0, 255)       # blue
-    >>> assert hsl_to_rgb(60, 1, 0.5) == (255, 255, 0)      # yellow
-    >>> assert hsl_to_rgb(180, 1, 0.5) == (0, 255, 255)     # cyan
-    >>> assert hsl_to_rgb(300, 1, 0.5) == (255, 0, 255)     # magenta
-    >>> assert hsl_to_rgb(0, 0, 0.75) == (191, 191, 191)    # silver
-    >>> assert hsl_to_rgb(0, 0, 0.5) == (128, 128, 128)     # gray
-    >>> assert hsl_to_rgb(0, 1, 0.25) == (128, 0, 0)        # maroon
-    >>> assert hsl_to_rgb(60, 1, 0.25) == (128, 128, 0)     # olive
-    >>> assert hsl_to_rgb(120, 1, 0.25) == (0, 128, 0)      # green
-    >>> assert hsl_to_rgb(300, 1, 0.25) == (128, 0, 128)    # purple
-    >>> assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
-    >>> assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
+    Constraints::
+
+        0 ≤ h < 360 and 0 ≤ s ≤ 1 and 0 ≤ l ≤ 1
+
+    Examples::
+
+        assert hsl_to_rgb(0, 0, 0) == (0, 0, 0)             # black
+        assert hsl_to_rgb(0, 0, 1) == (255, 255, 255)       # white
+        assert hsl_to_rgb(0, 1, 0.5) == (255, 0, 0)         # red
+        assert hsl_to_rgb(120, 1, 0.5) == (0, 255, 0)       # lime green
+        assert hsl_to_rgb(240, 1, 0.5) == (0, 0, 255)       # blue
+        assert hsl_to_rgb(60, 1, 0.5) == (255, 255, 0)      # yellow
+        assert hsl_to_rgb(180, 1, 0.5) == (0, 255, 255)     # cyan
+        assert hsl_to_rgb(300, 1, 0.5) == (255, 0, 255)     # magenta
+        assert hsl_to_rgb(0, 0, 0.75) == (191, 191, 191)    # silver
+        assert hsl_to_rgb(0, 0, 0.5) == (128, 128, 128)     # gray
+        assert hsl_to_rgb(0, 1, 0.25) == (128, 0, 0)        # maroon
+        assert hsl_to_rgb(60, 1, 0.25) == (128, 128, 0)     # olive
+        assert hsl_to_rgb(120, 1, 0.25) == (0, 128, 0)      # green
+        assert hsl_to_rgb(300, 1, 0.25) == (128, 0, 128)    # purple
+        assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
+        assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
     """
+
     # pre.hsl_to_rgb.cache_info()
     #   Thu Apr 18 04:56:05 PM IST 2024
     #   hits=79, misses=28, currsize=28
+
     if DEBUG_GAME_ASSERTS:
         assert 0 <= h <= 360
         assert 0 <= s <= 1
@@ -392,7 +413,7 @@ DEBUG_EDITOR_HUD        = True
 DEBUG_GAME_ASSERTS      = True
 DEBUG_GAME_PRINTLOG     = False
 DEBUG_GAME_LOGGING      = True
-DEBUG_GAME_CACHEINFO    = False
+DEBUG_GAME_CACHEINFO    = True
 DEBUG_GAME_HUD          = True
 DEBUG_GAME_PROFILER     = False
 DEBUG_GAME_STRESSTEST   = False
@@ -558,12 +579,19 @@ SPAWNERS_KINDS      = { EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL }  
 
 
 # fmt: off
-class AutotileID(IntEnum):
-    """
-    >>> assert list(range(0, 8 + 1)) == [x.value for x in AutoTileVariant]
-    """
+# NOTE: prefer Enum over IntEnum
+# use 0 for the first (even though 0 seems as False) to wrap (%) around all
+# variation,,  it.cycle() or next(...)
 
-    TOPLEFT         = auto(0)   # 0
+@unique 
+class AutotileID(IntEnum):
+    """Key ID via `AutoTileVariant` for `AUTOTILE_MAP`
+
+    For example::
+
+        assert list(range(0, 8 + 1)) is [x.value for x in AutoTileVariant]
+    """
+    TOPLEFT         = auto(0)   # 0     
     TOPCENTER       = auto()    # 1
     TOPRIGHT        = auto()    # 2
     MIDDLERIGHT     = auto()    # 3
@@ -607,6 +635,7 @@ AUTOTILE_MAP = {
 
 @dataclass
 class Surfaces:
+    # __slots__ = ('_name', '__doc__', '_getitem')
 
     # expensive computation if run inside game loop
     @staticmethod
@@ -685,11 +714,7 @@ class Surfaces:
         print(f"{w, h=}")
 
 
-def create_surface(
-    size: tuple[int, int],
-    colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int] | ColorValue,
-) -> pg.SurfaceType:
+def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -697,7 +722,7 @@ def create_surface(
 
 
 create_surface_partialfn = partial(create_surface, colorkey=BLACK)
-create_surface_partialfn.__doc__ = """
+create_surface_partialfn.__doc__ = """\
 (function) def create_surface(
     size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int]
 ) -> pg.SurfaceType
@@ -706,12 +731,7 @@ New create_surface function with partial application of colorkey argument and or
 """
 
 
-def create_surface_withalpha(
-    size: tuple[int, int],
-    colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int],
-    alpha: int,
-) -> pg.SurfaceType:
+def create_surface_withalpha(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue, alpha: int) -> pg.SurfaceType:
     surf = pg.Surface(size).convert_alpha()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -720,7 +740,7 @@ def create_surface_withalpha(
 
 
 create_surface_withalpha_partialfn = partial(create_surface_withalpha, colorkey=BLACK)
-create_surface_withalpha_partialfn.__doc__ = """
+create_surface_withalpha_partialfn.__doc__ = """\
 (function) def create_surface_withalpha
     size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int], alpha: int
 ) -> pg.SurfaceType
@@ -729,25 +749,22 @@ New create_surface_withalpha function with partial application of colorkey argum
 """
 
 
-def create_surfaces(
-    count: int,
-    color: tuple[int, int, int] = BLACK,
-    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
-    colorkey: ColorValue = BLACK,
-) -> Generator[pg.SurfaceType, None, None]:
+def create_surfaces(count: int, color: tuple[int, int, int] | ColorValue = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
         return (create_surface(size, colorkey, color) for _ in range(count))
-    else:
-        return (create_surface_partialfn(size, color) for _ in range(count))
+    return (create_surface_partialfn(size, color) for _ in range(count))
 
 
 create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
 create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
 
 
-def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
+def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:  # FIXME:
+    # FIXME:
+    """FIXME!!! this is a special case for flameglow particle and should not be used here for general circle creation"""
     surf = pg.Surface(size).convert()
-    center = size[0] / 2, size[1] / 2
+    ca, cb = iter(size)
+    center = ca * 0.5, cb * 0.5
     radius = center[0]
     rect = pg.draw.circle(surf, BLACK, center, radius * 2)
     rect = pg.draw.ellipse(surf, fill_color, rect)
