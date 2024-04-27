@@ -334,14 +334,15 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
     return (int(s[0:2], base), int(s[2:4], base), int(s[4:6], base))
 
 
-# @lru_cache(maxsize=32)
-@lru_cache(maxsize=2**12)
+# Sat Apr 27 11:15:24 AM IST 2024
+#  pre.hsl_to_rgb.cache_info() = CacheInfo(hits=2884, misses=516, maxsize=1024, currsize=516)
+@lru_cache(maxsize=1024)
 def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int] | ColorValue:
     """Convert hsl to rgb color value.
 
     Constraints::
 
-        0 ≤ h < 360 and 0 ≤ s ≤ 1 and 0 ≤ l ≤ 1
+        0 ≤ h < 360 and 0.0 ≤ s ≤ 1.0 and 0.0 ≤ l ≤ 1.0
 
     Examples::
 

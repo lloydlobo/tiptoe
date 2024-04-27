@@ -30,6 +30,22 @@ from internal.stars import Stars
 from internal.tilemap import Tilemap
 
 
+def quit_exit() -> NoReturn:
+    if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
+        print(f"{pre.hsl_to_rgb.cache_info() = }")
+
+    pg.quit()
+    sys.exit()
+
+
+def get_user_config(filepath: Path) -> pre.UserConfig:
+    config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
+    if not config:
+        print("error while reading configuration file at", repr(filepath))
+        return pre.UserConfig.from_dict({})
+    return pre.UserConfig.from_dict(config)
+
+
 class AppState(IntEnum):
     GAMESTATE = auto(0)
     MENUSTATE = auto()
@@ -66,7 +82,7 @@ class UIButton:
 
 @dataclass
 class Textz:
-    font_size: int
+    # font_size: int
     font: pg.font.FontType
     bold: bool = False
 
@@ -128,8 +144,12 @@ class Game:
                 self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
                 pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))
 
+        # note: font author suggest using font size in multiples of 9.
         self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"
-        self.font = pg.font.Font(self.fontface_path, 18)  # author suggest using font size in multiples of 9.
+        self.font = pg.font.Font(self.fontface_path, 18)  # alias for self.font_base -> [ xxs xs sm base md lg ]
+        self.font_sm = pg.font.Font(self.fontface_path, 12)  # author suggest using font size in multiples of 9.
+        self.font_xs = pg.font.Font(self.fontface_path, 9)  # author suggest using font size in multiples of 9.
+
         if pre.DEBUG_GAME_HUD:
             try:
                 self.font_hud = pg.font.SysFont(name=("Julia Mono"), size=12, bold=True)
@@ -140,13 +160,6 @@ class Game:
         self.clock_dt = 0
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
-
-        def get_user_config(filepath: Path) -> pre.UserConfig:
-            config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
-            if not config:
-                print("error while reading configuration file at", repr(filepath))
-                return pre.UserConfig.from_dict({})
-            return pre.UserConfig.from_dict(config)
 
         self.config_handler = get_user_config(pre.CONFIG_PATH)
 
@@ -180,13 +193,28 @@ class Game:
         self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BGMIRAGE)
         self.bg_color_cycle = it.cycle(self.bg_colors)
 
+        self.screenshake = 0
         # load_level: declares and initializes level specific members
         self.level = 0
         self.load_level(self.level)
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
-
         self._max_screenshake: Final = pre.TILE_SIZE
+
+    def reset_game(self) -> None:
+        self.clock = pg.time.Clock()
+        self.clock_dt = 0
+
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+
+        self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
+        self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(pre.SIZE.PLAYER))
+
+        self.tilemap = Tilemap(self, pre.TILE_SIZE)
+
         self.screenshake = 0
+
+        self.level = 0
+        self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
@@ -254,7 +282,8 @@ class Game:
 
         self.last_tick_recorded = pg.time.get_ticks()
         # _last_get_tick = pg.time.get_ticks()
-        while 1:
+        running = True
+        while running:
             self.display.fill(pre.TRANSPARENT)
             self.display_2.blit(bg, (0, 0))
 
@@ -264,10 +293,18 @@ class Game:
             if (_win_condition := (self.touched_portal or not len(self.enemies))) and _win_condition:
                 self.transition += 1
                 if self.transition > self._transition_hi:
-                    self.level = min(self.level + 1, self._level_map_count - 1)
-                    if (__recycle_background_color := 0) and __recycle_background_color:
-                        bg.fill(next(self.bg_color_cycle))
-                    self.load_level(self.level)
+                    try:
+                        if self.level + 1 >= self._level_map_count:
+                            running = False  # NOTE: resest game state to default (can also set level to default)
+                            self.reset_game()
+                            gameover_screen(self)
+                        else:
+                            self.level = min(self.level + 1, self._level_map_count - 1)
+                            if (__recycle_background_color := 0) and __recycle_background_color:
+                                bg.fill(next(self.bg_color_cycle))
+                            self.load_level(self.level)
+                    except:
+                        quit_exit()
 
             if self.transition < self._transition_mid:
                 self.transition += 1
@@ -467,6 +504,9 @@ class Game:
                         pass
 
             for event in pg.event.get():
+                if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                    # running = False
+                    mainmenu_screen(self)
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
                     quit_exit()
                     assert 0, "unreachable"
@@ -517,79 +557,48 @@ class Game:
                     self.clock_dt_recent_values.pop()
 
 
-def quit_exit() -> NoReturn:
-    _tmp_allow = True
-    if _tmp_allow or pre.DEBUG_GAME_CACHEINFO:  # cache
-        print(f"{pre.hsl_to_rgb.cache_info() = }")
-    pg.quit()
-    sys.exit()
-    # NoReturn from typing.py
-    """Special type indicating functions that never return.
-
-    Example::
-
-        from typing import NoReturn
-
-        def stop() -> NoReturn:
-            raise Exception('no way')
-
-    NoReturn can also be used as a bottom type, a type that
-    has no values. Starting in Python 3.11, the Never type should
-    be used for this concept instead. Type checkers should treat the two
-    equivalently.
-    """
-    # Never from typing.py
-    """The bottom type, a type that has no members.
-
-    This can be used to define a function that should never be
-    called, or a function that never returns::
-
-        from typing import Never
-
-        def never_call_me(arg: Never) -> None:
-            pass
-
-        def int_or_str(arg: int | str) -> None:
-            never_call_me(arg)  # type checker error
-            match arg:
-                case int():
-                    print("It's an int")
-                case str():
-                    print("It's a str")
-                case _:
-                    never_call_me(arg)  # OK, arg is of type Never
-    """
-
-
 def loading_screen(game: Game):
-    loading_screen_duration_sec = 3
-
+    loading_screen_duration_sec: Final[float] = 4.0
+    fade_in_frame_count: Final = 7  # same as for bullet projectiles
+    max_count: Final[int] = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
     count = 0
-    max_count: Final = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
 
     clock = pg.time.Clock()
-
-    cycle_loading_dots: it.cycle[str] = it.cycle(["loading", "loading*  ", "loading** ", "loading***"])
 
     bgcolor = pre.CHARCOAL
     base_font_size = 16
     base_font_size *= 3
-    title_textz = Textz(math.floor(base_font_size // 0.618 // 2), game.font, bold=True)
-    loading_textz = Textz(math.floor(base_font_size // 1.618 // 2), game.font)
+
+    _tmp_flag_loading_text_enabled: Final = False
+    if _tmp_flag_loading_text_enabled:
+        cycle_loading_indicator_dots: it.cycle[str] = it.cycle(["loading", "loading*  ", "loading** ", "loading***"])
+    else:
+        cycle_loading_indicator_dots: it.cycle[str] = it.cycle(["   ", "*  ", "** ", "***"])
+
+    title_textz = Textz(game.font, bold=True)
+    if _tmp_flag_loading_text_enabled:
+        loading_textz = Textz(game.font_xs, bold=True)
+    loading_indicator_textz = Textz(game.font_sm)
 
     w, h = pre.DIMENSIONS_HALF
     title_textz_offy = 4 * pre.TILE_SIZE
-    loading_textz_offy = 8 * pre.TILE_SIZE
-    loading_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), loading_textz_offy))
-    if pre.DEBUG_GAME_ASSERTS:
-        assert loading_textz_offy >= 2 * pre.TILE_SIZE
+    if _tmp_flag_loading_text_enabled:
+        loading_textz_offy = 8 * pre.TILE_SIZE
+        loading_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), loading_textz_offy))
+    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+
+    if _tmp_flag_loading_text_enabled:
+        if pre.DEBUG_GAME_ASSERTS:
+            assert loading_textz_offy >= 2 * pre.TILE_SIZE  # type: ignore
 
     title_str = pre.CAPTION
     title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
-    loading_textz_drawfn = partial(loading_textz.render, pos=(w // 2, h - loading_textz_offy), color=pre.WHITE)
+    if _tmp_flag_loading_text_enabled:
+        loading_textz_drawfn = partial(loading_textz.render, pos=(w // 2, h - loading_textz_offy), text="loading", color=pre.WHITE)  # type: ignore
+    loading_indicator_textz_drawfn = partial(loading_indicator_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), color=pre.WHITE)
 
     loading_timer = 0
-    loading_text_str = next(cycle_loading_dots)
+    loading_indicator_text_str = next(cycle_loading_indicator_dots)
 
     if pre.DEBUG_GAME_ASSERTS:
         t_start = time.perf_counter()
@@ -597,30 +606,32 @@ def loading_screen(game: Game):
     while count < max_count:
         game.display.fill(bgcolor)
 
-        if count >= 5:  # fade in
+        if count >= fade_in_frame_count:  # fade in
             if loading_timer >= math.floor(60 * 0.7):
-                loading_text_str = next(cycle_loading_dots)
+                loading_indicator_text_str = next(cycle_loading_indicator_dots)
                 loading_timer = 0
 
             if count + 75 > max_count:
-                loading_text_str = "  oadingl  "
+                loading_indicator_text_str = "  oadingl  "
             if count + 70 > max_count:
-                loading_text_str = " adinglo  "
+                loading_indicator_text_str = " adinglo  "
             if count + 65 > max_count:
-                loading_text_str = " dingloa  "
+                loading_indicator_text_str = " dingloa  "
             if count + 54 > max_count:
-                loading_text_str = " ingload  "
+                loading_indicator_text_str = " ingload  "
             if count + 44 > max_count:
-                loading_text_str = " ngloadi  "
+                loading_indicator_text_str = " ngloadi  "
             if count + 40 > max_count:
-                loading_text_str = " gloadin  "
+                loading_indicator_text_str = " gloadin  "
             if count + 34 > max_count:
-                loading_text_str = " loading  "
+                loading_indicator_text_str = " loading  "
             if count + 27 >= max_count:
-                loading_text_str = "  summons  "
+                loading_indicator_text_str = "  summons  "
 
             title_textz_drawfn(game.display)
-            loading_textz_drawfn(game.display, text=loading_text_str)
+            if _tmp_flag_loading_text_enabled:
+                loading_textz_drawfn(game.display)  # type: ignore
+            loading_indicator_textz_drawfn(game.display, text=loading_indicator_text_str)
 
         # pixel art effect for drop-shadow depth
         display_mask: pg.Mask = pg.mask.from_surface(game.display)
@@ -641,6 +652,7 @@ def loading_screen(game: Game):
 
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
+
         loading_timer += 1
         count += 1
 
@@ -649,8 +661,183 @@ def loading_screen(game: Game):
         t_elapsed = t_end - t_start  # type: ignore
         ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
-        assert ok
-        assert did_not_drop_frames
+        try:
+            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
+        except AssertionError as e:
+            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
+            pass
+
+
+def mainmenu_screen(game: Game):
+    loading_screen_duration_sec: Final[float] = 4.0
+    fade_in_frame_count: Final = 7  # same as for bullet projectiles
+    max_count: Final[int] = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
+    count = 0
+
+    clock = pg.time.Clock()
+
+    bgcolor = pre.CHARCOAL
+    base_font_size = 16
+    base_font_size *= 3
+
+    title_textz = Textz(game.font, bold=True)
+    instruction_textz = Textz(game.font_sm, bold=False)
+
+    w, h = pre.DIMENSIONS_HALF
+    title_textz_offy = 4 * pre.TILE_SIZE
+    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+
+    title_str = "Menu"
+    instruction_str = f"return* to enter game or q*uit to exit"
+
+    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
+    instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
+
+    loading_timer = 0
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_start = time.perf_counter()
+
+    running = True
+    while running:  # while count < max_count:
+        game.display.fill(bgcolor)
+
+        if count >= fade_in_frame_count:  # fade in
+            title_textz_drawfn(game.display)
+            instruction_textz_drawfn(game.display)
+
+        # pixel art effect for drop-shadow depth
+        display_mask: pg.Mask = pg.mask.from_surface(game.display)
+        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            game.display_2.blit(display_silhouette, offset)
+
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.QUIT:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_RETURN:
+                    # running = False
+                    try:
+                        running = False
+                        game.run()
+                    except:
+                        print(f"error while running game from mainmenu_screen()", file=sys.stderr)
+                        quit_exit()
+                    # TODO: go to Main Menu screen
+
+        game.display_2.blit(game.display, (0, 0))
+        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+
+        pg.display.flip()
+        clock.tick(pre.FPS_CAP)
+
+        loading_timer += 1
+        count += 1
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_end = time.perf_counter()
+        t_elapsed = t_end - t_start  # type: ignore
+        ok = count is max_count
+        did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
+        try:
+            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
+        except AssertionError as e:
+            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
+            pass
+    pass
+
+
+def gameover_screen(game: Game):
+    loading_screen_duration_sec: Final[float] = 4.0
+    fade_in_frame_count: Final = 7  # same as for bullet projectiles
+    max_count: Final[int] = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
+    count = 0
+
+    clock = pg.time.Clock()
+
+    bgcolor = pre.CHARCOAL
+    base_font_size = 16
+    base_font_size *= 3
+
+    title_textz = Textz(game.font, bold=True)
+    instruction_textz = Textz(game.font_sm, bold=False)
+
+    w, h = pre.DIMENSIONS_HALF
+    title_textz_offy = 4 * pre.TILE_SIZE
+    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+
+    title_str = "Game Over"
+    instruction_str = f"esc*ape to main menu or q*uit to exit"
+
+    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
+    instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
+
+    loading_timer = 0
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_start = time.perf_counter()
+
+    running = True
+    while running:  # while count < max_count:
+        game.display.fill(bgcolor)
+
+        if count >= fade_in_frame_count:  # fade in
+            title_textz_drawfn(game.display)
+            instruction_textz_drawfn(game.display)
+
+        # pixel art effect for drop-shadow depth
+        display_mask: pg.Mask = pg.mask.from_surface(game.display)
+        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            game.display_2.blit(display_silhouette, offset)
+
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.QUIT:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    running = False
+                    try:
+                        mainmenu_screen(game)
+                        break
+                    except:
+                        print(f"something went wrong while running mainmenu_screen from gameover_screen()")
+                        quit_exit()
+
+                    # TODO: go to Main Menu screen
+
+        game.display_2.blit(game.display, (0, 0))
+        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+
+        pg.display.flip()
+        clock.tick(pre.FPS_CAP)
+
+        loading_timer += 1
+        count += 1
+
+    if pre.DEBUG_GAME_ASSERTS:
+        t_end = time.perf_counter()
+        t_elapsed = t_end - t_start  # type: ignore
+        ok = count is max_count
+        did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
+        try:
+            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
+        except AssertionError as e:
+            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
+            pass
+    pass
 
 
 def options_menu():
@@ -665,12 +852,13 @@ if __name__ == "__main__":
 
     game = Game()
     loading_screen(game=game)
-
-    if (__tmp_todo := 0) and __tmp_todo:
-        game = Game()
-        while game.running:  # type:ignore
-            game.run()
-    if (__tmp_todo := 0) and __tmp_todo:
-        game.cur_menu.run(game.display, (0, 0))  # type: ignore
-
-    game.run()
+    mainmenu_screen(game=game)
+    #   if (__tmp_todo := 0) and __tmp_todo:
+    #       game = Game()
+    #       while game.running:  # type:ignore
+    #           game.run()
+    #   if (__tmp_todo := 0) and __tmp_todo:
+    #       game.cur_menu.run(game.display, (0, 0))  # type: ignore
+    # game.run()
+    # mainmenu_screen(game=game)
+    # gameover_screen(game=game)
