@@ -29,7 +29,7 @@ def render_debug_hud(game: Game, render_scroll: tuple[int, int], mouse_pos: Opti
         for text in (
             ##################################
             f"CLOCK_FPS.{game.clock.get_fps():2.0f}",
-            f"CLOCK_DT.{game.clock_dt:2.0f}",
+            f"CLOCK_DT*1000.{game.dt*1000}",
             ###################################
             f"CAM_RSCROLL.{render_scroll.__str__()}",
             f"CAM_SCROLL.{game.scroll.__round__(0)}",

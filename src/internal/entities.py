@@ -22,14 +22,10 @@ class Action(Enum):
     RUN = "run"
 
 
+# You don't need to use the build-in Sprite or Group classes. see  https://www.pygame.org/docs/tut/newbieguide.html
+# More fun and intuitive (and fun) to wrote your own game's core logic and classes from scratch.
 class PhysicalEntity:
-    def __init__(
-        self,
-        game: Game,
-        entity_kind: pre.EntityKind,
-        pos: pg.Vector2,
-        size: pg.Vector2,
-    ) -> None:
+    def __init__(self, game: Game, entity_kind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
         self.game = game
         self.kind = entity_kind
         self.pos = pos.copy()
@@ -130,7 +126,7 @@ class Enemy(PhysicalEntity):
 
         self.walking_timer = 0
         self.alert_timer = 0
-        self.alert_boost_factor: Final = 2
+        self.alert_boost_factor: Final = 2 * 10  # Sun Apr 28 04:02:12 PM IST 2024
 
         self._lookahead_x: Final = 7  # (-7px west or 7px east) from center
         self._lookahead_y: Final = 23  # 23px south
@@ -197,14 +193,16 @@ class Enemy(PhysicalEntity):
                                 for i in range(2):
                                     self.game.projectiles.append(pre.Projectile(pos=pos, velocity=dir * 2, timer=7 + 2 * (1 + i)))
 
-                    if self._alertness_enabled:
+                    if self._alertness_enabled and self.alert_timer:  # FIXED: only alerted enemies can be boosted for more alertness. and not everyone in the game.
                         if (self.walking_timer <= self._max_alert_time) and (random() < 0.01 * self.alert_boost_factor):  # 20% chance increase to get more alert
                             prev_timer = self.alert_timer
-                            self.alert_timer = randint(30 * 2, 120 * 2)
+                            next_timer = randint(30 * 2, 120 * 2)
+                            self.alert_timer = next_timer
                             if pre.DEBUG_GAME_ASSERTS:
                                 if self.alert_timer != 0:
-                                    err_context = f"{prev_timer,self.alert_timer,self._max_alert_time = }"
-                                    assert self.alert_timer >= prev_timer, err_context
+                                    err_context = f"{prev_timer,next_timer,self.alert_timer,self._max_alert_time = }"
+                                    if next_timer > prev_timer:
+                                        assert self.alert_timer >= prev_timer, err_context
 
             case False if random() < 0.01:  # refill timer one in every 0.67 seconds
                 self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking

@@ -1,33 +1,39 @@
-import cProfile
-import itertools as it
-import math
-import sys
-import time
-from collections import deque
-from dataclasses import dataclass, field
-from enum import IntEnum, auto
-from functools import partial
-from os import listdir, path
-from pathlib import Path
-from pprint import pprint  # type: ignore
-from random import randint, random
-from typing import Final, NoReturn, Optional
+# Primer: https://www.pygame.org/docs/tut/newbieguide.html
 
+try:
+    import cProfile
+    import itertools as it
+    import math
+    import sys
+    import time
+    from collections import deque
+    from dataclasses import dataclass, field
+    from enum import IntEnum, auto
+    from functools import partial
+    from os import listdir, path
+    from pathlib import Path
+    from pprint import pprint  # type: ignore
+    from random import randint, random
+    from typing import Final, NoReturn, Optional
 
-if sys.version_info >= (3, 12):
-    from types import GenericAlias
+    if sys.version_info >= (3, 12):
+        from types import GenericAlias
 
-import pygame as pg
+    import pygame as pg
 
-import internal.prelude as pre
-from internal.assets import Assets
-from internal.entities import Action, Enemy, Player
-from internal.hud import render_debug_hud
-from internal.particle import Particle
-from internal.spark import Spark
-from internal.spawner import Portal
-from internal.stars import Stars
-from internal.tilemap import Tilemap
+    import internal.prelude as pre
+    from internal.assets import Assets
+    from internal.entities import Action, Enemy, Player
+    from internal.hud import render_debug_hud
+    from internal.move_commands import test__internal__move__commands__py
+    from internal.particle import Particle
+    from internal.spark import Spark
+    from internal.spawner import Portal
+    from internal.stars import Stars
+    from internal.tilemap import Tilemap
+except ImportError as e:
+    print(f"{e}")
+    exit(2)
 
 
 def quit_exit() -> NoReturn:
@@ -84,7 +90,7 @@ class Textz:
 class Game:
     def __init__(self) -> None:
         pg.init()
-        display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
+        display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE  # hwsurface flag does nothing in pygameg ver2.0+, doublebuf has someuse, but not a magic speed up flag. see https://www.pygame.org/docs/tut/newbieguide.html
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         pg.display._set_autoresize(False)  # type: ignore ^ |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
@@ -108,9 +114,9 @@ class Game:
                 self.font_hud = pg.font.SysFont(name=("monospace"), size=11, bold=True)
 
         self.clock = pg.time.Clock()
-        self.clock_dt = 0
+        self.dt: float = 0.0  # delta time == 1 / framerate(fps) or pygame.clock.tick() / 1000
         if pre.DEBUG_GAME_HUD:
-            self.clock_dt_recent_values: deque[int] = deque([self.clock_dt, self.clock_dt])
+            self.clock_dt_recent_values: deque[pre.Number] = deque([self.dt, self.dt])
 
         self.config_handler = get_user_config(pre.CONFIG_PATH)
 
@@ -118,7 +124,9 @@ class Game:
         self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
 
         self.assets = Assets.initialize_assets()
-        self.sfx = {}  # TODO:
+        self.sfx = {
+
+        }  # TODO:
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
         self.player = Player(self, pg.Vector2(50, 50), pg.Vector2(pre.SIZE.PLAYER))
@@ -138,7 +146,7 @@ class Game:
         self._transition_hi: Final = 30
 
         self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BGMIRAGE)
-        self.bg_color_cycle = it.cycle(self.bg_colors)
+        self.bg_color_cycle = it.cycle(self.bg_colors)  # this returns copies with next fn call
 
         # load_level: declares and initializes level specific members
         self.level = 0
@@ -148,7 +156,7 @@ class Game:
 
     def reset_game(self) -> None:
         self.clock = pg.time.Clock()
-        self.clock_dt = 0
+        self.dt = 0
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
@@ -409,6 +417,9 @@ class Game:
                     if event.key == pg.K_RIGHT:
                         self.movement.right = False
 
+            if random() < 0.0001:  # for application not responding messages(rare)
+                pg.event.clear()
+
             # Render: display
             self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
             # TODO: screenshake effect via offset for screen blit
@@ -422,10 +433,10 @@ class Game:
 
             # Draw: final display
             pg.display.flip()  # update: whole screen
-            self.clock_dt = self.clock.tick(pre.FPS_CAP)
+            self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
 
             if pre.DEBUG_GAME_HUD:
-                self.clock_dt_recent_values.appendleft(self.clock_dt)
+                self.clock_dt_recent_values.appendleft(self.dt)
                 if len(self.clock_dt_recent_values) is pre.FPS_CAP:
                     self.clock_dt_recent_values.pop()
 
@@ -552,7 +563,7 @@ def gameover_screen(game: Game):
     loading_timer = 0
     count = 0
 
-    if pre.DEBUG_GAME_ASSERTS:
+    if pre.DEBUG_GAME_STRESSTEST:
         t_start = time.perf_counter()
 
     running = True
@@ -593,7 +604,7 @@ def gameover_screen(game: Game):
         loading_timer += 1
         count += 1
 
-    if pre.DEBUG_GAME_ASSERTS:
+    if pre.DEBUG_GAME_STRESSTEST:
         t_end = time.perf_counter()
         t_elapsed = t_end - t_start  # type: ignore
         ok = count is max_count
@@ -613,41 +624,26 @@ def options_menu():
 
 
 def mainmenu_screen(game: Game):
-    clock = pg.time.Clock()
-
-    loading_screen_duration_sec: Final[float] = 4.0
-    fade_in_frame_count: Final = 7  # same as for bullet projectiles
-    max_count: Final[int] = math.floor(pre.FPS_CAP * loading_screen_duration_sec)
-
-    w, h = pre.DIMENSIONS_HALF
-    bgcolor = pre.CHARCOAL
-    base_font_size = 16
-    base_font_size *= 3
-
     title_textz = Textz(game.font, bold=True)
     instruction_textz = Textz(game.font_sm, bold=False)
-
     title_textz_offy = 4 * pre.TILE_SIZE
     loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
-
     title_str = "Menu"
     instruction_str = f"return* to enter game or q*uit to exit"
+    bgcolor = pre.CHARCOAL
+    w, h = pre.DIMENSIONS_HALF
     title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
     instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
 
-    loading_timer = 0
-    count = 0
-
-    if pre.DEBUG_GAME_ASSERTS:
-        t_start = time.perf_counter()
+    clock = pg.time.Clock()
 
     running = True
+
     while running:  # while count < max_count:
         game.display.fill(bgcolor)
 
-        if count >= fade_in_frame_count:  # fade in
-            title_textz_drawfn(game.display)
-            instruction_textz_drawfn(game.display)
+        title_textz_drawfn(game.display)
+        instruction_textz_drawfn(game.display)
 
         # pixel art effect for drop-shadow depth
         display_mask: pg.Mask = pg.mask.from_surface(game.display)
@@ -668,7 +664,8 @@ def mainmenu_screen(game: Game):
                         game.run()
                         if game.gameover:
                             gameover_screen(game)
-                    except:
+                    except RuntimeError as e:
+                        print(e)
                         print(f"error while running game from mainmenu_screen()", file=sys.stderr)
                         quit_exit()
 
@@ -678,22 +675,9 @@ def mainmenu_screen(game: Game):
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
 
-        loading_timer += 1
-        count += 1
-
-    if pre.DEBUG_GAME_ASSERTS:
-        t_end = time.perf_counter()
-        t_elapsed = t_end - t_start  # type: ignore
-        ok = count is max_count
-        did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
-        try:
-            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
-            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
-        except AssertionError as e:
-            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
-
 
 if __name__ == "__main__":
+    test__internal__move__commands__py()
     if pre.DEBUG_GAME_PROFILER:
         cProfile.run("Game().load_level(0)", sort="cumulative")
         cProfile.run("Game().run()", sort="cumulative")
@@ -735,38 +719,3 @@ if __name__ == "__main__":
 # )  # big number is to control spawn rate
 #
 # """
-
-
-# 2024-04-27
-# if pre.DEBUG_GAME_STRESSTEST:
-#     if (__dreamlike := 0) and __dreamlike:
-#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_ALPHA_SDL2).convert_alpha()
-#         pre.Surfaces.compute_vignette(surf=self.display_3)
-#         self.display_3.set_alpha(17)
-#     elif (__noir := 0) and __noir:
-#         display_3_surf_flag = pg.BLEND_ALPHA_SDL2 if randint(0, 1) else pg.BLEND_RGBA_MULT
-#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, display_3_surf_flag).convert_alpha()
-#         self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-#         if self.bgcolor is pre.COLOR.BGCOLORDARK:
-#             pre.Surfaces.compute_vignette(self.display_3, randint(22, 28))
-#         elif self.bgcolor is pre.COLOR.BGCOLORDARKER:
-#             pre.Surfaces.compute_vignette(self.display_3, 17)
-#         else:
-#             pre.Surfaces.compute_vignette(self.display_3, 23)
-#         if (__noir_avoid_muddy_spotlight := 1) and __noir_avoid_muddy_spotlight:
-#             self.display_3.set_colorkey(pre.BLACK)
-#     elif (__moody := 1) and __moody:
-#         # blitting with special flags and it works!!
-#         # self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2).convert_alpha()
-#         self.display_3 = pg.Surface(pg.Vector2(pre.DIMENSIONS_HALF), pg.BLEND_ALPHA_SDL2)
-#         # self.display_3.set_colorkey(pre.BLACK)
-#         # self.display_3.set_alpha(255 // 2)
-#         # self.display_3.set_alpha(255 // 2)
-#         pre.Surfaces.compute_vignette(surf=self.display_3)
-#         # self.display_3.set_alpha(14)
-#     else:
-#         self.display_3 = pg.Surface(pre.DIMENSIONS_HALF, pg.BLEND_RGBA_MULT).convert_alpha()
-#         self.display_3.fill(tuple(map(int, (174 * 0.2, 226 * 0.2, 255 * 0.3))))
-#         pre.Surfaces.compute_vignette(self.display_3, 255)
-#         self.display_3.fill(tuple(map(int, pre.COLOR.BGCOLORDARKGLOW)))
-#         pre.Surfaces.compute_vignette(self.display_3, randint(10, 20) or min(8, 255 // 13))

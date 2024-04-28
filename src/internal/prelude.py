@@ -1,17 +1,88 @@
+"""This module implements general purpose utilities, helpers, constants, flags,
+providing project specific alternatives to Python's general purpose built-in
+containers, dict, list, set, and tuple.
+
+* Animation                 class
+* AutotileID                class
+* COLOR                     class
+* COUNT                     class
+* COUNTRANDOMFRAMES         class
+* Collisions                class
+* ConfigHandler             class
+* EntityKind                class
+* Math                      class
+* MoveUnitCommandKind       class
+* Movement                  class
+* ParticleKind              class
+* Projectile                class
+* SpawnerKind               class
+* TileKind                  class
+* UserConfig                class
+* create_circle_surf        function
+* create_surface            function
+* create_surface_withalpha  function
+* create_surfaces           function
+* hex_to_rgb                function
+* hsl_to_rgb                function
+* load_img                  function
+* load_imgs                 function
+* make_move_unit_command    function
+* rects_collidepoint        function
+* surfaces_collidepoint     function
+"""
+
+__all__ = [
+    # class
+    "Animation",
+    "AutotileID",
+    "COLOR",
+    "COUNT",
+    "COUNTRANDOMFRAMES",
+    "Collisions",
+    "ConfigHandler",
+    "EntityKind",
+    "Math",
+    "MoveUnitCommand",
+    "Movement",
+    "ParticleKind",
+    "Projectile",
+    "SpawnerKind",
+    "TileKind",
+    "UserConfig",
+    # function
+    "create_circle_surf",
+    "create_surface",
+    "create_surface_withalpha",
+    "create_surfaces",
+    "hex_to_rgb",
+    "hsl_to_rgb",
+    "load_img",
+    "load_imgs",
+    "create_move_unit_command",
+    "rects_collidepoint",
+    "surfaces_collidepoint",
+]
+
+
 import itertools as it
 import math
 import os
-from collections import defaultdict
+import sys
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, partial, reduce
 from pathlib import Path
+from pprint import pprint
 from random import randint
 from typing import (
     Any,
+    Callable,
     Dict,
     Final,
     Generator,
+    NamedTuple,
+    NoReturn,
     Optional,
     Protocol,
     Sequence,
@@ -23,12 +94,14 @@ from typing import (
     Union,
 )
 
+import _collections_abc
 import pygame as pg
 import toml
 
 
-#########
-# TYPES #
+################################################################################
+### TYPES
+################################################################################
 
 # This typehint is used when a math function like sin or cos accepts an angle.
 # Ported from math.py via typing.py
@@ -39,11 +112,18 @@ SupportsFloatOrIndex: TypeAlias = SupportsFloat | SupportsIndex
 RGBAOutput = Tuple[int, int, int, int]
 ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
 
+
 # Ported from pygame source file: _common.py
 Coordinate = Union[Tuple[float, float], Sequence[float], pg.Vector2]
-
+Vec2Type = pg.Vector2 | tuple[float, float]  # A = TypeVar("A", pg.Vector2, tuple[float, float])
 
 Number = int | float
+
+
+class ColorKind(NamedTuple):
+    r: int
+    g: int
+    b: int
 
 
 @dataclass
@@ -123,8 +203,9 @@ class Collisions:
     down: bool
 
 
-##########
-# ANIMATION #
+################################################################################
+### ANIMATION
+################################################################################
 
 
 class Animation:
@@ -159,8 +240,9 @@ class Animation:
         return self.images[int(self.frame * self._img_duration_inverse)]
 
 
-############
-# FILE I/O #
+################################################################################
+### FILE I/O
+################################################################################
 
 
 def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
@@ -337,7 +419,7 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
 # Sat Apr 27 11:15:24 AM IST 2024
 #  pre.hsl_to_rgb.cache_info() = CacheInfo(hits=2884, misses=516, maxsize=1024, currsize=516)
 @lru_cache(maxsize=1024)
-def hsl_to_rgb(h: int, s: float, l: float) -> tuple[int, int, int] | ColorValue:
+def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
     """Convert hsl to rgb color value.
 
     Constraints::
@@ -520,7 +602,9 @@ class SIZE:
     ENEMYJUMP           = (ENEMY[0], ENEMY[1] - 1)
     FLAMEPARTICLE       = (4,5)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
     FLAMETORCH          = (3, 12)
+    GUN                 = (4, 4) # or use (14,7)
     PLAYER              = (TILE_SIZE//1, TILE_SIZE)
+    PLAYERIDLE          = (PLAYER[0] + 1, PLAYER[1] - 1)
     PLAYERJUMP          = (PLAYER[0] - 1, PLAYER[1])
     PLAYERRUN           = (PLAYER[0] + 1, PLAYER[1] - 1)
     PORTAL              = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
@@ -539,20 +623,22 @@ class COLOR:
     BGCOLORDARKER       = hsl_to_rgb(240, 0.3, 0.04)
     BGCOLORDARKGLOW     = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
     BGMIRAGE            = hsl_to_rgb(240, 0.2, 0.07)  # used to set colorkey for stars
-    ENEMY               = hsl_to_rgb(10, 0.3, 0.08)  # (hsl_to_rgb(180, 0.4, 0.25), )[randint(0,1)]
-    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)  # used to set colorkey for stars
+    ENEMY               = hsl_to_rgb(10, 0.3, 0.08) 
+    GUN                 = hsl_to_rgb(300, 0.5, 0.045) 
+    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)
     FLAME               = hsl_to_rgb(0, 0.618, 0.328)
     TRANSPARENTGLOW     = (20, 20, 20)
     FLAMEGLOW           = (20, 20, randint(70,90))  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
     FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
     GRASS               = hsl_to_rgb(0, 0.618, 0.328)
     PLAYER              = (4, 2, 0)
-    PLAYERJUMP          = PINK or hsl_to_rgb(0, 0.618, 0.328)
-    PLAYERRUN           = (1, 1, 1)
+    PLAYERIDLE          = (4, 2, 0)
+    PLAYERJUMP          = PLAYER or hsl_to_rgb(0, 0.618, 0.328)
+    PLAYERRUN           = PLAYER or (1, 1, 1)
     PLAYERSTAR          = PINK
     PORTAL1             = (255, 255, 255)
     PORTAL2             = (15, 20, 25)
-    STAR                = PINK
+    STAR                = hsl_to_rgb(300, 0.26, 0.18) or PINK
     STONE               = (1, 1, 1)
 # fmt: on
 
@@ -630,89 +716,21 @@ AUTOTILE_MAP = {
 # fmt: on
 
 
-###################
-# PYGAME SURFACES #
+################################################################################
+### SURFACE PYGAME
+################################################################################
 
 
-@dataclass
-class Surfaces:
-    # __slots__ = ('_name', '__doc__', '_getitem')
+def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):
+    """Get a iterable generator of all surfaces that contain a point (x,y).
+    Source: https://www.pygame.org/docs/tut/newbieguide.html"""
+    return (s for s in sprites if s.get_rect().collidepoint(pos))
 
-    # expensive computation if run inside game loop
-    @staticmethod
-    def compute_vignette_scaled(surf: pg.SurfaceType, scale: int = 2, a: int = 255):
-        w, h = surf.get_width() * scale, surf.get_height() * scale
-        w_half = w / 2.0
-        w_half_inv = 1 / w_half
-        # a = 255
 
-        # Apply vignette effect
-        for y in range(h):
-            for x in range(w):
-                # Calculate distance from center
-                dx = x - w * 0.5
-                dy = y - h * 0.5
-                dist = math.sqrt(dx * dx + dy * dy)
-
-                # imprecise here
-                factor = 1.0 - dist * w_half_inv
-                r = abs(int(255 * factor))
-                g = abs(int(255 * factor))
-                b = abs(int(255 * factor))
-                surf.set_at((x - w // scale * 2, y - h // scale * 2), (r, g, b, a))
-
-    @staticmethod
-    def compute_vignette_include_corners(surf: pg.SurfaceType, a: int = 255):
-        w, h = surf.get_width(), surf.get_height()
-        w_half = w / 2.0
-        w_half_inv = 1 / w_half
-
-        seen: set[tuple[int, int]] = set()
-        # Apply vignette effect
-        for y in range(h):
-            for x in range(w):
-                # continue
-                # Calculate distance from center
-                dx = x - w * 0.5
-                dy = y - h * 0.5
-                dist = math.sqrt(dx * dx + dy * dy)
-
-                factor = 1.0 - dist * w_half_inv
-                # imprecise here
-                r = abs(int(255 * factor))
-                g = abs(int(255 * factor))
-                b = abs(int(255 * factor))
-                surf.set_at((x, y), (r, g, b, a))
-                seen.add((x, y))
-
-    @staticmethod
-    def compute_vignette(surf: pg.SurfaceType, a: int = 255):
-        w, h = surf.get_width(), surf.get_height()
-        w_half = w / 2.0
-        w_half_inv = 1 / w_half
-        # a = 255
-
-        # Apply vignette effect
-        for y in range(h):
-            for x in range(w):
-                for offx, offy in {(-1, 0), (0, -1), (0, 1), (1, 0)}:
-                    nx, ny = x + offx, y + offy
-                    if not (0 <= nx < w and 0 <= ny < h):
-                        # print(nx, ny)
-                        continue
-
-                # Calculate distance from center
-                dx = x - w * 0.5
-                dy = y - h * 0.5
-                dist = math.sqrt(dx * dx + dy * dy)
-
-                factor = 1.0 - dist * w_half_inv
-                r = abs(int(255 * factor))
-                g = abs(int(255 * factor))
-                b = abs(int(255 * factor))
-                surf.set_at((x, y), (r, g, b, a))
-
-        print(f"{w, h=}")
+def rects_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.Rect]):
+    """Get a iterable generator of all rects that contain a point (x,y).
+    Source: https://www.pygame.org/docs/tut/newbieguide.html"""
+    return (s for s in sprites if s.collidepoint(pos))
 
 
 def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue) -> pg.SurfaceType:
@@ -724,12 +742,22 @@ def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | Color
 
 create_surface_partialfn = partial(create_surface, colorkey=BLACK)
 create_surface_partialfn.__doc__ = """\
+New create_surface function with partial application of colorkey argument and or other keywords.
+
 (function) def create_surface(
     size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int]
 ) -> pg.SurfaceType
 
-New create_surface function with partial application of colorkey argument and or other keywords.
-"""
+Parameters:
+
+    size: tuple[int, int],
+    colorkey: ColorValue,
+    fill_color: ColorValue
+
+
+Returns:
+
+    pg.SurfaceType"""
 
 
 def create_surface_withalpha(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue, alpha: int) -> pg.SurfaceType:
@@ -750,10 +778,10 @@ New create_surface_withalpha function with partial application of colorkey argum
 """
 
 
-def create_surfaces(count: int, color: tuple[int, int, int] | ColorValue = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> Generator[pg.SurfaceType, None, None]:
+def create_surfaces(count: int, fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
-        return (create_surface(size, colorkey, color) for _ in range(count))
-    return (create_surface_partialfn(size, color) for _ in range(count))
+        return (create_surface(size, colorkey, fill_color) for _ in range(count))
+    return (create_surface_partialfn(size, fill_color) for _ in range(count))
 
 
 create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
@@ -761,8 +789,8 @@ create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial
 
 
 def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:  # FIXME:
-    # FIXME:
     """FIXME!!! this is a special case for flameglow particle and should not be used here for general circle creation"""
+    # FIXME:
     surf = pg.Surface(size).convert()
     ca, cb = iter(size)
     center = ca * 0.5, cb * 0.5
@@ -778,12 +806,57 @@ create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
 create_circle_surf_partialfn.__doc__ = """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
 
 
-########
-# MATH #
+################################################################################
+### MATH
+################################################################################
 
 
 class Math:
     """Collection of utility functions for mathematical operations."""
+
+    @dataclass
+    class UnitState:
+        pos: Vec2Type  # pyright: ignore
+        max_distance: float
+
+    @staticmethod
+    def move_to_unitstate(unit: UnitState, next_pos: UnitState, max_dist: Number):
+        x1, y1 = unit.pos
+        x2, y2 = next_pos.pos
+        dx, dy = x2 - x1, y2 - y1
+        dist_squared = dx * dx + dy * dy
+        if dist_squared <= max_dist * max_dist:
+            unit.pos = next_pos.pos
+        else:
+            dist = float(math.sqrt(float(dist_squared)))
+            ratio = max_dist / dist
+            unit.pos = (x1 + dx * ratio, y1 + dy * ratio)
+
+    @staticmethod
+    def move_to_vec2(unit: pg.Vector2, next_pos: pg.Vector2, max_dist: Number):
+        x1, y1 = iter(unit)
+        x2, y2 = iter(next_pos)
+        dx, dy = x2 - x1, y2 - y1
+        dist_squared = dx * dx + dy * dy
+        if dist_squared <= max_dist * max_dist:
+            unit = next_pos
+        else:
+            dist = float(math.sqrt(float(dist_squared)))
+            ratio = max_dist / dist
+            unit = pg.Vector2(x1 + dx * ratio, y1 + dy * ratio)
+
+    @staticmethod
+    def move_to(unit: tuple[Number, Number], next_pos: tuple[Number, Number], max_dist: Number):
+        x1, y1 = iter(unit)
+        x2, y2 = iter(next_pos)
+        dx, dy = x2 - x1, y2 - y1
+        dist_squared = dx * dx + dy * dy
+        if dist_squared <= max_dist * max_dist:
+            unit = next_pos
+        else:
+            dist = float(math.sqrt(float(dist_squared)))
+            ratio = max_dist / dist
+            unit = (x1 + dx * ratio, y1 + dy * ratio)
 
     @staticmethod
     def advance_vec2(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
@@ -845,44 +918,9 @@ class Math:
         point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
 
 
-# class Math:
-#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
-#     @staticmethod
-#     def advance_vec2(vec2: pg.Vector2, angle: _SupportsFloatOrIndex, amount: Number) -> None:
-#         """NOTE: Mutates vec2 parameter and returns None"""
-#         # vec2.x += math.cos(angle) * amount
-#         # vec2.y += math.sin(angle) * amount
-#         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
-#
-#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
-#     @staticmethod
-#     def advance_float2(point2: list[float], angle: _SupportsFloatOrIndex, amount: Number) -> None:
-#         """NOTE: Mutates point2 parameter and returns None"""
-#         if DEBUG_GAME_ASSERTS:
-#             assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-#         """
-#         Diagnostics:
-#         1. No overloads for "__setitem__" match the provided arguments [reportCallIssue]
-#         2. Argument of type "float" cannot be assigned to parameter "value" of type "int" in function "__setitem__"
-#              "float" is incompatible with "int" [reportArgumentType]
-#         """
-#         point2[0] += math.cos(angle) * amount
-#         point2[1] += math.sin(angle) * amount
-#
-#     # Ported and modified from DaFluffyPotato's Moonrabit Collection game_math.py
-#     @staticmethod
-#     def advance_int2(point2: list[int], angle: _SupportsFloatOrIndex, amount: Number) -> None:
-#         """NOTE: Mutates point2 parameter and returns None"""
-#         if DEBUG_GAME_ASSERTS:
-#             assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-#
-#         point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
-#         point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
-#
-
-#########################
-# FUNCUTILS & ITERUTILS #
-
+################################################################################
+### FUNCUTILS & ITERUTILS #
+################################################################################
 # NOTE: this is just for learning
 
 
@@ -903,6 +941,22 @@ class Iterutils:
 
     @staticmethod
     def idiom_it_cycle():
+        # THIS IS A STUB FOR DOCSTRING PORTED FROM collections as inspiration
+        """Like dict.update() but subtracts counts instead of replacing them.
+        Counts can be reduced below zero.  Both the inputs and outputs are
+        allowed to contain zero and negative counts.
+
+        Source can be an iterable, a dictionary, or another Counter instance.
+
+        >>> c = Counter('which')
+        >>> c.subtract('witch')             # subtract elements from another iterable
+        >>> c.subtract(Counter('watch'))    # subtract elements from another counter
+        >>> c['h']                          # 2 in which, minus 1 in witch, minus 1 in watch
+        0
+        >>> c['w']                          # 1 in which, minus 1 in witch, minus 1 in watch
+        -1
+
+        """
         # bg = (0, 0, 0)
         # ...
         bg_colors = (hsl_to_rgb(240, 0.3, 0.1), hsl_to_rgb(240, 0.35, 0.1), hsl_to_rgb(240, 0.3, 0.15))
@@ -982,132 +1036,3 @@ class Iterutils:
         print()
         # t=it.tee()
         # takew=it.takewhile()
-
-
-"""
-
-vignette effect:
-
-VERSION 1:
-PYTHON
-        from dataclasses import dataclass
-        from pygame import BLEND_ALPHA_SDL2, BLEND_RGBA_MULT
-        
-        @dataclass
-        class GameDisplayConfig:
-            dreamlike: int
-            noir: int
-            moody: int
-            blend_flag: int
-        
-            def create_display(self, bgcolor):
-                if self.dreamlike:
-                    return self._create_display(bgcolor, alpha=17)
-                elif self.noir:
-                    return self._create_display(bgcolor, fill_color=(174 * 0.2, 226 * 0.2, 255 * 0.3), vignette_range=(24, 28), color_key=pre.BLACK if self.noir_spotlight else None)
-                elif self.moody:
-                    return self._create_display(bgcolor, alpha=255 // 2, color_key=pre.BLACK)
-                else:
-                    return self._create_display(bgcolor, fill_color=(174 * 0.2, 226 * 0.2, 255 * 0.3), vignette_range=(10, 20) if randint(10, 20) else min(8, 255 // 13))
-        
-            def _create_display(self, bgcolor, alpha=None, fill_color=None, vignette_range=None, color_key=None):
-                display = pg.Surface(pre.DIMENSIONS_HALF, self.blend_flag).convert_alpha()
-                if fill_color:
-                    display.fill(fill_color)
-                    if vignette_range:
-                        vignette_value = vignette_range[1] if bgcolor == pre.COLOR.BGCOLORDARK else (vignette_range[0] if bgcolor == pre.COLOR.BGCOLORDARKER else vignette_range[1])
-                        pre.Surfaces.compute_vignette(display, vignette_value)
-                if alpha is not None:
-                    display.set_alpha(alpha)
-                if color_key is not None:
-                    display.set_colorkey(color_key)
-                return display
-        
-        display_config = GameDisplayConfig(
-            dreamlike=0,
-            noir=1,
-            moody=0,
-            blend_flag=BLEND_ALPHA_SDL2
-        )
-        
-        self.display_3 = display_config.create_display(self.bgcolor)
-
-
-VERSION 1:
-RUST
-        use rand::Rng;
-        
-        #[derive(Debug)]
-        struct GameDisplayConfig {
-            dreamlike: bool,
-            noir: bool,
-            moody: bool,
-            blend_flag: u32,
-        }
-        
-        impl GameDisplayConfig {
-            fn create_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
-                if self.dreamlike {
-                    self.create_dreamlike_display(bgcolor)
-                } else if self.noir {
-                    self.create_noir_display(bgcolor)
-                } else if self.moody {
-                    self.create_moody_display(bgcolor)
-                } else {
-                    self.create_default_display(bgcolor)
-                }
-            }
-        
-            fn create_dreamlike_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
-                self._create_display(bgcolor, Some(17), None, None, None)
-            }
-        
-            fn create_noir_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
-                let fill_color = (174 * 2 / 10, 226 * 2 / 10, 255 * 3 / 10);
-                let vignette_range = Some((24, 28));
-                let color_key = None; // pre.BLACK if self.noir_spotlight else None
-                self._create_display(bgcolor, None, Some(fill_color), vignette_range, color_key)
-            }
-        
-            fn create_moody_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
-                self._create_display(bgcolor, Some(255 / 2), None, None, Some(pre::BLACK))
-            }
-        
-            fn create_default_display(&self, bgcolor: (u8, u8, u8)) -> Surface {
-                let fill_color = (174 * 2 / 10, 226 * 2 / 10, 255 * 3 / 10);
-                let vignette_range = if rand::thread_rng().gen_range(10, 20) { Some((10, 20)) } else { Some((8, 255 / 13)) };
-                self._create_display(bgcolor, None, Some(fill_color), vignette_range, None)
-            }
-        
-            fn _create_display(&self, bgcolor: (u8, u8, u8), alpha: Option<u8>, fill_color: Option<(u8, u8, u8)>, vignette_range: Option<(u8, u8)>, color_key: Option<Color>) -> Surface {
-                let mut display = Surface::new(pre::DIMENSIONS_HALF, self.blend_flag).convert_alpha();
-                if let Some(fill_color) = fill_color {
-                    display.fill(fill_color);
-                    if let Some(vignette_range) = vignette_range {
-                        let vignette_value = match bgcolor {
-                            pre::COLOR::BGCOLORDARK => vignette_range.1,
-                            pre::COLOR::BGCOLORDARKER => vignette_range.0,
-                            _ => vignette_range.1,
-                        };
-                        pre::Surfaces.compute_vignette(&mut display, vignette_value);
-                    }
-                }
-                if let Some(alpha) = alpha {
-                    display.set_alpha(alpha);
-                }
-                if let Some(color_key) = color_key {
-                    display.set_colorkey(color_key);
-                }
-                display
-            }
-        }
-        
-        let display_config = GameDisplayConfig {
-            dreamlike: false,
-            noir: true,
-            moody: false,
-            blend_flag: BLEND_ALPHA_SDL2,
-        };
-        
-        let display_3 = display_config.create_display(self.bgcolor);
-"""
