@@ -291,6 +291,7 @@ class UserConfig:
     player_jump: int
     player_speed: int
     shadow_range: int
+    screenshake: bool
     sound_volume: float
     star_count: int
 
@@ -315,6 +316,7 @@ class UserConfig:
             player_dash=int(config_dict.get('player_dash', '0')),
             player_jump=int(config_dict.get('player_jump', '0')),
             player_speed=int(config_dict.get('player_speed', '0')),
+            screenshake=config_dict.get('screenshake', 'true').lower() == 'true',
             shadow_range=int(config_dict.get('shadow_range', '1')),
             sound_volume=float(config_dict.get('sound_volume', '0.0')),
             star_count=int(config_dict.get('star_count', '0')),
@@ -492,9 +494,10 @@ DEBUG_EDITOR_HUD        = True
 DEBUG_GAME_ASSERTS      = True
 DEBUG_GAME_PRINTLOG     = False
 DEBUG_GAME_LOGGING      = True
-DEBUG_GAME_CACHEINFO    = True
+DEBUG_GAME_CACHEINFO    = False
 DEBUG_GAME_HUD          = True
 DEBUG_GAME_PROFILER     = False
+DEBUG_GAME_UNITTEST     = True
 DEBUG_GAME_STRESSTEST   = False
 # fmt: on
 

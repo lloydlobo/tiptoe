@@ -18,7 +18,6 @@ try:
 
     if sys.version_info >= (3, 12):
         from types import GenericAlias  # pyright: ignore
-
     import pygame as pg
 
     import internal.prelude as pre
@@ -32,13 +31,17 @@ try:
     from internal.stars import Stars
     from internal.tilemap import Tilemap
 except ImportError as e:
-    print(f"{e}")
+    print(f"failed to import packages:\n\t{e}")
     exit(2)
 
 
-def quit_exit() -> NoReturn:
+def quit_exit(context: str = "") -> NoReturn:
     if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
         print(f"{pre.hsl_to_rgb.cache_info() = }")
+
+    if context:
+        print(f"{context}")
+
     pg.quit()
     sys.exit()
 
@@ -87,15 +90,6 @@ class Textz:
         surf.blit(text_surface, text_rect)
 
 
-@dataclass
-class LevelCheckpoints:
-    level: int
-    checkpoint: int  # 0 is level 1 start
-    pos: pg.Vector2
-    time: float
-    # history: dict[int, int]
-
-
 class Game:
     def __init__(self) -> None:
         pg.init()
@@ -118,7 +112,7 @@ class Game:
         if pre.DEBUG_GAME_HUD:
             try:
                 self.font_hud = pg.font.SysFont(name=("Julia Mono"), size=12, bold=True)
-            except:
+            except:  # fixme: add type of exception
                 self.font_hud = pg.font.SysFont(name=("monospace"), size=11, bold=True)
 
         self.clock = pg.time.Clock()
@@ -126,7 +120,7 @@ class Game:
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[pre.Number] = deque([self.dt, self.dt])
 
-        self.config_handler = get_user_config(pre.CONFIG_PATH)
+        self.config_handler: pre.UserConfig = get_user_config(pre.CONFIG_PATH)
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
         self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
@@ -167,8 +161,8 @@ class Game:
             shootmiss=pg.mixer.Sound((pre.SFX_PATH / "shootmiss.wav").__str__()),
         )
 
-        self.sfx.ambienceheartbeatloop.set_volume(0.5)  # note: loop it
-        self.sfx.ambienceportalnear.set_volume(0.5)
+        self.sfx.ambienceheartbeatloop.set_volume(0.1)  # note: loop it
+        self.sfx.ambienceportalnear.set_volume(0.1)
         self.sfx.dash.set_volume(0.2)
         self.sfx.dashbassy.set_volume(0.2)
         self.sfx.hit.set_volume(0.2)
@@ -207,7 +201,6 @@ class Game:
 
         # load_level: declares and initializes level specific members
         self.level = 0
-        self.checkpoints: deque[LevelCheckpoints] = deque()
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
         self._max_screenshake: Final = pre.TILE_SIZE
 
@@ -225,17 +218,27 @@ class Game:
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
         self.screenshake = 0
-        self.gameover = False
+
+        try:
+            assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+        except AssertionError as e:
+            self.gameover = False  # -> this fixes: in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there
+            print(f"error while running game from reset_game():\n\t{e}", file=sys.stderr)
 
         self.level = 0
-
-        if len(self.checkpoints):
-            self.checkpoints.clear()
 
         self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
+
+        if 0:
+            try:
+                assert not self.gameover, f"want gameover flag to be false. got {self.gameover=}"
+            except AssertionError as e:
+                print(f"error while running game from load_level():\n\t{e}", file=sys.stderr)
+                quit_exit()
+            self.gameover = False
 
         self.projectiles: list[pre.Projectile] = []
         self.sparks: list[Spark] = []
@@ -264,51 +267,37 @@ class Game:
         # Particles go on display, but they are added after the displays merge so they don't receive the outline
         self.particles: list[Particle] = []
 
-        # 1/16 on y axis make camera less choppy and also doesn't hide player falling off the screen at free fall. 1/30 for x axis, gives fast
-        #   horizontal slinky camera motion! Also 16 is a perfect square. note: camera origin is top-left of screen
         self.scroll = pg.Vector2(0.0, 0.0)
         self._scroll_ease = pg.Vector2(1 / 25, 1 / 25)
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
         self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
+
         self.touched_portal = False
+
         if self.level != 0:
             self.sfx.playerspawn.play()
 
         self.transition = self._transition_lo
 
-        try:
-            if len(self.checkpoints):  # note: at reset we are clearing the deque
-                recent_checkpoint = self.checkpoints[0]
-                if recent_checkpoint.level == self.level and recent_checkpoint.checkpoint != 0 and self.level != 0:
-                    self.player.pos = recent_checkpoint.pos
-                    print(f"{time.time()} Reloading last checkpoint {recent_checkpoint}")
-            else:
-                self.checkpoints.appendleft(LevelCheckpoints(self.level, 0, self.player.pos, time.time()))
-        except Exception as e:  # deque index out of range
-            print(e)  # note: at init we populate deque with first checkpoint. should do this here, to avoid indexing
-            quit_exit()
-
     def run(self) -> None:
-        # if (_tmp_with_music := 0) and _tmp_with_music:
         pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
-        pg.mixer.music.set_volume(0.2)
-        pg.mixer.music.play(-1)  # -1 => play infinitely
+        pg.mixer.music.set_volume(0.1)
+        pg.mixer.music.play(-1)
 
-        chan_sfx_ambienceheartbeatloop: pg.mixer.ChannelType = self.sfx.ambienceheartbeatloop.play(-1)
         if self.level == 0:
             self.sfx.playerspawn.play()
 
-        bg: pg.Surface = self.assets.misc_surf["background"]
-        bg.fill(self.bgcolor)
+        bg: pg.SurfaceType = self.assets.misc_surf["background"]
+        # bg.fill(self.bgcolor)
 
         self.last_tick_recorded = pg.time.get_ticks()
 
         running = True
 
         while running:
-            self.display.fill(pre.TRANSPARENT)
+            self.display.fill((0, 0, 0, 0))
             self.display_2.blit(bg, (0, 0))
 
             self.screenshake = max(0, self.screenshake - 1)
@@ -320,15 +309,26 @@ class Game:
                     try:
                         if self.level + 1 >= self._level_map_count:
                             self.reset_game()
-                            self.gameover = True  # since this func is called by mainmenu_screen, it
-                            running = False  #      ,will continue on from the loop inside game menu
+                            # FIXME: message from Game.reset_game():
+                            #           "in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there"
+                            try:
+                                assert not self.gameover, f"want gameover flag to be false. got {self.gameover=}"
+                            except AssertionError as e:
+                                err_msg = f"error while running game from Game.run():\n\t{e}"
+                                if 0:
+                                    print(err_msg, file=sys.stderr)
+                                    quit_exit()
+                                else:
+                                    print(f"allowing AssertionError instead of quit_exit():\n\t{err_msg}", file=sys.stderr)
+                                    pass
+                            self.gameover = True  # NOTE: Since this func is called by mainmenu_screen,
+                            running = False  #      the process will continue on from the loop inside game menu.
+                            pass
                         else:
-                            # todo: checkpoint logic
                             self.level = min(self.level + 1, self._level_map_count - 1)
                             self.load_level(self.level)
-                    except Exception as e:
-                        # fixme: antipattern to use Exception?
-                        print(e)
+                    except Exception as e:  # fixme: antipattern to use Exception?
+                        print(f"error while in game loop in Game.run():\n\t{e}", file=sys.stderr)
                         quit_exit()
 
             if self.transition < self._transition_mid:
@@ -339,22 +339,20 @@ class Game:
                 if self.dead >= self._dead_mid:  # ease into incrementing for level change till _hi
                     self.transition = min(self._transition_hi, self.transition + 1)
                 if self.dead >= self._dead_hi:
-                    if (recent_checkpoint := self.checkpoints[0]) and recent_checkpoint.level == self.level and recent_checkpoint.checkpoint != 0:
-                        self.checkpoints.appendleft(LevelCheckpoints(self.level, (recent_checkpoint.checkpoint + 1), self.player.pos, time.time()))
                     self.load_level(self.level)
 
-            # Camera: update and parallax [where we want camera to be]-[where we are or what we have]/25, So further player is faster camera moves and vice-versa we can
-            #   use round on scroll increment to smooth out jumper scrolling & also multiplying by point zero thirty two instead of dividing
-            #   by thirty if camera is off by 1px not an issue, but rendering tiles could be. note: use 0 round off for smooth camera.
+            # Camera: update and parallax
             self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
             self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
-            raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
-            mouse_pos = raw_mouse_pos + render_scroll
+            # Mouse: cursor position with offset
+            raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE  # note: similar technique used in editor.py
+            mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
             # Flametorch: particle animation
-            odds_of_flame: float = 0.49999 or 49_999 * 0.00001
+            odds_of_flame: float = 0.49999 or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
+            # QUEST: Particle.frame these need to be lambdas?
             self.particles.extend(
                 Particle(
                     game=self,
@@ -364,11 +362,11 @@ class Game:
                         y=(rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - rect.h / 2),
                     ),
                     velocity=pg.Vector2(-0.1, -0.3),
-                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEPARTICLE,
-                )  # velocity slightly to left and down, frame these need to be lambdas
+                    frame=randint(0, 20),
+                )
                 for rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame) < (rect.w * rect.h)  # since torch is slim
-            )  # big number is to control spawn rate
+                if (random() * odds_of_flame) < (rect.w * rect.h)
+            )
             self.particles.extend(
                 Particle(
                     game=self,
@@ -378,11 +376,11 @@ class Game:
                         y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2),
                     ),
                     velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),
-                    frame=randint(0, 20) or pre.COUNTRANDOMFRAMES.FLAMEGLOW,  # these need to be lambdas
+                    frame=randint(0, 20),
                 )
                 for rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame * 60) < (rect.w * rect.h)  # random * bignum pixel area (to avoid spawning particles at each frame)
-            )  # big number is to control spawn rate
+                if (random() * odds_of_flame * 60) < (rect.w * rect.h)
+            )
 
             # Stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
@@ -400,30 +398,6 @@ class Game:
                             self.sfx.portaltouch.play()
                     self.display.blit(portal.assets[i], portal.pos - render_scroll)
 
-            # Checkpoints via flametorchs
-            if 0:  # FUTURE:
-                if len(self.flametorch_spawners):
-                    for torch in self.flametorch_spawners:
-                        if self.player.rect().colliderect(torch):
-                            if self.checkpoints:
-                                recent_checkpoint = self.checkpoints[0]
-                                if recent_checkpoint.level != self.level:
-                                    raise ValueError("impossible condition or logic error in storing checkpoints")
-                                # torch_pos = torch.x, torch.y
-                                # if recent_checkpoint.checkpoint_pos == torch_pos:
-                                #     self.checkpoints[0].time = time.time()
-                                self.checkpoints.appendleft(
-                                    LevelCheckpoints(
-                                        level=self.level,
-                                        checkpoint=recent_checkpoint.checkpoint + 1,  # should use key value pair {level: checkpoint}
-                                        pos=self.player.pos,
-                                        # checkpoint_pos=torch_pos,
-                                        time=time.time(),
-                                    )
-                                )
-                                print(f"{self.checkpoints, torch}")
-                        pass
-
             # Enemy: update and render
             for enemy in self.enemies.copy():
                 kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
@@ -436,34 +410,30 @@ class Game:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
 
-            # Gun: Projectiles when adding something new to camera like this to the world always think about how camera should apply on what one is
-            #   working on. e.g. HUD does not need camera scroll, but if working on something in the world, one needs camera scroll.
-            #   also other way around, something in the world. Convert from screen space to world space backwards. Note that halving dimensions of image gets its center for the camera
+            # Gun: projectiles and sparks
             for projectile in self.projectiles:
                 projectile.pos[0] += projectile.velocity
                 projectile.timer += 1
-                img = self.assets.misc_surf["projectile"]
                 dest = pg.Vector2(projectile.pos) - render_scroll
-                self.display.blit(img, dest)
+                self.display.blit(self.assets.misc_surf["projectile"], dest)
 
-                # Post projectile render: update
-                prj_x, prj_y = int(projectile.pos[0]), int(projectile.pos[1])
-                if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(prj_x, prj_y)):
+                # Projectile post render: update
+                projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])  # int -> precision for grid system
+                if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
                     self.projectiles.remove(projectile)
-                    spark_speed, direction = 0.5, math.pi if projectile.velocity > 0 else 0  # unit circle direction (0 left, right math.pi)
+                    spark_speed, direction = 0.5, (math.pi if projectile.velocity > 0 else 0)  # unit circle direction (0 left, right math.pi)
                     self.sparks.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(4)])  # projectile hit solid object -> sparks bounce opposite to that direction
                     self.sfx.hitwall.play()
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
                 elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
-                    if self.player.rect().collidepoint(prj_x, prj_y):
+                    if self.player.rect().collidepoint(projectile_x, projectile_y):
                         if self.player.action is Action.IDLE and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter:  # player invincible camouflaged one with the world
                             self.projectiles.remove(projectile)
                             self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
                             self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2)) for _ in range(30))
                             self.sfx.hitmisc.play()  # invincible player when idle for 3 lifes
-                            pass
-                        else:  # player leaves world
+                        else:  # player dies
                             self.projectiles.remove(projectile)
                             self.dead += 1
                             self.dead_hit_skipped_counter = 0
@@ -508,9 +478,8 @@ class Game:
                         kill_animation = particle.update()
                         img = particle.animation.img().copy()
                         # ideal is display, but display_2 looks cool for flameglow
-                        self.display_2.blit(
-                            source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD
-                        )  # ^ use center of the image as origin
+                        self.display_2.blit(source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD)
+                        # ^ use center of the image as origin
                         particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3
                         if kill_animation:
                             self.particles.remove(particle)
@@ -519,7 +488,15 @@ class Game:
 
             for event in pg.event.get():
                 if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+
                     running = False  # since this func is called by mainmenu_screen, it will continue on from the loop inside game menu
+                    # FIXME:
+                    try:
+                        assert not self.gameover, "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+                    except AssertionError as e:
+                        self.gameover = False
+                        print(f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False")
+
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
                     quit_exit()
                 if event.type == pg.QUIT:
@@ -543,13 +520,14 @@ class Game:
                     if event.key == pg.K_RIGHT:
                         self.movement.right = False
 
-            if random() < 0.0001:  # for application not responding messages(rare)
-                pg.event.clear()
+            if (_tmp_flag_cleanslate := 0) and _tmp_flag_cleanslate:
+                if random() < 0.0001:  # for application not responding messages(rare)
+                    pg.event.clear()
 
             # Render: display
             self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
-            # TODO: screenshake effect via offset for screen blit
-            self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), (0, 0))  # pixel art effect
+            _dest_screen_offset = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - (self.screenshake * 0.5), (self.screenshake * random()) - (self.screenshake * 0.5))
+            self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _dest_screen_offset)  # pixel art effect
 
             if pre.DEBUG_GAME_HUD:
                 if pre.DEBUG_GAME_STRESSTEST and (abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2):
@@ -566,8 +544,9 @@ class Game:
                 if len(self.clock_dt_recent_values) is pre.FPS_CAP:
                     self.clock_dt_recent_values.pop()
 
-        if not running:
-            chan_sfx_ambienceheartbeatloop.fadeout(3000)
+        # if not running:
+        #     if 0:
+        #         chan_sfx_ambienceheartbeatloop.fadeout(3000)
 
 
 def loading_screen(game: Game):
@@ -637,11 +616,9 @@ def loading_screen(game: Game):
 
         for event in pg.event.get():
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                pg.quit()
-                sys.exit()
+                quit_exit()
             if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
+                quit_exit()
 
         game.display_2.blit(game.display, (0, 0))
         game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
@@ -654,7 +631,7 @@ def loading_screen(game: Game):
 
     if pre.DEBUG_GAME_ASSERTS:
         t_end = time.perf_counter()
-        t_elapsed = t_end - t_start  # type: ignore
+        t_elapsed = t_end - t_start  # pyright: ignore
         ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
         try:
@@ -662,11 +639,15 @@ def loading_screen(game: Game):
             assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
         except AssertionError as e:
             print(f"loading_screen: AssertionError while loading screen:\n\t{e}", file=sys.stderr)
-            pass
+            quit_exit()
 
 
 def gameover_screen(game: Game):
-    clock = pg.time.Clock()
+    try:
+        assert game.gameover, f"want gameover flag to be true. got {game.gameover=}"
+    except AssertionError as e:
+        print(f"error while running game from gameover_screen():\n\t{e}", file=sys.stderr)
+        quit_exit()
 
     loading_screen_duration_sec: Final[float] = 2.0
     fade_in_frame_count: Final = 7  # same as for bullet projectiles
@@ -695,9 +676,9 @@ def gameover_screen(game: Game):
     if pre.DEBUG_GAME_STRESSTEST:
         t_start = time.perf_counter()
 
-    chan_sfx: pg.mixer.ChannelType = game.sfx.ambienceportalnear.play(-1)
-
+    clock = pg.time.Clock()
     running = True
+
     while running:  # while count < max_count:
         game.display.fill(bgcolor)
 
@@ -705,26 +686,28 @@ def gameover_screen(game: Game):
             title_textz_drawfn(game.display)
             instruction_textz_drawfn(game.display)
 
-        # pixel art effect for drop-shadow depth
-        display_mask: pg.Mask = pg.mask.from_surface(game.display)
+        display_mask: pg.Mask = pg.mask.from_surface(game.display)  # pixel art effect for drop-shadow depth
         display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             game.display_2.blit(display_silhouette, offset)
 
         for event in pg.event.get():
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                pg.quit()
-                sys.exit()
+                quit_exit()
             if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
+                quit_exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
-                    chan_sfx.fadeout(2000)
                     try:
-                        running = False  # since this func is called by mainmenu_screen, it will continue on from the loop inside game menu
-                    except:
-                        print(f"something went wrong while running mainmenu_screen from gameover_screen()")
+                        # fixes: this is now setting ganeover state to false as
+                        # we exit gameover menu.
+                        # solves assertion error in Game.run() loop on Esc event
+                        game.gameover = False
+                        # since this func is called by mainmenu_screen, it will
+                        # continue on from the loop inside game menu
+                        running = False
+                    except Exception as e:  # fixme: using exception (anti-pattern)
+                        print(f"something went wrong while running mainmenu_screen from gameover_screen():\n\t{e}")
                         quit_exit()
 
         game.display_2.blit(game.display, (0, 0))
@@ -745,34 +728,31 @@ def gameover_screen(game: Game):
             assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
             assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
         except AssertionError as e:
-            print(f"AssertionError while loading screen:\n\t{e}", file=sys.stderr)
-            pass
-    pass
+            print(f"error while running game from gameover_screen():\n\t{e}", file=sys.stderr)
+            quit_exit()
 
-
-def options_menu():
-    # TODO:
-    pass
+    try:
+        assert not running, "gameover loop not running"
+    except AssertionError as e:
+        print(f"error while running game from gameover_screen():\n\t{e}", file=sys.stderr)
+        quit_exit()
 
 
 def mainmenu_screen(game: Game):
-    title_textz = Textz(game.font, bold=True)
-    instruction_textz = Textz(game.font_sm, bold=False)
-    title_textz_offy = 4 * pre.TILE_SIZE
-    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
     title_str = "Menu"
     instruction_str = f"return* to enter game or q*uit to exit"
-    bgcolor = pre.CHARCOAL
     w, h = pre.DIMENSIONS_HALF
+
+    bgcolor = pre.CHARCOAL
+    title_textz_offy = 4 * pre.TILE_SIZE
+    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+
+    title_textz = Textz(game.font, bold=True)
+    instruction_textz = Textz(game.font_sm, bold=False)
     title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
     instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
 
     clock = pg.time.Clock()
-
-    # def play_menu_theme():
-    #     game.sfx.ambienceportalnear.play()
-
-    chan_menu_sfx_theme: pg.mixer.ChannelType = game.sfx.ambienceportalnear.play(-1)
 
     running = True
 
@@ -782,33 +762,24 @@ def mainmenu_screen(game: Game):
         title_textz_drawfn(game.display)
         instruction_textz_drawfn(game.display)
 
-        # pixel art effect for drop-shadow depth
-        display_mask: pg.Mask = pg.mask.from_surface(game.display)
+        display_mask: pg.Mask = pg.mask.from_surface(game.display)  # pixel art effect for drop-shadow depth
         display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             game.display_2.blit(display_silhouette, offset)
 
         for event in pg.event.get():
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                pg.quit()
-                sys.exit()
+                quit_exit()
             if event.type == pg.QUIT:
-                pg.quit()
-                sys.exit()
+                quit_exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_RETURN:
-                    chan_menu_sfx_theme.fadeout(2000)
-                    # chan_menu_sfx_theme.stop() # necessary to stop if fading out? or pause?
                     try:
                         game.run()
                         if game.gameover:
                             gameover_screen(game)
-                            # TODO: how to resume ambience sfx channel for main menu?
-                            #     chan_menu_sfx_theme.play()
                     except RuntimeError as e:
-                        print(e)
-                        print(f"error while running game from mainmenu_screen()", file=sys.stderr)
+                        print(f"error while running game from mainmenu_screen(), {e}", file=sys.stderr)
                         quit_exit()
 
         game.display_2.blit(game.display, (0, 0))
@@ -817,13 +788,17 @@ def mainmenu_screen(game: Game):
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
 
-    assert not running
-    if not running:
-        chan_menu_sfx_theme.fadeout(1000)
+    try:
+        assert not running, "main menu not running"
+    except AssertionError as e:
+        print(f"error while running game from mainmenu_screen():\n\t{e}", file=sys.stderr)
+        quit_exit()
 
 
 if __name__ == "__main__":
-    test__internal__move__commands__py()
+    if pre.DEBUG_GAME_UNITTEST:
+        test__internal__move__commands__py()
+
     if pre.DEBUG_GAME_PROFILER:
         cProfile.run("Game().load_level(0)", sort="cumulative")
         cProfile.run("Game().run()", sort="cumulative")

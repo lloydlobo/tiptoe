@@ -31,6 +31,7 @@ star_count        32
 #================================
 # Miscellaneous Decorations
 #================================
+
 drop_shadow       true
 shadow_range      1
 col_shadow        000000
@@ -43,6 +44,11 @@ blur_enabled      false
 blur_size         3
 blur_passes       1
 blur_vibrancy     0.1696
+
+#================================
+# Display Effect
+#================================
+screenshake      true
 
 #================================
 # Sound Configuration
