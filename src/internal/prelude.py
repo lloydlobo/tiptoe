@@ -8,7 +8,6 @@ library.
 * COUNT                     class
 * COUNTRANDOMFRAMES         class
 * Collisions                class
-* ConfigHandler             class
 * EntityKind                class
 * Math                      class
 * Movement                  class
@@ -37,7 +36,6 @@ __all__ = [
     "COUNT",
     "COUNTRANDOMFRAMES",
     "Collisions",
-    "ConfigHandler",
     "EntityKind",
     "Math",
     "Movement",
@@ -92,7 +90,9 @@ from typing import (
 
 import _collections_abc
 import pygame as pg
-import toml
+
+
+# import toml
 
 
 ################################################################################
@@ -346,31 +346,6 @@ class UserConfig:
                     )
                 ]
             }
-
-
-@dataclass
-class ConfigHandler:
-    def __init__(self, config_path: Path) -> None:
-        self._path: Final[Path] = config_path
-        self.config: Dict[str, Any] = {}
-
-        self.game: Dict[str, Any] = {}
-
-        self.game_entity_enemy: Dict[str, Any] = {}
-        self.game_entity_player: Dict[str, Any] = {}
-        self.game_misc_decorations: Dict[str, Any] = {}
-        self.game_misc_decorations_blur: Dict[str, Any] = {}
-        self.game_world_stars: Dict[str, Any] = {}
-
-    def load_game_config(self) -> None:
-        self.config = toml.load(self._path)
-        self.game = self.config.copy().get("game", {})
-
-        self.game_world_stars = self.game.get("world", {}).get("stars", {})
-        self.game_entity_player = self.game.get("entity", {}).get("player", {}).get("movement", {})
-        self.game_entity_enemy = self.game.get("entity", {}).get("enemy", {}).get("movement", {})
-        self.game_misc_decorations = self.game.get("misc", {}).get("decorations", {})
-        self.game_misc_decorations_blur = self.game.get("misc", {}).get("decorations", {}).get("blur", {})
 
 
 ##########
