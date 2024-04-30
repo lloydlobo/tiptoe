@@ -1,5 +1,8 @@
 # Primer: https://www.pygame.org/docs/tut/newbieguide.html
 
+from random import uniform
+
+
 try:
     import cProfile
     import itertools as it
@@ -244,7 +247,17 @@ class Game:
         self.sparks: list[Spark] = []
 
         # SPAWNERS
-        self.flametorch_spawners: list[pg.Rect] = [pg.Rect(4 + torch.pos.x, 4 + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1]) for torch in self.tilemap.extract([("decor", 2)], keep=True)]
+        self.flametorch_spawners: list[pg.Rect] = [
+            #  HACK: hardcode hit box based on the location offset by 4 from
+            #  top-left to each right and bottom
+            pg.Rect(
+                max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x,
+                max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y,
+                pre.SIZE.FLAMETORCH[0],
+                pre.SIZE.FLAMETORCH[1],
+            )
+            for torch in self.tilemap.extract([("decor", 2)], keep=True)
+        ]
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
         val_spawner_kinds = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
@@ -350,37 +363,75 @@ class Game:
             raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE  # note: similar technique used in editor.py
             mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
+            # """
+            # NOTE: After fixing torch size problem. this is to be used vvvvvvv
+            #
+            # self.particles.extend(
+            #     Particle(
+            #         game=self,
+            #         p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
+            #         pos=pg.Vector2(
+            #             x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 1, flametorch_rect.w / 1)),
+            #             y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
+            #         ),
+            #         velocity=pg.Vector2(-0.1, 0.3),
+            #         frame=pre.COUNTRAND.FLAMEPARTICLE,
+            #     )
+            #     for flametorch_rect in self.flametorch_spawners.copy()
+            #     if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
+            # )  # big number is to control spawn rate
+            # self.particles.extend(
+            #     Particle(
+            #         game=self,
+            #         p_kind=pre.ParticleKind.FLAMEGLOW,
+            #         pos=pg.Vector2(
+            #             x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
+            #             y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 1, pre.SIZE.FLAMEPARTICLE[1] // 1) - flametorch_rect.h / 2),
+            #         ),
+            #         velocity=pg.Vector2(-0.1, 0.1),
+            #         frame=pre.COUNT.FLAMEGLOW,
+            #     )
+            #     for flametorch_rect in self.flametorch_spawners.copy()
+            #     if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
+            # )  # big number is to control spawn rate
+            #
+            # """
+
             # Flametorch: particle animation
-            odds_of_flame: float = 0.49999 or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
+            odds_of_flame: float = 0.005 * 49_999 or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
             # QUEST: Particle.frame these need to be lambdas?
             self.particles.extend(
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAME,
                     pos=pg.Vector2(
-                        x=(rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 2, rect.w / 2)),
-                        y=(rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 4) - rect.h / 2),
+                        # x=(rect.x + randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[0], rect.w)),
+                        # y=(rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2),
+                        x=(rect.x - random() * rect.w),
+                        y=(rect.y - random() * rect.h - 4),  # -4 because hitbox is 4 lower than top-right, while setting hitbox for torchspawners
                     ),
-                    velocity=pg.Vector2(-0.1, -0.3),
+                    velocity=pg.Vector2(uniform(-0.1, 0.1), uniform(-0.2, -0.3)),
+                    # frame=randint(0, 20),
                     frame=randint(0, 20),
                 )
                 for rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame) < (rect.w * rect.h)
             )
-            self.particles.extend(
-                Particle(
-                    game=self,
-                    p_kind=pre.ParticleKind.FLAMEGLOW,
-                    pos=pg.Vector2(
-                        x=(rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 2, pre.SIZE.FLAMETORCH[0] // 2) - min(pre.SIZE.FLAMETORCH[0] / 4, rect.w / 4)),
-                        y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 2, pre.SIZE.FLAMEPARTICLE[1] // 2) - rect.h / 2),
-                    ),
-                    velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),
-                    frame=randint(0, 20),
+            if 0:
+                self.particles.extend(
+                    Particle(
+                        game=self,
+                        p_kind=pre.ParticleKind.FLAMEGLOW,
+                        pos=pg.Vector2(
+                            x=(rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[0]) - min(pre.SIZE.FLAMETORCH[0] / 2, rect.w / 2)),
+                            y=(rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1]) - rect.h / 2),
+                        ),
+                        velocity=pg.Vector2(0.2 * randint(-1, 1), -0.3),
+                        frame=randint(10, 20),
+                    )
+                    for rect in self.flametorch_spawners.copy()
+                    if (random() * odds_of_flame * 60) < (rect.w * rect.h)
                 )
-                for rect in self.flametorch_spawners.copy()
-                if (random() * odds_of_flame * 60) < (rect.w * rect.h)
-            )
 
             # Stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
@@ -414,42 +465,54 @@ class Game:
             for projectile in self.projectiles:
                 projectile.pos[0] += projectile.velocity
                 projectile.timer += 1
-                dest = pg.Vector2(projectile.pos) - render_scroll
-                self.display.blit(self.assets.misc_surf["projectile"], dest)
+                # dest = pg.Vector2(projectile.pos) - render_scroll
+                img = self.assets.misc_surf["projectile"]
+                dest = (projectile.pos[0] - (img.get_width() * 0.5) - render_scroll[0], projectile.pos[1] - (img.get_height() * 0.5) - render_scroll[1])
+                self.display.blit(img, dest)
 
                 # Projectile post render: update
                 projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])  # int -> precision for grid system
+
                 if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
                     self.projectiles.remove(projectile)
-                    spark_speed, direction = 0.5, (math.pi if projectile.velocity > 0 else 0)  # unit circle direction (0 left, right math.pi)
-                    self.sparks.extend([Spark(projectile.pos, angle=(random() - spark_speed + direction), speed=(random() + 2)) for _ in range(4)])  # projectile hit solid object -> sparks bounce opposite to that direction
+                    spark_speed = 0.5
+                    spark_direction = math.pi if (projectile.velocity > 0) else 0  # unit circle direction (0 left, right math.pi)
+                    self.sparks.extend(
+                        Spark(projectile.pos, angle=(random() - spark_speed + spark_direction), speed=(2 + random()), color=pre.PINKLIGHT) for _ in range(4)
+                    )  # projectile hit solid object -> sparks bounce opposite to that direction
                     self.sfx.hitwall.play()
+
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
+
                 elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
                     if self.player.rect().collidepoint(projectile_x, projectile_y):
-                        if self.player.action is Action.IDLE and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter:  # player invincible camouflaged one with the world
+                        # Player looses health but still alive
+                        if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):
                             self.projectiles.remove(projectile)
                             self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
-                            self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2)) for _ in range(30))
+                            self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
+                            self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect().center), angle=(random() * math.pi * 2), speed=(2 + random()), color=pre.COLOR.PLAYER) for _ in range(30))
+
                             self.sfx.hitmisc.play()  # invincible player when idle for 3 lifes
-                        else:  # player dies
+
+                        else:  # Player dies
                             self.projectiles.remove(projectile)
                             self.dead += 1
                             self.dead_hit_skipped_counter = 0
                             self.screenshake = max(self._max_screenshake, self.screenshake - 1)
-                            self.sparks.extend((Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=random() + 2, color=pre.PINKLIGHT)) for _ in range(30))
+                            self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=((2 * uniform(0.618, 1.618)) + random()), color=pre.PINKLIGHT) for _ in range(30))
+
                             self.particles.extend(
-                                (
-                                    Particle(
-                                        self,
-                                        p_kind=pre.ParticleKind.FLAME,
-                                        pos=pg.Vector2(self.player.rect().center),
-                                        velocity=(pg.Vector2((math.cos(random() * math.pi * 2 + math.pi) * random() * 5 * 0.5, math.cos(random() * math.pi + math.pi) * random() * math.pi * 0.5))),
-                                        frame=randint(0, 7),
-                                    )
-                                    for _ in range(30)
+                                Particle(
+                                    self,
+                                    p_kind=pre.ParticleKind.PARTICLE,
+                                    pos=pg.Vector2(self.player.rect().center),
+                                    #                     math.cos( angle                   + math.pi) *  speed         * 0.5
+                                    velocity=(pg.Vector2((math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5, math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5))),
+                                    frame=randint(0, 7),
                                 )
+                                for _ in range(30)
                             )
                             self.sfx.hit.play()
 
@@ -471,7 +534,15 @@ class Game:
                     case pre.ParticleKind.FLAME:
                         kill_animation = particle.update()
                         particle.render(self.display, render_scroll)
-                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3  # * randint(-1, 1)
+                        # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3  # * randint(-1, 1)
+                        # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.03  # * randint(-1, 1)
+
+                        wave_amplitude = uniform(-0.3, 0.3)
+                        # PERF: if player gets near, let the flames calm down!!!!
+                        if self.player.rect().collidepoint(particle.pos):
+                            wave_amplitude = uniform(-0.3 * 10, 0.3 * 10)
+
+                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * wave_amplitude
                         if kill_animation:
                             self.particles.remove(particle)
                     case pre.ParticleKind.FLAMEGLOW:  # 0.035 avoids particle to loop from minus one to one of sine function, 0.3 controls amplitude
@@ -806,37 +877,3 @@ if __name__ == "__main__":
     game = Game()
     loading_screen(game=game)
     mainmenu_screen(game=game)
-
-# """
-# NOTE: After fixing torch size problem. this is to be used vvvvvvv
-#
-# self.particles.extend(
-#     Particle(
-#         game=self,
-#         p_kind=pre.ParticleKind.FLAME,  # pj_pos = (rect.x + random() * rect.width, rect.y + random() * rect.height)
-#         pos=pg.Vector2(
-#             x=(flametorch_rect.x + randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 1, flametorch_rect.w / 1)),
-#             y=(flametorch_rect.y + randint(-pre.SIZE.FLAMEPARTICLE[1], pre.SIZE.FLAMEPARTICLE[1] // 2) - flametorch_rect.h / 2),
-#         ),
-#         velocity=pg.Vector2(-0.1, 0.3),
-#         frame=pre.COUNTRAND.FLAMEPARTICLE,
-#     )
-#     for flametorch_rect in self.flametorch_spawners.copy()
-#     if (random() * odds_of_flame) < (flametorch_rect.w * flametorch_rect.h)  # since torch is slim
-# )  # big number is to control spawn rate
-# self.particles.extend(
-#     Particle(
-#         game=self,
-#         p_kind=pre.ParticleKind.FLAMEGLOW,
-#         pos=pg.Vector2(
-#             x=(flametorch_rect.x + 0.01 * randint(-pre.SIZE.FLAMETORCH[0] // 1, pre.SIZE.FLAMETORCH[0] // 1) - min(pre.SIZE.FLAMETORCH[0] / 2, flametorch_rect.w / 2)),
-#             y=(flametorch_rect.y + 0.03 * randint(-pre.SIZE.FLAMEPARTICLE[1] // 1, pre.SIZE.FLAMEPARTICLE[1] // 1) - flametorch_rect.h / 2),
-#         ),
-#         velocity=pg.Vector2(-0.1, 0.1),
-#         frame=pre.COUNT.FLAMEGLOW,
-#     )
-#     for flametorch_rect in self.flametorch_spawners.copy()
-#     if (random() * odds_of_flame * 60) < (flametorch_rect.w * flametorch_rect.h)
-# )  # big number is to control spawn rate
-#
-# """

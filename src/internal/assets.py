@@ -103,8 +103,8 @@ class Assets:
         # portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
         # portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
 
-        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(20)]
-        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(20)]
+        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)]
+        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)]
 
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
@@ -132,9 +132,10 @@ class Assets:
             ),
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
-                    flame=pre.Animation(flame_particles, img_dur=20, loop=False),  # Set true for performance
-                    flameglow=pre.Animation(flameglow_particles, img_dur=20, loop=False),  # Set true for performance
-                    particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.CHARCOAL, (2, 2))), img_dur=20, loop=False),  # player dash particle
+                    flame=pre.Animation(flame_particles, img_dur=12, loop=False),  # Set true for stress performance
+                    flameglow=pre.Animation(flameglow_particles, img_dur=12, loop=False),  # Set true for stress  performance
+                    # particle == player dash particle, also used for death. use longer duration to spread into the stars
+                    particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))), img_dur=6, loop=False),
                 )
             ),
         )

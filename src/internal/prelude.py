@@ -136,7 +136,8 @@ class ParticleKind(Enum):
 
     FLAME           = "flame"
     FLAMEGLOW       = "flameglow"
-    LEAF            = "leaf"
+    # LEAF          = "leaf"
+    PARTICLE        = "particle" # player particle
 # fmt:on
 
 
@@ -207,14 +208,15 @@ class Collisions:
 class Animation:
     def __init__(self, images: list[pg.Surface], img_dur: int = 5, loop: bool = True) -> None:
         self.images: Final[list[pg.Surface]] = images  # this is not copied
+        self.loop = loop
         self._img_duration: Final = img_dur
 
         self._img_duration_inverse: Final = 1 / self._img_duration  # perf:minor
         self._total_frames: Final = self._img_duration * len(self.images)
 
-        self.done = True
+        self.done = False  # fixed: should always be False at __init__
+
         self.frame = 0
-        self.loop = loop
 
     def copy(self) -> "Animation":
         return Animation(self.images, self._img_duration, self.loop)
@@ -226,13 +228,13 @@ class Animation:
             self.frame %= self._total_frames
         else:
             self.frame = min(self.frame + 1, self._total_frames - 1)
-
             if self.frame >= self._total_frames - 1:
                 self.done = True
 
     def img(self) -> pg.Surface:
-        """Returns current image to render in animation cycle. Similar to render phase in the '__init__ -> update -> render' cycle"""
+        """Returns current image to render in animation cycle.
 
+        Similar to render phase in the '__init__ -> update -> render' cycle"""
         return self.images[int(self.frame * self._img_duration_inverse)]
 
 
@@ -599,26 +601,26 @@ class COLOR:
 # fmt: on
 
 
-# fmt: off
 @dataclass
 class COUNT:
-    STAR                = (TILE_SIZE or 16)
-    FLAMEGLOW           = 1
+    STAR = TILE_SIZE or 16
+    FLAMEGLOW = 18 // 2
+    FLAMEPARTICLE = 18 // 2
     # FLAMEPARTICLE   = (TILE_SIZE or 16)
 
 
 @dataclass
 class COUNTRANDOMFRAMES:
-    """Random frame count to start on.""" 
-    FLAMEGLOW           = randint(0, 20)        # (0,20) OG or (36,64)
-    FLAMEPARTICLE       = randint(0, 20)        # (0,20) OG or (36,64)
-# fmt: on
+    """Random frame count to start on."""
+
+    FLAMEGLOW = randint(0, 20)  # (0,20) OG or (36,64)
+    FLAMEPARTICLE = randint(0, 20)  # (0,20) OG or (36,64)
 
 
 @dataclass
 class SIZE:
     ENEMY = (TILE_SIZE // 2, TILE_SIZE - 1)
-    FLAMEPARTICLE = (4, 5) or (3, 3)
+    FLAMEPARTICLE = (3, 3)
     FLAMETORCH = (3, 12)
     GUN = (7, 4)
     PLAYER = (TILE_SIZE // 2, TILE_SIZE - 1)
@@ -860,9 +862,9 @@ class Math:
             unit = (x1 + dx * ratio, y1 + dy * ratio)
 
     @staticmethod
-    def advance_vec2(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
+    def advance_vec2_ip(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
         """
-        Advances a 2D vector (pg.Vector2) by a given angle and amount.
+        Advances a 2D vector (pg.Vector2) by a given angle and amount in place.
 
         Args:
             vec2: The pg.Vector2 object representing the 2D vector to advance.
@@ -874,9 +876,9 @@ class Math:
         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
 
     @staticmethod
-    def advance_float2(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
+    def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
         """
-        Advances a 2D point represented by a list of floats by a given angle and amount.
+        Advances a 2D point represented by a list of floats by a given angle and amount in place.
 
         Args:
             point2: A list of two floats representing the x and y coordinates of the 2D point.
@@ -895,7 +897,7 @@ class Math:
         point2[1] += math.sin(angle) * amount
 
     @staticmethod
-    def advance_int2(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
+    def advance_int2_ip(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
         """
         Advances a 2D point represented by a list of integers by a given angle and amount.
 

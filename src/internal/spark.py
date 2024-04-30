@@ -22,15 +22,23 @@ class Spark:
         self.pos = pos
         self.angle = angle
         self.speed = speed
-        self.color = color if color else pre.COLOR.FLAME
+        self.color = color  # if color else pre.COLOR.FLAME
 
     def update(self) -> bool:
-        """Decay speed and check if it stopped."""
-        self.speed = max(0, self.speed - 1)  # decay*dt -> 1 ???
+        # """Decay speed and check if it stopped."""
+        self.speed = max(0, self.speed - 0.1)  # decay*dt -> 1 ???
         if self.speed <= 0:
             return True
-        pre.Math.advance_vec2(self.pos, self.angle, self.speed)
+        pre.Math.advance_vec2_ip(self.pos, self.angle, self.speed)
         return not self.speed
+
+        # function Math.advance_vec2...
+        #   vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
+        # self.pos += (math.cos(self.angle) * self.speed, math.sin(self.angle) * self.speed)
+        # self.pos[0] += math.cos(self.angle) * self.speed
+        # self.pos[1] += math.sin(self.angle) * self.speed
+        # self.speed = max(0, self.speed - 0.1)
+        # return not self.speed  # speed is its timer
 
     def log(self):
         """Prints detailed information about the Spark."""
