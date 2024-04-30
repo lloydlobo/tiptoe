@@ -2,6 +2,8 @@
 
 from random import uniform
 
+from internal.prelude import ParticleKind
+
 
 try:
     import cProfile
@@ -537,10 +539,14 @@ class Game:
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3  # * randint(-1, 1)
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.03  # * randint(-1, 1)
 
-                        wave_amplitude = uniform(-0.3, 0.3)
-                        # PERF: if player gets near, let the flames calm down!!!!
+                        wave_amplitude = uniform(-1.0, 1.0) * 0.3
+                        if wave_amplitude == 0:
+                            wave_amplitude = 1
+                        # PERF: if player gets near, let the flames change!!!!
                         if self.player.rect().collidepoint(particle.pos):
-                            wave_amplitude = uniform(-0.3 * 10, 0.3 * 10)
+                            wave_amplitude *= pre.TILE_SIZE * 1.618
+                            wave_amplitude = abs(wave_amplitude) if self.player.flip else wave_amplitude
+                            particle.kind = pre.ParticleKind.FLAMEGLOW  # or  pre.COLOR.PLAYER
 
                         particle.pos.x += math.sin(particle.animation.frame * 0.035) * wave_amplitude
                         if kill_animation:
