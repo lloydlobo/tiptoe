@@ -1,6 +1,6 @@
 """This module implements general purpose utilities, helpers, constants, flags,
 providing project specific alternatives to Python's general purpose built-in
-containers, dict, list, set, and tuple.
+library.
 
 * Animation                 class
 * AutotileID                class
@@ -11,7 +11,6 @@ containers, dict, list, set, and tuple.
 * ConfigHandler             class
 * EntityKind                class
 * Math                      class
-* MoveUnitCommandKind       class
 * Movement                  class
 * ParticleKind              class
 * Projectile                class
@@ -26,7 +25,6 @@ containers, dict, list, set, and tuple.
 * hsl_to_rgb                function
 * load_img                  function
 * load_imgs                 function
-* make_move_unit_command    function
 * rects_collidepoint        function
 * surfaces_collidepoint     function
 """
@@ -42,7 +40,6 @@ __all__ = [
     "ConfigHandler",
     "EntityKind",
     "Math",
-    "MoveUnitCommand",
     "Movement",
     "ParticleKind",
     "Projectile",
@@ -58,7 +55,6 @@ __all__ = [
     "hsl_to_rgb",
     "load_img",
     "load_imgs",
-    "create_move_unit_command",
     "rects_collidepoint",
     "surfaces_collidepoint",
 ]
@@ -148,7 +144,7 @@ class ParticleKind(Enum):
 class EntityKind(Enum):
     PLAYER = "player"
     ENEMY = "enemy"
-    # FIXME: is portal an entity? if it can teleport and move then maybe consider it.
+    # note: is portal an entity? if it can teleport and move then maybe consider it.
     PORTAL = "portal"
 
 
@@ -162,7 +158,7 @@ class TileKind(Enum):
     STONE = "stone"
 
 
-# NOTE: ideally start with 1 (as 0 may be assumed as False)
+#  NOTE: ideally start with 1 (as 0 may be assumed as False)
 #   but we used 0,1,2 as variants for spawner 'tiles' while drawing the map.json via level editor in src/editor.py
 #   for the sake of the wrapping around all spawner variants, e.g. 0 1 2 0 1 2 ..... or it.cycle(...)
 @unique  # """Class decorator for enumerations ensuring unique member values."""
@@ -481,7 +477,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
     # convert to 0-255 scale
     #   note: round() instead of int() helps in precision. e.g. gray 127 -> 128
-    return (round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
+    return ColorKind(round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
 
 
 #############
@@ -490,7 +486,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
 # flags: debugging, etc
 # fmt: off
-DEBUG_EDITOR_ASSERTS    = True
+DEBUG_EDITOR_ASSERTS    = False
 DEBUG_EDITOR_HUD        = True
 
 DEBUG_GAME_ASSERTS      = True
@@ -513,8 +509,9 @@ TILE_SIZE               = 16
 
 
 # fmt: off
-SCREEN_WIDTH            = 960 or 640
-SCREEN_HEIGHT           = 630 or 480
+SCREEN_RESOLUTION_MODE = 0
+SCREEN_WIDTH            = (960 ,640)[SCREEN_RESOLUTION_MODE]
+SCREEN_HEIGHT           = (630 ,480)[SCREEN_RESOLUTION_MODE]
 
 DIMENSIONS              = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
 DIMENSIONS_HALF         = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
@@ -544,7 +541,7 @@ FONT_PATH               = SRC_DATA_PATH / "font"
 IMGS_PATH               = SRC_DATA_IMAGES_PATH 
 INPUTSTATE_PATH         = None  
 MAP_PATH                = SRC_DATA_MAP_PATH
-SOUNDS_PATH             = None
+SFX_PATH                = SRC_DATA_PATH / "sfx"
 SPRITESHEET_PATH        = None
 # fmt: on
 
@@ -579,6 +576,51 @@ YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
 # fmt: on
 
 
+@dataclass
+class COLORPALETTEOIL6:
+    """
+    Palette Name: Oil 6
+    Description: Created by [GrafxKid](http://grafxkid.tumblr.com/palettes).
+    Colors: 6
+    """
+
+    COLOR0 = 39, 39, 68  # 272744
+    COLOR1 = 73, 77, 126  # 494d7e
+    COLOR2 = 139, 109, 156  # 8b6d9c
+    COLOR3 = 198, 159, 165  # c69fa5
+    COLOR4 = 242, 211, 171  # f2d3ab
+    COLOR5 = 251, 245, 239  # fbf5ef
+
+
+# fmt: off
+@dataclass
+class COLOR:
+    BG                  = hsl_to_rgb(240, 0.328, 0.128)
+    BGCOLORDARK         = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
+    BGCOLORDARKER       = hsl_to_rgb(240, 0.3, 0.04)
+    BGCOLORDARKGLOW     = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)] 
+                        # ^ todo: add factor_adder till 17 becomes 255, and so on for each r,g,b
+    BGMIRAGE            = hsl_to_rgb(240, 0.2, 0.07)  # used to set colorkey for stars
+    ENEMY               = ORANGE or hsl_to_rgb(10, 0.3, 0.08) 
+    GUN                 = hsl_to_rgb(300, 0.5, 0.045) 
+    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)
+    FLAME               = hsl_to_rgb(0, 0.618, 0.328)
+    TRANSPARENTGLOW     = (20, 20, 20)
+    FLAMEGLOW           = (20, 20, randint(70,90))  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
+    FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
+    GRASS               = hsl_to_rgb(0, 0.618, 0.328)
+    PLAYER              = TEAL or (4, 2, 0)
+    PLAYERIDLE          = (4, 2, 0)
+    PLAYERJUMP          = PLAYER or hsl_to_rgb(0, 0.618, 0.328)
+    PLAYERRUN           = PLAYER or (1, 1, 1)
+    PLAYERSTAR          = PINK
+    PORTAL1             = (255, 255, 255)
+    PORTAL2             = (15, 20, 25)
+    STAR                = hsl_to_rgb(300, 0.26, 0.18) or PINK
+    STONE               = (1, 1, 1)
+# fmt: on
+
+
 # fmt: off
 @dataclass
 class COUNT:
@@ -595,52 +637,23 @@ class COUNTRANDOMFRAMES:
 # fmt: on
 
 
-# fmt: off
 @dataclass
 class SIZE:
-    ENEMY               = (8, 16)
-    ENEMYJUMP           = (ENEMY[0], ENEMY[1] - 1)
-    FLAMEPARTICLE       = (4,5)or(3, 3)  # use 6,6 if a circles else 3,3 if particle is rect
-    FLAMETORCH          = (3, 12)
-    GUN                 = (4, 4) # or use (14,7)
-    PLAYER              = (TILE_SIZE//1, TILE_SIZE)
-    PLAYERIDLE          = (PLAYER[0] + 1, PLAYER[1] - 1)
-    PLAYERJUMP          = (PLAYER[0] - 1, PLAYER[1])
-    PLAYERRUN           = (PLAYER[0] + 1, PLAYER[1] - 1)
-    PORTAL              = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
-    STAR                = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
-
-    # Derived Constants
-    FLAMEGLOWPARTICLE   = (round(FLAMEPARTICLE[0] ** 1.618  * 1), round(FLAMEPARTICLE[1] ** 1.618  * 1))  # use 6,6 if a circles else 3,3 if particle is rect
-# fmt: on
-
-
-# fmt: off
-@dataclass
-class COLOR:
-    BG                  = hsl_to_rgb(240, 0.328, 0.128)
-    BGCOLORDARK         = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
-    BGCOLORDARKER       = hsl_to_rgb(240, 0.3, 0.04)
-    BGCOLORDARKGLOW     = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)]  # TODO: add factor_adder till 17 becomes 255, and so on for each r,g,b
-    BGMIRAGE            = hsl_to_rgb(240, 0.2, 0.07)  # used to set colorkey for stars
-    ENEMY               = hsl_to_rgb(10, 0.3, 0.08) 
-    GUN                 = hsl_to_rgb(300, 0.5, 0.045) 
-    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)
-    FLAME               = hsl_to_rgb(0, 0.618, 0.328)
-    TRANSPARENTGLOW     = (20, 20, 20)
-    FLAMEGLOW           = (20, 20, randint(70,90))  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
-    FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
-    GRASS               = hsl_to_rgb(0, 0.618, 0.328)
-    PLAYER              = (4, 2, 0)
-    PLAYERIDLE          = (4, 2, 0)
-    PLAYERJUMP          = PLAYER or hsl_to_rgb(0, 0.618, 0.328)
-    PLAYERRUN           = PLAYER or (1, 1, 1)
-    PLAYERSTAR          = PINK
-    PORTAL1             = (255, 255, 255)
-    PORTAL2             = (15, 20, 25)
-    STAR                = hsl_to_rgb(300, 0.26, 0.18) or PINK
-    STONE               = (1, 1, 1)
-# fmt: on
+    ENEMY = (TILE_SIZE // 2, TILE_SIZE - 1)
+    FLAMEPARTICLE = (4, 5) or (3, 3)
+    FLAMETORCH = (3, 12)
+    GUN = (7, 4)
+    PLAYER = (TILE_SIZE // 2, TILE_SIZE - 1)
+    # STAR = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
+    STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
+    # Constants derived from above
+    ENEMYJUMP = (ENEMY[0], ENEMY[1] - 1)
+    FLAMEGLOWPARTICLE = (round(FLAMEPARTICLE[0] ** 1.618 * 1), round(FLAMEPARTICLE[1] ** 1.618 * 1))
+    PLAYERIDLE = (PLAYER[0] + 1, PLAYER[1] - 1)
+    PLAYERJUMP = (PLAYER[0] - 1, PLAYER[1])
+    PLAYERSTARDASHRADIUS = STAR or (int(PLAYER[0] - STAR[0] - 1), int(PLAYER[1] - STAR[1]))
+    PLAYERRUN = (PLAYER[0] + 1, PLAYER[1] - 1)
+    PORTAL = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
 
 
 # fmt: off
@@ -760,7 +773,12 @@ Returns:
     pg.SurfaceType"""
 
 
-def create_surface_withalpha(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue, alpha: int) -> pg.SurfaceType:
+def create_surface_withalpha(
+    size: tuple[int, int],
+    colorkey: tuple[int, int, int] | ColorValue,
+    fill_color: tuple[int, int, int] | ColorValue,
+    alpha: int,
+) -> pg.SurfaceType:
     surf = pg.Surface(size).convert_alpha()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -778,7 +796,12 @@ New create_surface_withalpha function with partial application of colorkey argum
 """
 
 
-def create_surfaces(count: int, fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK) -> Generator[pg.SurfaceType, None, None]:
+def create_surfaces(
+    count: int,
+    fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK,
+    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
+    colorkey: ColorValue = BLACK,
+) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
         return (create_surface(size, colorkey, fill_color) for _ in range(count))
     return (create_surface_partialfn(size, fill_color) for _ in range(count))
@@ -1036,3 +1059,9 @@ class Iterutils:
         print()
         # t=it.tee()
         # takew=it.takewhile()
+
+
+### PATHFINDING
+
+# todo: astar
+# todo: djikstra

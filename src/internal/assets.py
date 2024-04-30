@@ -2,7 +2,7 @@ import itertools as it
 import math
 from dataclasses import dataclass
 from functools import partial
-from random import uniform
+from random import randint, uniform  # pyright:ignore
 
 import pygame as pg
 
@@ -56,15 +56,41 @@ class Assets:
         particle: dict[str, pre.Animation]
 
     @classmethod
+    def initialize_editor_assets(cls):
+        player_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
+        enemy_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY)
+
+        asset_tiles_decor_variations = ((2, pre.GREEN, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.TEAL, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
+        asset_tiles_largedecor_variations = ((2, pre.GRAY, (32, 16)), (2, pre.BGDARK, (32, 16)), (2, pre.BEIGE, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
+
+        return cls(
+            entity=dict(),
+            misc_surf=dict(),
+            misc_surfs=dict(),
+            tiles=dict(
+                # grid tiles
+                stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
+                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.BLACKMID or pre.GREEN)),
+                # offgrid tiles
+                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
+                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
+                spawners=[player_spawner_surf, enemy_spawner_surf.copy(), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)],
+            ),
+            animations_entity=Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
+            animations_misc=Assets.AnimationMiscAssets(particle=dict()),
+        )
+
+    @classmethod
     def initialize_assets(cls):
         player_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
         enemy_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY)
 
-        player_idle_surf_frames = list(pre.create_surfaces_partialfn(9, size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER))
+        player_idle_surf_frames = list(pre.create_surface_partialfn(size=(int(pre.SIZE.PLAYER[0] + uniform(-1, 0)), int(pre.SIZE.PLAYER[1] + uniform(-1, 1))), fill_color=pre.COLOR.PLAYER) for _ in range(9))
         player_run_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERRUN, fill_color=pre.COLOR.PLAYERRUN))
         player_jump_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP))
 
-        background = pre.create_surface_partialfn(pre.DIMENSIONS, fill_color=pre.COLOR.BGMIRAGE)
+        background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BGMIRAGE)
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
         misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.TEAL)
 
@@ -72,11 +98,10 @@ class Assets:
 
         asset_tiles_decor_variations = ((2, pre.GREEN, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.TEAL, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
         asset_tiles_largedecor_variations = ((2, pre.GRAY, (32, 16)), (2, pre.BGDARK, (32, 16)), (2, pre.BEIGE, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
-        decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
-        large_decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
-
-        portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
-        portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
+        # large_decor =
+        #
+        # portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
+        # portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
 
         flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(20)]
         flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(20)]
@@ -90,9 +115,9 @@ class Assets:
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
                 grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.BLACKMID or pre.GREEN)),
                 # offgrid tiles
-                decor=decor,
-                large_decor=large_decor,
-                portal=[portal_surf_1, portal_surf_2],
+                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
+                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
             ),
             animations_entity=Assets.AnimationEntityAssets(
                 player=dict(

@@ -1,6 +1,5 @@
 # vim: modeline
 
-import itertools as it
 import sys
 import time
 from pathlib import Path
@@ -30,68 +29,7 @@ class Editor:
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
-        ######
-        # note: need these for reference for animation workaround
-        ######
-        player_size = (8, pre.TILE_SIZE - 1)
-        enemy_size = (8, pre.TILE_SIZE - 1)
-        portal_size = (max(5, round(player_size[0] * 1.618)), max(18, round(pre.TILE_SIZE + 2)))
-
-        player_color = pre.YELLOW
-        portal_1_color = pre.WHITE
-        portal_2_color = pre.BEIGE
-        enemy_color = pre.CREAM
-
-        player_surf = pg.Surface(player_size).convert()
-        player_surf.set_colorkey(pre.BLACK)
-        player_surf.fill(player_color)
-
-        enemy_surf = pg.Surface(enemy_size).convert()
-        enemy_surf.set_colorkey(pre.BLACK)
-        enemy_surf.fill(enemy_color)
-
-        portal_surf = pg.Surface((pre.TILE_SIZE, pre.TILE_SIZE)).convert()
-        portal_surf.set_colorkey(pre.BLACK)
-        portal_surf.fill(pre.WHITE)
-
-        portal_surf_1 = pg.Surface(portal_size).convert()
-        portal_surf_1.set_colorkey(pre.BLACK)
-        portal_surf_1.fill(portal_1_color)
-        portal_surf_2 = pg.Surface(portal_size).convert()
-        portal_surf_2.set_colorkey(pre.BLACK)
-        portal_surf_2.fill(portal_2_color)
-
-        asset_tiles_decor_variations = (
-            (2, pre.GREEN, (4, 8)),  # variants 0,1
-            (2, pre.YELLOW, (3, 8)),  # variants 2,3
-            (2, pre.TEAL, (4, 5)),  # variants 4,5
-        )
-        asset_tiles_largedecor_variations = (
-            (2, pre.GRAY, (32, 16)),  # variants 0,1
-            (2, pre.BGDARK, (32, 16)),  # variants 2,3
-            (2, pre.BEIGE, (32, 16)),  # variants 4,5
-        )
-        decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
-        large_decors: list[pg.SurfaceType] = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
-
-        self.assets = Assets(
-            entity=dict(),
-            tiles=dict(
-                # grid tiles
-                stone=list(pre.create_surfaces_partialfn(9, color=pre.BLACKMID or pre.PURPLEMID)),
-                grass=list(pre.create_surfaces_partialfn(9, color=pre.BLACKMID or pre.GREEN)),
-                # offgrid tiles
-                decor=decors,
-                large_decor=large_decors,
-                portal=[portal_surf_1.copy(), portal_surf_2.copy()],
-                # spawner positional tiles only
-                spawners=[player_surf.copy(), enemy_surf.copy(), portal_surf.copy()],
-            ),
-            misc_surf=dict(),
-            misc_surfs=dict(),
-            animations_entity=None or Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
-            animations_misc=None or Assets.AnimationMiscAssets(particle=dict()),
-        )
+        self.assets = Assets.initialize_editor_assets()
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
@@ -99,7 +37,8 @@ class Editor:
         self.last_save_time: None | float = None
         self.last_save_time_readable: None | str = None
 
-        self.level = 0  # NOTE: custom level loading from here.. available levels==[0,1]
+        # NOTE: custom level loading from here.. available levels==[0,1]
+        self.level = 0
         self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
@@ -113,8 +52,10 @@ class Editor:
         self._scroll_ease = pg.Vector2(0.0625, 0.0625)  # 1/16 (as 16 is a perfect square)
 
         self.tile_list = list(self.assets.tiles.keys())
+
         if pre.DEBUG_EDITOR_ASSERTS:
             assert set(self.tile_list) == set(x.value for x in pre.TileKind)
+
         self.tile_group = 0
         self.tile_variant = 0
 
@@ -125,7 +66,7 @@ class Editor:
 
     def run(self) -> None:
         while True:
-            self.display.fill(pre.SILVER)
+            self.display.fill(pre.COLOR.BGMIRAGE)
 
             # camera: update and parallax
             self.scroll.x += round(self.movement.right - self.movement.left) * pre.CAMERA_SPEED
