@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections import deque
 from enum import Enum
 from functools import partial
@@ -13,6 +14,9 @@ from internal.spark import Spark
 from internal.tilemap import Tilemap
 
 
+# FIXME: do not use mutable defaults in func args. movement
+
+
 if TYPE_CHECKING:
     from tiptoe import Game
 
@@ -23,6 +27,7 @@ class Action(Enum):
     IDLE = "idle"
     JUMP = "jump"
     RUN = "run"
+    SLEEPING = "sleeping"
 
 
 # You don't need to use the build-in Sprite or Group classes. see  https://www.pygame.org/docs/tut/newbieguide.html
@@ -39,7 +44,10 @@ class PhysicalEntity:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
 
         self._terminal_velocity_y: Final = 5  # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
-        self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))  # 0.1333333333.. (makes jumping possible to 3x player height)
+        self._terminal_limiter_air_friction: Final = min(
+            0.1,
+            ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)),
+        )  # if max: 0.1333333333.. (makes jumping possible to 3x player height)
 
         self.anim_offset = pg.Vector2(-1, -1)  # | Workaround for padding used in animated sprites states like run jump
         # Note: should be an int                 | to avoid collisions or rendering overflows outside of hit-box for entity
@@ -125,6 +133,7 @@ class PhysicalEntity:
 class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.ENEMY, pos, size)
+
         self._max_alert_time: Final = (60 * 2.5) * 2  # aiming for alert for 5 seconds as if the enemy stops moving the agitation isn't shown for that time period?
 
         self.walking_timer = 0
@@ -139,9 +148,12 @@ class Enemy(PhysicalEntity):
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
 
-        self._alertness_enabled: Final = True
+        self._alertness_enabled: Final = False
+
+        self.player_close_by = False
 
         self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
+
         # self.laser_ray = pre.create_surface((7, 2), pre.BLACK, pre.GREEN)
 
     def get_flip_dir(self) -> Literal[-1, 1]:
@@ -190,12 +202,13 @@ class Enemy(PhysicalEntity):
         if self._alertness_enabled:
             self.alert_timer = self._max_alert_time
 
-    # FIXME: do not use mutable defaults in func args. movement
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
+
         # Pre-calculations before inheriting PhysicalEntity update
+        prev_movement = movement.copy()
+
         match (self.walking_timer > 0):
-            # Movement via timer
-            case True:
+            case True:  # Movement via timer
                 lookahead_x = (-1) * self._lookahead_x if self.flip else self._lookahead_x
                 lookahead = pg.Vector2(self.rect().centerx + lookahead_x, self.pos.y + self._lookahead_y)
                 solid_ahead = tilemap.maybe_solid_gridtile_bool(lookahead)
@@ -203,6 +216,7 @@ class Enemy(PhysicalEntity):
                 match solid_ahead, self.collisions.left, self.collisions.right:
                     case (True, True, _) | (True, _, True):
                         self.flip = not self.flip
+
                     case (True, False, False):  # turn
                         dx = (-1) * self._moveby_x if self.flip else self._moveby_x
                         movement.x = movement.x + dx
@@ -213,8 +227,9 @@ class Enemy(PhysicalEntity):
                                 avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
                                 boost_x = 3.28 + 2  # 3.28
                                 movement.x += 0.1 * round(avg_mvmt_x * boost_x)
+
                             extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops
-                            movement.y -= extra_crazy  # TODO: remove extra_crazy after demo
+                            movement.y -= extra_crazy  # todo: remove extra_crazy after demo
                         if self._alertness_enabled:
                             self.movement_history_x.append(dx)
                     case _:
@@ -233,10 +248,9 @@ class Enemy(PhysicalEntity):
                     if abs(dist_pe.y) < pre.TILE_SIZE:
                         player_left_of_enemy, player_right_of_enemy = (dist_pe.x < 0, dist_pe.x > 0)
                         enemy_is_facing_left, enemy_is_facing_right = self.flip, not self.flip
-
-                        if (enemy_is_facing_left and player_left_of_enemy) or (enemy_is_facing_right and player_right_of_enemy):
-                            self.spawn_projectile_with_sparks()
-
+                        if self.action != Action.SLEEPING:
+                            if (enemy_is_facing_left and player_left_of_enemy) or (enemy_is_facing_right and player_right_of_enemy):
+                                self.spawn_projectile_with_sparks()
                         if 0:
                             movement = self.make_enemy_go_after_player(movement)
 
@@ -255,20 +269,28 @@ class Enemy(PhysicalEntity):
 
             case False if random() < 0.01:  # refill timer one in every 0.67 seconds
                 self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking
-            case _:  # todo: see what's cooking here...
 
+            case _:  # todo: see what's cooking here...
+                if (_tmp_featur_sleeping := 1) and _tmp_featur_sleeping:
+                    threat_dist = pre.TILE_SIZE * 10
+                    player_distance_to_enemy = self.game.player.pos.distance_to(self.pos)
+                    self.player_close_by = (abs(player_distance_to_enemy)) < threat_dist
                 pass
 
-        super().update(tilemap, movement)
+        if self.action == Action.SLEEPING:
+            super().update(tilemap, prev_movement)
+        else:
+            super().update(tilemap, movement)
 
-        # Action: handles animation state
-        if movement.x != 0:
+        if not self.player_close_by:
+            self.set_action(Action.SLEEPING)
+        elif movement.x != 0:  # Action: handles animation state
             self.set_action(Action.RUN)
         else:
             self.set_action(Action.IDLE)
 
         # enemy: death
-        #   TODO: ....
+        #   todo: ....
         #   if _dead_condition:
         #       return True
         return False  # Enemy: alive
@@ -279,25 +301,15 @@ class Enemy(PhysicalEntity):
 
         super().render(surf, offset)
 
-        _tmp_enable_pretty_rays = True
+        _tmp_enable_pretty_rays = False
         _tmp_enable_pretty_line_rays = True
         _tmp_enable_pretty_arc_rays = True
-
         if _tmp_enable_pretty_rays or (self._alertness_enabled and self.alert_timer):
             dist_btw_player_enemy = self.game.player.pos - self.pos  # Calculate distance between player and enemy
-
             if dist_btw_player_enemy.length() <= math.sqrt(((self._lookahead_x**2) * pre.TILE_SIZE + (self._lookahead_y**2) * pre.TILE_SIZE)):
-
                 if _tmp_enable_pretty_line_rays:
                     hue = min(255, max(0, abs(math.floor(self._max_alert_time - self.alert_timer) + 10)))
-                    line_rect = pg.draw.line(
-                        surface=surf,
-                        color=pre.hsl_to_rgb(hue, 0.1, 0.1),
-                        start_pos=self.pos - offset,
-                        end_pos=self.game.player.pos - offset,
-                        width=1,
-                    )
-
+                    line_rect = pg.draw.line(surface=surf, color=pre.hsl_to_rgb(hue, 0.1, 0.1), start_pos=self.pos - offset, end_pos=self.game.player.pos - offset, width=1)
                     if _tmp_enable_pretty_arc_rays:
                         l = self.game.player.pos.x, self.pos.y
                         m = self.pos.x, self.game.player.pos.y
@@ -305,21 +317,8 @@ class Enemy(PhysicalEntity):
                         corner_m = pg.Vector2(m)
                         player_corner_l_dist = manhattan_dist(*corner_l, *(self.game.player.pos))
                         player_corner_m_dist = manhattan_dist(*corner_m, *(self.game.player.pos))
-                        _logout = (
-                            (corner_l),
-                            (corner_m),
-                            math.floor(player_corner_l_dist),
-                            math.floor(player_corner_m_dist),
-                            (dist_btw_player_enemy),
-                        )
-                        pg.draw.arc(
-                            surface=surf,
-                            color=pre.hsl_to_rgb(hue, 0.15, 0.15),
-                            rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist),
-                            start_angle=30,
-                            stop_angle=180 - 30,
-                            width=1,
-                        )
+                        _logout = ((corner_l), (corner_m), math.floor(player_corner_l_dist), math.floor(player_corner_m_dist), (dist_btw_player_enemy))
+                        pg.draw.arc(surface=surf, color=pre.hsl_to_rgb(hue, 0.15, 0.15), rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist), start_angle=30, stop_angle=180 - 30, width=1)
 
 
 class Player(PhysicalEntity):
@@ -433,6 +432,7 @@ class Player(PhysicalEntity):
                 dash = False
         if dash:
             self.game.sfx.dashbassy.play()
+            self.game.screenshake = max(self.game.tilemap.tile_size, self.game.screenshake - 0.05)
             return dash
         return dash
 

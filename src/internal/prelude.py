@@ -12,6 +12,7 @@ library.
 * Math                      class
 * Movement                  class
 * ParticleKind              class
+# Palette                   class
 * Projectile                class
 * SpawnerKind               class
 * TileKind                  class
@@ -39,6 +40,7 @@ __all__ = [
     "EntityKind",
     "Math",
     "Movement",
+    "Palette",
     "ParticleKind",
     "Projectile",
     "SpawnerKind",
@@ -472,9 +474,9 @@ DEBUG_GAME_ASSERTS      = True
 DEBUG_GAME_PRINTLOG     = False
 DEBUG_GAME_LOGGING      = True
 DEBUG_GAME_CACHEINFO    = False
-DEBUG_GAME_HUD          = True
+DEBUG_GAME_HUD          = False
 DEBUG_GAME_PROFILER     = False
-DEBUG_GAME_UNITTEST     = True
+DEBUG_GAME_UNITTEST     = False
 DEBUG_GAME_STRESSTEST   = False
 # fmt: on
 
@@ -528,76 +530,105 @@ SPRITESHEET_PATH        = None
 
 # colors:
 # fmt: off
-BEIGE                   = (15, 20, 25)
-BGDARK                  = hsl_to_rgb(234, 0.1618, 0.0618)
-BGDARKER                = hsl_to_rgb(234, 0.1618, 0.0328)
+# BEIGE                   = (15, 20, 25)
+# BGDARK                  = hsl_to_rgb(234, 0.1618, 0.0618)
+# BGDARKER                = hsl_to_rgb(234, 0.1618, 0.0328)
 BLACK                   = (0, 0, 0)
-BLACKMID                = (1, 1, 1)
+# BLACKMID                = (1, 1, 1)
 CHARCOAL                = (10, 10, 10)
-CREAM                   = hsl_to_rgb(0, 0.1618, 0.618)
-DARKGRAY                = (20, 20, 20)
-GRAY                    = hsl_to_rgb(0, 0, 0.5)
-GREEN                   = hsl_to_rgb(120, 1, 0.25)
-MIDNIGHT                = (2, 2, 3)
-OLIVE                   = hsl_to_rgb(60, 1, 0.25)
-OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
-ORANGE                  = hsl_to_rgb(10,0.5,0.5)
-PINKLIGHT               = hsl_to_rgb(300, 0.26, 0.4)
-PINK                    = hsl_to_rgb(300, 0.26, 0.18)
-PURPLE                  = hsl_to_rgb(300, 1, 0.25)
-PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
-RED                     = hsl_to_rgb(0, 0.618, 0.328)
-SILVER                  = hsl_to_rgb(0, 0, 0.75)
-TEAL                    = hsl_to_rgb(180, 0.4, 0.25)
-TRANSPARENT             = (0, 0, 0, 0)
+# CREAM                   = hsl_to_rgb(0, 0.1618, 0.618)
+# DARKGRAY                = (20, 20, 20)
+# GRAY                    = hsl_to_rgb(0, 0, 0.5)
+# GREEN                   = hsl_to_rgb(120, 1, 0.25)
+# MIDNIGHT                = (2, 2, 3)
+# OLIVE                   = hsl_to_rgb(60, 1, 0.25)
+# OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
+# ORANGE                  = hsl_to_rgb(10,0.5,0.5)
+# PINKLIGHT               = hsl_to_rgb(300, 0.26, 0.4)
+# PINK                    = hsl_to_rgb(300, 0.26, 0.18)
+# PURPLE                  = hsl_to_rgb(300, 1, 0.25)
+# PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
+# RED                     = hsl_to_rgb(0, 0.618, 0.328)
+# SILVER                  = hsl_to_rgb(0, 0, 0.75)
+# TEAL                    = hsl_to_rgb(180, 0.4, 0.25)
+# TRANSPARENT             = (0, 0, 0, 0)
 WHITE                   = (255, 255, 255)
-YELLOW                  = hsl_to_rgb(60, 0.6, 0.3)
-YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
+# YELLOW                  = hsl_to_rgb(60, 0.6, 0.3)
+# YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
 # fmt: on
 
 
-@dataclass
-class COLORPALETTEOIL6:
-    """
-    Palette Name: Oil 6
-    Description: Created by [GrafxKid](http://grafxkid.tumblr.com/palettes).
-    Colors: 6
-    """
+# COLOR0 =
+# COLOR1 =
+# COLOR2 =
+# COLOR3 =
+# COLOR4 =
+# COLOR5 =
+# COLOR6 =
+# COLOR7 =
 
-    COLOR0 = 39, 39, 68  # 272744
-    COLOR1 = 73, 77, 126  # 494d7e
-    COLOR2 = 139, 109, 156  # 8b6d9c
-    COLOR3 = 198, 159, 165  # c69fa5
-    COLOR4 = 242, 211, 171  # f2d3ab
-    COLOR5 = 251, 245, 239  # fbf5ef
+
+@dataclass
+class Palette:
+    """Color Palette."""
+
+    # GIMP Palette
+    # #Palette Name: Rust Gold 8
+    # #Description: This pallete was made based on rust colors and gold tones.
+    # #Colors: 8
+    # 246	205	38	f6cd26
+    # 172	107	38	ac6b26
+    # 86	50	38	563226
+    # 51	28	23	331c17
+    # 187	127	87	bb7f57
+    # 114	89	86	725956
+    # 57	57	57	393939
+    # 32	32	32	202020
+
+    COLOR0 = 246, 205, 38  # f6cd26
+    COLOR1 = 172, 107, 38  # ac6b26
+    COLOR2 = 86, 50, 38  # 563226
+    COLOR3 = 51, 28, 23  # 331c17
+    COLOR4 = 187, 127, 87  # bb7f57
+    COLOR5 = 114, 89, 86  # 725956
+    COLOR6 = 57, 57, 57  # 393939
+    COLOR7 = 32, 32, 32  # 202020
 
 
 # fmt: off
 @dataclass
 class COLOR:
-    BG                  = hsl_to_rgb(240, 0.328, 0.128)
-    BGCOLORDARK         = (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
-    BGCOLORDARKER       = hsl_to_rgb(240, 0.3, 0.04)
-    BGCOLORDARKGLOW     = (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)] 
-                        # ^ todo: add factor_adder till 17 becomes 255, and so on for each r,g,b
-    BGMIRAGE            = hsl_to_rgb(240, 0.2, 0.07)  # used to set colorkey for stars
-    ENEMY               = ORANGE or hsl_to_rgb(10, 0.3, 0.08) 
-    GUN                 = hsl_to_rgb(300, 0.5, 0.045) 
-    FGSTARS             = hsl_to_rgb(240, 0.3, 0.10)
-    FLAME               = hsl_to_rgb(0, 0.618, 0.328)
+    # BG                  = Palette.COLOR5 # or hsl_to_rgb(240, 0.328, 0.128)
+    # BGCOLORDARK         = Palette.COLOR5 # or (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
+    # BGCOLORDARKER       = Palette.COLOR5 # or hsl_to_rgb(240, 0.3, 0.04)
+    # BGCOLORDARKGLOW     = Palette.COLOR5 # or (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)] 
+    BACKGROUND          = Palette.COLOR7
+
+    ENEMY               = Palette.COLOR5
+    ENEMYSLEEPING       = Palette.COLOR7
+
+    PLAYER              = Palette.COLOR1
+    PLAYERIDLE          = Palette.COLOR1
+    PLAYERJUMP          = Palette.COLOR1
+    PLAYERRUN           = Palette.COLOR1
+
+    FLAME               = Palette.COLOR0
+    FLAMEGLOW           = Palette.COLOR0 
+    FLAMETORCH          = Palette.COLOR3
+
+    GUN                 = Palette.COLOR4 
+
+    STAR                = Palette.COLOR1
+
+    PLAYERSTAR          = Palette.COLOR0
+
+    GRASS               = Palette.COLOR6
+    STONE               = Palette.COLOR6
+
+    PORTAL1             = Palette.COLOR0
+    PORTAL2             = Palette.COLOR0
+
     TRANSPARENTGLOW     = (20, 20, 20)
-    FLAMEGLOW           = (20, 20, randint(70,90))  # uses special_flags=pygame.BLEND_RGB_ADD for glow effect while blitting
-    FLAMETORCH          = hsl_to_rgb(300, 0.5, 0.045)
-    GRASS               = hsl_to_rgb(0, 0.618, 0.328)
-    PLAYER              = TEAL or (4, 2, 0)
-    PLAYERIDLE          = (4, 2, 0)
-    PLAYERJUMP          = PLAYER or hsl_to_rgb(0, 0.618, 0.328)
-    PLAYERRUN           = PLAYER or (1, 1, 1)
-    PLAYERSTAR          = PINK
-    PORTAL1             = (255, 255, 255)
-    PORTAL2             = (15, 20, 25)
-    STAR                = hsl_to_rgb(300, 0.26, 0.18) or PINK
-    STONE               = (1, 1, 1)
 # fmt: on
 
 
@@ -620,15 +651,15 @@ class COUNTRANDOMFRAMES:
 @dataclass
 class SIZE:
     ENEMY = (TILE_SIZE // 2, TILE_SIZE - 1)
-    FLAMEPARTICLE = (3, 3)
-    FLAMETORCH = (3, 12)
+    FLAMEPARTICLE = (5, 5)
+    FLAMETORCH = (4, 12)
     GUN = (7, 4)
     PLAYER = (TILE_SIZE // 2, TILE_SIZE - 1)
-    # STAR = tuple(map(lambda x: x**0.328, (69 / 1.618, 69 / 1.618)))
     STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
+
     # Constants derived from above
     ENEMYJUMP = (ENEMY[0], ENEMY[1] - 1)
-    FLAMEGLOWPARTICLE = (round(FLAMEPARTICLE[0] ** 1.618 * 1), round(FLAMEPARTICLE[1] ** 1.618 * 1))
+    FLAMEGLOWPARTICLE = (2, 2)
     PLAYERIDLE = (PLAYER[0] + 1, PLAYER[1] - 1)
     PLAYERJUMP = (PLAYER[0] - 1, PLAYER[1])
     PLAYERSTARDASHRADIUS = STAR or (int(PLAYER[0] - STAR[0] - 1), int(PLAYER[1] - STAR[1]))
@@ -798,9 +829,11 @@ def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: 
     ca, cb = iter(size)
     center = ca * 0.5, cb * 0.5
     radius = center[0]
-    rect = pg.draw.circle(surf, BLACK, center, radius * 2)
-    rect = pg.draw.ellipse(surf, fill_color, rect)
-    rect = pg.draw.circle(surf, RED, center, radius)
+    # rect = pg.draw.circle(surf, BLACK, center, radius * 2)
+    _rect = pg.draw.circle(surf, fill_color, center, radius)
+    # rect = pg.draw.ellipse(surf, fill_color, rect)
+    # rect = pg.draw.ellipse(surf, (127,20,20), rect)
+    # rect = pg.draw.circle(surf, (127,20,20), center, radius)
     surf.set_colorkey(colorkey)
     return surf
 
@@ -1045,3 +1078,55 @@ class Iterutils:
 
 # todo: astar
 # todo: djikstra
+#     """
+#     """
+#     GIMP Palette
+#     #Palette Name: Ink
+#     #Description: Created by <a target="_blank" href="https://www.deviantart.com/aprilsundae">AprilSundae</a>.
+#     #Colors: 5
+#     COLOR0 = 31, 31, 41  # 1f1f29
+#     COLOR1 = 65, 58, 66  # 413a42
+#     COLOR2 = 89, 96, 112  # 596070
+#     COLOR3 = 150, 162, 179  # 96a2b3
+#     COLOR4 = 234, 240, 216  # eaf0d8
+#     """
+#
+#     """
+#     GIMP Palette
+#     #Palette Name: Hollow
+#     #Description: 2bit palette based on the colors from Hollow Knight. I won't take full credit as I just pulled the ones from the game that I thought worked as a 4 color palette
+#     #Colors: 4
+#     COLOR0 = 15, 15, 27  # 0f0f1b
+#     COLOR1 = 86, 90, 117  # 565a75
+#     COLOR2 = 198, 183, 190  # c6b7be
+#     COLOR3 = 250, 251, 246  # fafbf6
+#     """
+#
+#     """
+#     GIMP Palette
+#     #Palette Name: SLSO8
+#     #Description:
+#     #Colors: 8
+#     COLOR0 = 13, 43, 69  # 0d2b45
+#     COLOR1 = 32, 60, 86  # 203c56
+#     COLOR2 = 84, 78, 104  # 544e68
+#     COLOR3 = 141, 105, 122  # 8d697a
+#     COLOR4 = 208, 129, 89  # d08159
+#     COLOR5 = 255, 170, 94  # ffaa5e
+#     COLOR6 = 255, 212, 163  # ffd4a3
+#     COLOR7 = 255, 236, 214  # ffecd6
+#     """
+#
+#     """
+#     GIMP Palette
+#     #Palette Name: Oil 6
+#     #Description: Created by [GrafxKid](http://grafxkid.tumblr.com/palettes).
+#     #Colors: 6
+#     COLOR0 = 251, 245, 239  # fbf5ef
+#     COLOR1 = 242, 211, 171  # f2d3ab
+#     COLOR2 = 198, 159, 165  # c69fa5
+#     COLOR3 = 139, 109, 156  # 8b6d9c
+#     COLOR4 = 73, 77, 126  # 494d7e
+#     COLOR5 = 39, 39, 68  # 272744
+#     """
+#

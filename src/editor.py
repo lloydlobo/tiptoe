@@ -66,7 +66,7 @@ class Editor:
 
     def run(self) -> None:
         while True:
-            self.display.fill(pre.COLOR.BGMIRAGE)
+            self.display.fill(pre.COLOR.BACKGROUND)
 
             # camera: update and parallax
             self.scroll.x += round(self.movement.right - self.movement.left) * pre.CAMERA_SPEED

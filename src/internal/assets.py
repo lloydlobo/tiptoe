@@ -60,8 +60,8 @@ class Assets:
         player_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
         enemy_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY)
 
-        asset_tiles_decor_variations = ((2, pre.GREEN, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.TEAL, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
-        asset_tiles_largedecor_variations = ((2, pre.GRAY, (32, 16)), (2, pre.BGDARK, (32, 16)), (2, pre.BEIGE, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
+        asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
 
         return cls(
             entity=dict(),
@@ -70,7 +70,7 @@ class Assets:
             tiles=dict(
                 # grid tiles
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.BLACKMID or pre.GREEN)),
+                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRASS)),
                 # offgrid tiles
                 decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
                 large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
@@ -84,22 +84,23 @@ class Assets:
     @classmethod
     def initialize_assets(cls):
         player_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
-        enemy_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY)
+        enemy_entity_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY)
+
+        # enemy_sleeping_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY[1], pre.SIZE.ENEMY[0]), fill_color=pre.COLOR.ENEMY)
+        enemy_sleeping_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMYSLEEPING)
 
         player_idle_surf_frames = list(pre.create_surface_partialfn(size=(int(pre.SIZE.PLAYER[0] + uniform(-1, 0)), int(pre.SIZE.PLAYER[1] + uniform(-1, 1))), fill_color=pre.COLOR.PLAYER) for _ in range(9))
         player_run_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERRUN, fill_color=pre.COLOR.PLAYERRUN))
         player_jump_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP))
 
-        background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BGMIRAGE)
+        background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
-        misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.TEAL)
+        misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0)
 
         stars = list(Assets.create_star_surfaces())
 
-        asset_tiles_decor_variations = ((2, pre.GREEN, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.TEAL, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
-        asset_tiles_largedecor_variations = ((2, pre.GRAY, (32, 16)), (2, pre.BGDARK, (32, 16)), (2, pre.BEIGE, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
-        # large_decor =
-        #
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
+        asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
         # portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
         # portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
 
@@ -113,7 +114,7 @@ class Assets:
             tiles=dict(
                 # grid tiles
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.BLACKMID or pre.GREEN)),
+                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRASS)),
                 # offgrid tiles
                 decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
                 large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
@@ -126,6 +127,7 @@ class Assets:
                     jump=pre.Animation(player_jump_surf_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
+                    sleeping=pre.Animation([enemy_sleeping_surf.copy()], img_dur=6),
                     idle=pre.Animation([enemy_entity_surf.copy()], img_dur=6),
                     run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
                 ),
@@ -133,7 +135,7 @@ class Assets:
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
                     flame=pre.Animation(flame_particles, img_dur=12, loop=False),  # Set true for stress performance
-                    flameglow=pre.Animation(flameglow_particles, img_dur=12, loop=False),  # Set true for stress  performance
+                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=False),  # Set true for stress  performance
                     # particle == player dash particle, also used for death. use longer duration to spread into the stars
                     particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))), img_dur=6, loop=False),
                 )
@@ -161,7 +163,8 @@ class Assets:
             pre.create_surface_partialfn(
                 size=size,
                 fill_color=(
-                    r + math.floor(rand_uniform(-4.0, 4.0)),
+                    # (constant) COLOR6: tuple[Literal[255], Literal[212], Literal[163]]
+                    min(255, r + math.floor(rand_uniform(-4.0, 4.0))),
                     g + math.floor(rand_uniform(-4.0, 4.0)),
                     b + math.floor(rand_uniform(-4.0, 4.0)),
                 ),
