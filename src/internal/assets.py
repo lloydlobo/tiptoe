@@ -77,7 +77,8 @@ class Assets:
             tiles=dict(
                 # grid tiles
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRASS)),
+                granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
+                spike=cls.create_spike_surfaces(),
                 # offgrid tiles
                 decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
                 large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
@@ -114,7 +115,7 @@ class Assets:
         stars = list(cls.create_star_surfaces())
 
         asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
-        asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
+        asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
         # portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
         # portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
 
@@ -128,7 +129,8 @@ class Assets:
             tiles=dict(
                 # grid tiles
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                grass=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRASS)),
+                granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
+                spike=cls.create_spike_surfaces(),
                 # offgrid tiles
                 decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
                 large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
@@ -192,6 +194,19 @@ class Assets:
             enemy_sleeping_surfs.append(s)
 
         return enemy_sleeping_surfs
+
+    @staticmethod
+    def create_spike_surfaces():
+        spike: list[pg.SurfaceType] = []
+        for _ in range(9):
+            surf_surf = pg.Surface((16, 16)).convert()
+            surf_surf.set_colorkey(pre.BLACK)
+            surf = pg.Surface((16, 6)).convert()
+            surf.set_colorkey(pre.BLACK)
+            surf.fill(pre.RED)
+            surf_surf.blit(surf, (0, surf_surf.get_size()[1] - surf.get_size()[1]))
+            spike.append(surf_surf)
+        return spike
 
     @staticmethod
     def create_star_surfaces():

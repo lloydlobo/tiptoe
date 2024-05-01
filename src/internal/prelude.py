@@ -155,10 +155,11 @@ class EntityKind(Enum):
 @unique  # """Class decorator for enumerations ensuring unique member values."""
 class TileKind(Enum):
     DECOR = "decor"
-    GRASS = "grass"
+    GRANITE = "granite"
     LARGE_DECOR = "large_decor"
     PORTAL = "portal"
     SPAWNERS = "spawners"
+    SPIKE = "spike"
     STONE = "stone"
 
 
@@ -492,7 +493,7 @@ TILE_SIZE               = 16
 
 
 # fmt: off
-SCREEN_RESOLUTION_MODE = 0
+SCREEN_RESOLUTION_MODE = 1
 SCREEN_WIDTH            = (960 ,640)[SCREEN_RESOLUTION_MODE]
 SCREEN_HEIGHT           = (630 ,480)[SCREEN_RESOLUTION_MODE]
 
@@ -623,7 +624,7 @@ class COLOR:
 
     PLAYERSTAR          = Palette.COLOR0
 
-    GRASS               = Palette.COLOR2
+    GRANITE               = Palette.COLOR5
     STONE               = Palette.COLOR6
 
     PORTAL1             = Palette.COLOR0
@@ -680,8 +681,8 @@ N_NEIGHBOR_OFFSETS  = 9
 
 
 # fmt: off
-AUTOTILE_TYPES      = { TileKind.STONE, TileKind.GRASS, }
-PHYSICS_TILES       = { TileKind.STONE, TileKind.GRASS, }
+AUTOTILE_TYPES      = { TileKind.STONE, TileKind.GRANITE }
+PHYSICS_TILES       = { TileKind.STONE, TileKind.GRANITE }
 
 SPAWNERS_KINDS      = { EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL }  # not used for now
 # fmt: on

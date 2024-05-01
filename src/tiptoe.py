@@ -266,6 +266,15 @@ class Game:
             )
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
+        self.spike_tiles_hitbox = [
+            pg.Rect(
+                (16 - 6) + spike.pos.x,
+                (16 - 6) + spike.pos.y,
+                16,
+                6,
+            )
+            for spike in self.tilemap.extract([("spike", 0)], keep=True)
+        ]
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
         val_spawner_kinds = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
@@ -431,6 +440,10 @@ class Game:
             if not self.dead:
                 self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
                 self.player.render(self.display, render_scroll)
+
+            for spike_rect in self.spike_tiles_hitbox:
+                if self.player.rect().colliderect(spike_rect):
+                    self.player.jump()
 
             # Gun: projectiles and sparks
             for projectile in self.projectiles:

@@ -44,7 +44,7 @@ class PhysicalEntity:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
 
         self._terminal_velocity_y: Final = 5  # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
-        self._terminal_limiter_air_friction: Final = max(
+        self._terminal_limiter_air_friction: Final = min(
             0.1,
             ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)),
         )  # if max: 0.1333333333.. (makes jumping possible to 3x player height) else use min for easy floaty feel
@@ -371,7 +371,7 @@ class Player(PhysicalEntity):
         self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
         self._jump_thrust: Final = 3
         self._dash_thrust: Final = 8
-        self._jumps: Final = 1
+        self._jumps: Final = 2
         self._max_air_time: Final = 5
         self.max_dead_hit_skipped_counter: Final = 3
         self._max_dash_time: Final = 60  # directional velocity vector
