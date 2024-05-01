@@ -2,8 +2,14 @@ import itertools as it
 import math
 from dataclasses import dataclass
 from functools import partial
-from random import randint, uniform  # pyright:ignore
+from random import randint, random, uniform  # pyright:ignore
 
+
+"""Noise functions for procedural generation of content
+Contains native code implementations of Perlin improved noise (with
+fBm capabilities) and Perlin simplex noise. Also contains a fast
+"fake noise" implementation in GLSL for execution in shaders."""
+import noise
 import pygame as pg
 
 import internal.prelude as pre
@@ -86,18 +92,17 @@ class Assets:
         player_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
         enemy_entity_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY)
 
-        # enemy_sleeping_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY[1], pre.SIZE.ENEMY[0]), fill_color=pre.COLOR.ENEMY)
-        enemy_sleeping_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMYSLEEPING)
-
         player_idle_surf_frames = list(pre.create_surface_partialfn(size=(int(pre.SIZE.PLAYER[0] + uniform(-1, 0)), int(pre.SIZE.PLAYER[1] + uniform(-1, 1))), fill_color=pre.COLOR.PLAYER) for _ in range(9))
         player_run_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERRUN, fill_color=pre.COLOR.PLAYERRUN))
         player_jump_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP))
+
+        enemy_sleeping_surfs = cls.create_sleepy_enemy_surfaces()
 
         background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
         misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0)
 
-        stars = list(Assets.create_star_surfaces())
+        stars = list(cls.create_star_surfaces())
 
         asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
         asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
@@ -127,7 +132,7 @@ class Assets:
                     jump=pre.Animation(player_jump_surf_frames, img_dur=4, loop=False),
                 ),
                 enemy=dict(
-                    sleeping=pre.Animation([enemy_sleeping_surf.copy()], img_dur=6),
+                    sleeping=pre.Animation(enemy_sleeping_surfs, img_dur=18),
                     idle=pre.Animation([enemy_entity_surf.copy()], img_dur=6),
                     run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
                 ),
@@ -141,6 +146,41 @@ class Assets:
                 )
             ),
         )
+
+    @classmethod
+    def create_sleepy_enemy_surfaces(cls):
+        # TODO: just draw mask outlines.. KISS
+        enemy_sleeping_surfs: list[pg.SurfaceType] = []
+        sleepy_star_sizes = it.cycle(map(lambda x: x * 0.618 ** (1 * math.pi), (0, 1, 1, 2, 3, 5, 8, 13)))
+        sleepy_star_colors = it.cycle((pre.Palette.COLOR4, pre.Palette.COLOR6, pre.Palette.COLOR5, pre.PINK, pre.Palette.COLOR3, pre.WHITE))
+        sleepy_star_circle_width = 0
+        for i in range(16):
+            s = pre.create_surface_withalpha_partialfn(size=((pre.SIZE.ENEMY[0] - 0, pre.SIZE.ENEMY[1] - 0)), fill_color=pre.COLOR.ENEMYSLEEPING, alpha=234)
+            # s.fill(pre.TRANSPARENT)
+            # s = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY[0], pre.SIZE.ENEMY[1] + randint(-1, 0)), fill_color=pre.COLOR.ENEMYSLEEPING)
+            # s.fill(pre.COLOR.TRANSPARENTGLOW)
+            srect = s.get_rect()
+            a, b, c, d = srect.topleft, srect.topright, srect.bottomright, srect.bottomleft  # clockwise
+            # ofst = uniform(-0.5, 0.5)
+            ofst = (uniform(-16, 16), uniform(-4.5, 4.5), uniform(-2.5, 2.5))[randint(1, 2)]
+            cls.render_wobbly_surface(surf=s, outline_color=(pre.WHITE), frame=i)
+            cls.render_wobbly_surface(surf=s, outline_color=(pre.COLOR.TRANSPARENTGLOW), frame=i)
+            cls.render_wobbly_surface(surf=s, outline_color=pre.RED, frame=i)
+            for j in range(16):
+                j %= 8
+                # swobble.fill(pre.COLOR.TRANSPARENTGLOW)
+                pg.draw.circle(s, next(sleepy_star_colors), (a[0] + ofst * j, a[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (b[0] + ofst * j, b[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (c[0] + ofst * j, c[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (d[0] + ofst * j, d[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (c[0] + ofst * j, c[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (b[0] + ofst * j, b[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+
+            enemy_sleeping_surfs.append(s)
+
+        # swobble = Assets.create_wobbly_surface(enemy_sleeping_surfs[-1].copy().get_rect())
+        # enemy_sleeping_surfs.append(swobble)
+        return enemy_sleeping_surfs
 
     @staticmethod
     def create_star_surfaces():
@@ -158,12 +198,11 @@ class Assets:
         """
         size = pre.SIZE.STAR
         r, g, b = pre.COLOR.STAR
-
+        # Note: r overflows above 255 as r==(constant) COLOR6: tuple[Literal[255], Literal[212], Literal[163]]
         return (
             pre.create_surface_partialfn(
                 size=size,
                 fill_color=(
-                    # (constant) COLOR6: tuple[Literal[255], Literal[212], Literal[163]]
                     min(255, r + math.floor(rand_uniform(-4.0, 4.0))),
                     g + math.floor(rand_uniform(-4.0, 4.0)),
                     b + math.floor(rand_uniform(-4.0, 4.0)),
@@ -171,6 +210,55 @@ class Assets:
             )
             for _ in range(pre.COUNT.STAR)
         )
+
+    @staticmethod
+    def create_wobbly_surface_outline():
+        pass
+
+    @classmethod
+    def render_wobbly_surface(cls, surf: pg.SurfaceType, outline_color: pre.ColorValue = (20, 20, 20), frame: int = 0) -> None:
+        pre_surf_scale = 8
+
+        amplitude = 10  # Adjust this value to control the wobbliness
+        frequency = 0.1  # Adjust this value to control the frequency of wobbles
+
+        amplitude *= 1
+        frequency *= 1
+
+        line_color = outline_color
+
+        ofst = (frame / frequency) + (amplitude / pre.FPS_CAP)
+
+        surf_ = pg.transform.smoothscale_by(surf.copy(), pre_surf_scale)
+        pgrect = surf_.get_rect().copy()
+
+        # scale = 2 or (1 / 6) / 2
+        # amplitude = amplitude - amplitude * scale
+        # frequency = frequency - frequency * scale
+        # print(scale, amplitude, frequency)
+
+        # Draw the wobbly rectangle
+        for x in range(pgrect.left, pgrect.right):
+            # Top side
+            y1 = y2 = pgrect.top + int(amplitude * math.sin(frequency * (x - pgrect.left)))
+            pg.draw.line(surf_, line_color, ((x + ofst) % pgrect.right, y1), ((x + ofst) % pgrect.right + 1, y2))
+
+            # Bottom side
+            y1 = y2 = pgrect.bottom + int(amplitude * math.sin(frequency * (x - pgrect.left + pgrect.height)))
+            pg.draw.line(surf_, line_color, ((x - ofst) % (pgrect.left + 1), y1), ((x + 1 - ofst) % (pgrect.left + 1), y2))
+
+        for y in range(pgrect.top, pgrect.bottom):
+            # Left side
+            x1 = x2 = pgrect.left + int(amplitude * math.sin(frequency * (y - pgrect.top)))
+            pg.draw.line(surf_, line_color, (x1, (y - ofst)), (x2, y + 1 - ofst))
+
+            # Right side
+            x1 = x2 = pgrect.right + int(amplitude * math.sin(frequency * (y - pgrect.top + pgrect.width)))
+            pg.draw.line(surf_, line_color, (x1, y + ofst), (x2, y + 1 + ofst))
+
+        surf_ = pg.transform.smoothscale_by(surf_.copy(), (1 / pre_surf_scale) * uniform(1.2, 1.2))  # to decrease *0.99999
+        dest = surf_.copy().get_rect().topleft
+        surf.blit(surf_, (dest[0] - 1, dest[1] - 1))
 
 
 ################################################################################

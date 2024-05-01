@@ -539,19 +539,19 @@ CHARCOAL                = (10, 10, 10)
 # CREAM                   = hsl_to_rgb(0, 0.1618, 0.618)
 # DARKGRAY                = (20, 20, 20)
 # GRAY                    = hsl_to_rgb(0, 0, 0.5)
-# GREEN                   = hsl_to_rgb(120, 1, 0.25)
+GREEN                   = hsl_to_rgb(120, 1, 0.25)
 # MIDNIGHT                = (2, 2, 3)
 # OLIVE                   = hsl_to_rgb(60, 1, 0.25)
 # OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
 # ORANGE                  = hsl_to_rgb(10,0.5,0.5)
 # PINKLIGHT               = hsl_to_rgb(300, 0.26, 0.4)
-# PINK                    = hsl_to_rgb(300, 0.26, 0.18)
+PINK                    = hsl_to_rgb(300, 0.26, 0.18)
 # PURPLE                  = hsl_to_rgb(300, 1, 0.25)
 # PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
-# RED                     = hsl_to_rgb(0, 0.618, 0.328)
+RED                     = hsl_to_rgb(0, 0.618, 0.328)
 # SILVER                  = hsl_to_rgb(0, 0, 0.75)
 # TEAL                    = hsl_to_rgb(180, 0.4, 0.25)
-# TRANSPARENT             = (0, 0, 0, 0)
+TRANSPARENT             = (0, 0, 0, 0)
 WHITE                   = (255, 255, 255)
 # YELLOW                  = hsl_to_rgb(60, 0.6, 0.3)
 # YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
@@ -607,22 +607,22 @@ class COLOR:
     ENEMY               = Palette.COLOR5
     ENEMYSLEEPING       = Palette.COLOR7
 
-    PLAYER              = Palette.COLOR1
-    PLAYERIDLE          = Palette.COLOR1
-    PLAYERJUMP          = Palette.COLOR1
-    PLAYERRUN           = Palette.COLOR1
+    PLAYER              = Palette.COLOR4
+    PLAYERIDLE          = Palette.COLOR4
+    PLAYERJUMP          = Palette.COLOR4
+    PLAYERRUN           = Palette.COLOR4
 
     FLAME               = Palette.COLOR0
     FLAMEGLOW           = Palette.COLOR0 
     FLAMETORCH          = Palette.COLOR3
 
-    GUN                 = Palette.COLOR4 
+    GUN                 = Palette.COLOR1 
 
-    STAR                = Palette.COLOR1
+    STAR                = Palette.COLOR6
 
     PLAYERSTAR          = Palette.COLOR0
 
-    GRASS               = Palette.COLOR6
+    GRASS               = Palette.COLOR2
     STONE               = Palette.COLOR6
 
     PORTAL1             = Palette.COLOR0
@@ -650,11 +650,12 @@ class COUNTRANDOMFRAMES:
 
 @dataclass
 class SIZE:
-    ENEMY = (TILE_SIZE // 2, TILE_SIZE - 1)
+    ENEMY = (9, TILE_SIZE)  # (9, 16)
+    PLAYER = (9, TILE_SIZE)  # (9, 16)
+
     FLAMEPARTICLE = (5, 5)
     FLAMETORCH = (4, 12)
     GUN = (7, 4)
-    PLAYER = (TILE_SIZE // 2, TILE_SIZE - 1)
     STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
 
     # Constants derived from above

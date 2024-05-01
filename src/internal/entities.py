@@ -6,7 +6,7 @@ from collections import deque
 from enum import Enum
 from functools import partial
 from pprint import pprint
-from random import randint, random
+from random import randint, random, uniform
 from typing import TYPE_CHECKING, Final, Literal, Optional
 
 import internal.prelude as pre
@@ -134,6 +134,8 @@ class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.ENEMY, pos, size)
 
+        self.gun_surf = self.game.assets.misc_surf["gun"]
+
         self._max_alert_time: Final = (60 * 2.5) * 2  # aiming for alert for 5 seconds as if the enemy stops moving the agitation isn't shown for that time period?
 
         self.walking_timer = 0
@@ -144,63 +146,21 @@ class Enemy(PhysicalEntity):
         self._lookahead_y: Final = 23  # 23px south
         self._moveby_x: Final = 0.5  # -0.5px if flip(facing left) else 0.5px
         self._maxlen_movement_history: Final[int] = pre.TILE_SIZE  # or pre.FPS_CAP
+        self._bullet_speed: Final = 7
+        self._alertness_enabled: Final = False
 
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
-
-        self._alertness_enabled: Final = False
-
-        self.player_close_by = False
-
         self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
 
+        self.is_player_close_by = False
+
+        self._can_die: Final = False
+
+        self._max_sleep_time = 60 * 2
+        self.sleep_timer = 0  # QUEST: draw colorful stars inside the sleeping enemy as it blends with background color
+
         # self.laser_ray = pre.create_surface((7, 2), pre.BLACK, pre.GREEN)
-
-    def get_flip_dir(self) -> Literal[-1, 1]:
-        return (-1) if self.flip else 1
-
-    def make_enemy_go_after_player(self, movement: pg.Vector2):
-        max_distance = self._lookahead_x * 2
-        tmp_movement = self.pos.move_towards(self.game.player.pos, max_distance)
-        if abs(tmp_movement.y) < pre.TILE_SIZE:
-            next_movement = tmp_movement
-            if not (self.get_flip_dir() == abs(next_movement.x) // next_movement.x):
-                self.flip = not self.flip
-            else:
-                # print(f"{self.flip, next_movement =}")
-                pass
-            accum = 0
-            rushing = True
-            while rushing:
-                if self.collisions.left or self.collisions.right:
-                    rushing = False
-                    break
-                if accum >= max_distance:
-                    rushing = False
-                    break
-                next_movement.x += min(self._moveby_x, tmp_movement.x) or self.get_flip_dir()
-                accum += tmp_movement.x
-                # print(accum)
-                pass
-            movement.x += next_movement.x
-        # print(tmp_movement)
-        return movement
-
-    def spawn_projectile_with_sparks(self):
-        SIZE_GUN = (7, 4)
-        SPEED_BULLET = 1.5
-        ANGLE_SPARK = 0.5
-        SPEED_SPARK = 2
-        COUNT_BULLET_SPARK = 4
-
-        self.game.projectiles.append(pre.Projectile(pos=pg.Vector2(self.rect().centerx + self.get_flip_dir() * SIZE_GUN[0], self.rect().centery), velocity=self.get_flip_dir() * SPEED_BULLET, timer=0))
-
-        last_projectile = self.game.projectiles[-1]
-        self.game.sparks.extend([Spark(pos=last_projectile.pos, angle=(random() - ANGLE_SPARK + math.pi if self.get_flip_dir() == (-1) else 0), speed=(SPEED_SPARK + random())) for _ in range(COUNT_BULLET_SPARK)])
-
-        self.game.sfx.shoot.play()
-        if self._alertness_enabled:
-            self.alert_timer = self._max_alert_time
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
 
@@ -236,12 +196,12 @@ class Enemy(PhysicalEntity):
                         self.flip = not self.flip
 
                 self.walking_timer = max(0, self.walking_timer - 1)
+                self.sleep_timer = max(0, self.sleep_timer - 1)
                 if self._alertness_enabled:
                     self.alert_timer = max(0, self.alert_timer - 1)
 
-                # Enemy interaction: can now shoot while static!!
+                # Active!!!! interaction: can now shoot while static!!
                 #   fixme: found a glitch, at high rate of fire, even blocks can't stop bullet from hitting player
-                #
                 if not self.walking_timer:
                     dist_pe = pg.Vector2(self.game.player.pos.x - self.pos.x, self.game.player.pos.y - self.pos.y)  # Calculate distance between player and enemy
 
@@ -274,7 +234,7 @@ class Enemy(PhysicalEntity):
                 if (_tmp_featur_sleeping := 1) and _tmp_featur_sleeping:
                     threat_dist = pre.TILE_SIZE * 10
                     player_distance_to_enemy = self.game.player.pos.distance_to(self.pos)
-                    self.player_close_by = (abs(player_distance_to_enemy)) < threat_dist
+                    self.is_player_close_by = (abs(player_distance_to_enemy)) < threat_dist
                 pass
 
         if self.action == Action.SLEEPING:
@@ -282,17 +242,30 @@ class Enemy(PhysicalEntity):
         else:
             super().update(tilemap, movement)
 
-        if not self.player_close_by:
-            self.set_action(Action.SLEEPING)
-        elif movement.x != 0:  # Action: handles animation state
-            self.set_action(Action.RUN)
-        else:
-            self.set_action(Action.IDLE)
+        if self.sleep_timer == 0:
+            if not self.is_player_close_by:
+                self.set_action(Action.SLEEPING)
+            elif movement.x != 0:  # Action: handles animation state
+                self.set_action(Action.RUN)
+            else:
+                self.set_action(Action.IDLE)
 
-        # enemy: death
+        # Enemy: sleepy slumber like death!
+        player = self.game.player
+        player_invincible = abs(player.dash_time) > player.dash_time_burst_2
+        if player_invincible:
+            if player.rect().colliderect(self.rect()):
+                if self._can_die:
+                    # todo: do sparky stuff
+                    return True
+                self.set_action(Action.SLEEPING)
+                self.sleep_timer = self._max_sleep_time
+                return False
+
         #   todo: ....
         #   if _dead_condition:
         #       return True
+
         return False  # Enemy: alive
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
@@ -320,6 +293,56 @@ class Enemy(PhysicalEntity):
                         _logout = ((corner_l), (corner_m), math.floor(player_corner_l_dist), math.floor(player_corner_m_dist), (dist_btw_player_enemy))
                         pg.draw.arc(surface=surf, color=pre.hsl_to_rgb(hue, 0.15, 0.15), rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist), start_angle=30, stop_angle=180 - 30, width=1)
 
+    def get_flip_dir(self) -> Literal[-1, 1]:
+        return (-1) if self.flip else 1
+
+    def make_enemy_go_after_player(self, movement: pg.Vector2):
+        max_distance = self._lookahead_x * 2
+        tmp_movement = self.pos.move_towards(self.game.player.pos, max_distance)
+        if abs(tmp_movement.y) < pre.TILE_SIZE:
+            next_movement = tmp_movement
+            if not (self.get_flip_dir() == abs(next_movement.x) // next_movement.x):
+                self.flip = not self.flip
+            else:
+                # print(f"{self.flip, next_movement =}")
+                pass
+            accum = 0
+            rushing = True
+            while rushing:
+                if self.collisions.left or self.collisions.right:
+                    rushing = False
+                    break
+                if accum >= max_distance:
+                    rushing = False
+                    break
+                next_movement.x += min(self._moveby_x, tmp_movement.x) or self.get_flip_dir()
+                accum += tmp_movement.x
+                # print(accum)
+                pass
+            movement.x += next_movement.x
+        # print(tmp_movement)
+        return movement
+
+    def spawn_projectile_with_sparks(self):
+        SIZE_GUN = self.gun_surf.get_size()
+        SPEED_BULLET = uniform(1, 1.5)
+
+        COUNT_BULLET_SPARK = 4
+        ANGLE_SPARK = 0.5
+        SPEED_SPARK = uniform(1.0, 2.0)
+
+        self.game.projectiles.append(pre.Projectile(pos=pg.Vector2(self.rect().centerx + self.get_flip_dir() * SIZE_GUN[0], self.rect().centery), velocity=self.get_flip_dir() * SPEED_BULLET, timer=0))
+
+        last_projectile_pos = self.game.projectiles[-1].pos
+
+        # FIX: logic bug is in assuming self.flip decides if player is to left of left facing enemy and vice-versa.
+
+        self.game.sparks.extend([Spark(pos=last_projectile_pos, angle=(random() - ANGLE_SPARK + math.pi if self.get_flip_dir() == (-1) else 0), speed=(SPEED_SPARK + random())) for _ in range(COUNT_BULLET_SPARK)])
+
+        self.game.sfx.shoot.play()
+        if self._alertness_enabled:
+            self.alert_timer = self._max_alert_time
+
 
 class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
@@ -333,6 +356,7 @@ class Player(PhysicalEntity):
         self._max_air_time: Final = 5
         self.max_dead_hit_skipped_counter: Final = 3
         self._max_dash_time: Final = 60  # directional velocity vector
+
         self.dash_time_burst_1: Final = self._max_dash_time
         self.dash_time_burst_2: Final = 50
         # self.dash_time_stream: Final = 10

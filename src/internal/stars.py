@@ -57,7 +57,8 @@ class Star:
 
 class Stars:
     def __init__(self, star_imgs: list[pg.SurfaceType], count: int = 16) -> None:
-        fibs: Final = (2, 3, 5, 8, 13)
+        # fibs: Final = (2, 3, 5, 8, 13)
+        fibs: Final = (3, 5, 8, 13)
         fib_sumavg: Final = sum(fibs) / len(fibs)
 
         fibs_cycle: Final = it.cycle(fibs)
