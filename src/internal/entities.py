@@ -44,10 +44,10 @@ class PhysicalEntity:
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
 
         self._terminal_velocity_y: Final = 5  # terminal velocity for Gravity limiter return min of (max_velocity, cur_velocity.) positive velocity is downwards (y-axis)
-        self._terminal_limiter_air_friction: Final = min(
+        self._terminal_limiter_air_friction: Final = max(
             0.1,
             ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)),
-        )  # if max: 0.1333333333.. (makes jumping possible to 3x player height)
+        )  # if max: 0.1333333333.. (makes jumping possible to 3x player height) else use min for easy floaty feel
 
         self.anim_offset = pg.Vector2(-1, -1)  # | Workaround for padding used in animated sprites states like run jump
         # Note: should be an int                 | to avoid collisions or rendering overflows outside of hit-box for entity
@@ -147,17 +147,17 @@ class Enemy(PhysicalEntity):
         self._moveby_x: Final = 0.5  # -0.5px if flip(facing left) else 0.5px
         self._maxlen_movement_history: Final[int] = pre.TILE_SIZE  # or pre.FPS_CAP
         self._bullet_speed: Final = 7
-        self._alertness_enabled: Final = False
 
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.history_contact_with_player: deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]] = deque(maxlen=pre.FPS_CAP * 2)  # _type:ignore
 
-        self.is_player_close_by = False
-
+        self._alertness_enabled: Final = False
         self._can_die: Final = False
 
-        self._max_sleep_time = 60 * 2
+        self.is_player_close_by = False
+
+        self._max_sleep_time = 60 * 1
         self.sleep_timer = 0  # QUEST: draw colorful stars inside the sleeping enemy as it blends with background color
 
         # self.laser_ray = pre.create_surface((7, 2), pre.BLACK, pre.GREEN)
@@ -269,29 +269,48 @@ class Enemy(PhysicalEntity):
         return False  # Enemy: alive
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
-        def manhattan_dist(x1: pre.Number, y1: pre.Number, x2: pre.Number, y2: pre.Number) -> pre.Number:
-            return abs(x1 - x2) + abs(y1 - y2)
-
-        super().render(surf, offset)
-
-        _tmp_enable_pretty_rays = False
+        _tmp_enable_pretty_rays = True
         _tmp_enable_pretty_line_rays = True
         _tmp_enable_pretty_arc_rays = True
+
         if _tmp_enable_pretty_rays or (self._alertness_enabled and self.alert_timer):
-            dist_btw_player_enemy = self.game.player.pos - self.pos  # Calculate distance between player and enemy
-            if dist_btw_player_enemy.length() <= math.sqrt(((self._lookahead_x**2) * pre.TILE_SIZE + (self._lookahead_y**2) * pre.TILE_SIZE)):
-                if _tmp_enable_pretty_line_rays:
-                    hue = min(255, max(0, abs(math.floor(self._max_alert_time - self.alert_timer) + 10)))
-                    line_rect = pg.draw.line(surface=surf, color=pre.hsl_to_rgb(hue, 0.1, 0.1), start_pos=self.pos - offset, end_pos=self.game.player.pos - offset, width=1)
-                    if _tmp_enable_pretty_arc_rays:
-                        l = self.game.player.pos.x, self.pos.y
-                        m = self.pos.x, self.game.player.pos.y
-                        corner_l = pg.Vector2(l)
-                        corner_m = pg.Vector2(m)
-                        player_corner_l_dist = manhattan_dist(*corner_l, *(self.game.player.pos))
-                        player_corner_m_dist = manhattan_dist(*corner_m, *(self.game.player.pos))
-                        _logout = ((corner_l), (corner_m), math.floor(player_corner_l_dist), math.floor(player_corner_m_dist), (dist_btw_player_enemy))
-                        pg.draw.arc(surface=surf, color=pre.hsl_to_rgb(hue, 0.15, 0.15), rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist), start_angle=30, stop_angle=180 - 30, width=1)
+            hue = min(255, max(0, abs(math.floor(self._max_alert_time - self.alert_timer) + 10)))
+            if 0 < hue < 100:
+                dist_btw_player_enemy = self.game.player.pos - self.pos  # Calculate distance between player and enemy
+                if dist_btw_player_enemy.length() <= math.sqrt(((self._lookahead_x**2) * pre.TILE_SIZE + (self._lookahead_y**2) * pre.TILE_SIZE)):
+                    if _tmp_enable_pretty_line_rays:
+                        if 0:
+                            line_rect = pg.draw.line(surface=surf, color=pre.hsl_to_rgb(hue, 0.1, 0.1), start_pos=self.pos - offset, end_pos=self.game.player.pos - offset, width=1)
+                        else:
+                            tmp_surf = surf.copy()
+                            line_rect = pg.draw.line(surface=tmp_surf, color=pre.hsl_to_rgb(hue, 0.1, 0.1), start_pos=self.pos - offset, end_pos=self.game.player.pos - offset, width=1)
+                        if _tmp_enable_pretty_arc_rays:
+
+                            def manhattan_dist(x1: pre.Number, y1: pre.Number, x2: pre.Number, y2: pre.Number) -> pre.Number:
+                                return abs(x1 - x2) + abs(y1 - y2)
+
+                            l = self.game.player.pos.x, self.pos.y
+                            m = self.pos.x, self.game.player.pos.y
+                            corner_l = pg.Vector2(l)
+                            corner_m = pg.Vector2(m)
+                            player_corner_l_dist = manhattan_dist(*corner_l, *(self.game.player.pos))
+                            player_corner_m_dist = manhattan_dist(*corner_m, *(self.game.player.pos))
+                            width = math.ceil(player_corner_l_dist + player_corner_m_dist)
+                            if 1:
+                                if 0:
+                                    rect = line_rect.inflate(player_corner_l_dist, player_corner_m_dist)
+                                else:
+                                    distx = player_corner_l_dist * (1 - 2 * math.pi * 0.328 * math.sin(width - (256 - hue)) * 0.03)  # 0.03 balances cases of math.sin looping and returning large numbers
+                                    disty = player_corner_m_dist * (1 - 2 * math.pi * 0.328 * math.sin(width - (256 - hue)) * 0.03)
+                                    rect = line_rect.inflate(distx, disty)
+                                pg.draw.arc(surface=surf, color=pre.hsl_to_rgb(hue, 0.35, 0.35), rect=rect, start_angle=30, stop_angle=180 - 30, width=1)
+                            else:  # could be perf heavy
+                                surf_copy = surf.copy().convert_alpha()
+                                surf_copy.set_alpha(100)
+                                pg.draw.arc(surface=surf_copy, color=pre.hsl_to_rgb(hue, 0.15, 0.15), rect=line_rect.inflate(player_corner_l_dist, player_corner_m_dist), start_angle=30, stop_angle=180 - 30, width=width)
+                                surf.blit(surf_copy.copy(), (0, 0))
+
+        super().render(surf, offset)
 
     def get_flip_dir(self) -> Literal[-1, 1]:
         return (-1) if self.flip else 1
@@ -352,7 +371,7 @@ class Player(PhysicalEntity):
         self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
         self._jump_thrust: Final = 3
         self._dash_thrust: Final = 8
-        self._jumps: Final = 2
+        self._jumps: Final = 1
         self._max_air_time: Final = 5
         self.max_dead_hit_skipped_counter: Final = 3
         self._max_dash_time: Final = 60  # directional velocity vector

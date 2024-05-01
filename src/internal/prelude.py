@@ -91,6 +91,7 @@ from typing import (
 )
 
 import _collections_abc
+import numpy as np
 import pygame as pg
 
 
@@ -744,6 +745,36 @@ AUTOTILE_MAP = {
 ################################################################################
 ### SURFACE PYGAME
 ################################################################################
+
+
+def surfaces_get_outline_mask_from_surf(surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]):
+    """Create thick outer outlines for surface using masks."""
+    m = pg.mask.from_surface(surf)
+    m_outline: list[tuple[int, int]] = m.outline()
+
+    for i, point in enumerate(m_outline):
+        m_outline[i] = (point[0] + loc[0], point[1] + loc[1])
+
+    outlinesurf = surf.copy().convert()
+    outlinesurf.fill(TRANSPARENT)
+    pg.draw.polygon(outlinesurf, color, m_outline, width=width)
+    return outlinesurf
+
+
+def surfaces_vfx_outline_offsets_animation_frames(
+    surf: pg.SurfaceType,
+    color: ColorKind | ColorValue = (255, 255, 255),
+    width: int = 1,
+    iterations: int = 32,
+    offsets: set[tuple[int, int]] = NEIGHBOR_OFFSETS,  # pyright: ignore
+):
+    """Returns a Generator for a sequence of surfaces snake chasing it's tail effect in clockwise motion."""
+    return (
+        surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst))
+        for _ in range(iterations)
+        for ofst in offsets
+        # if ofst != (0, 0)
+    )
 
 
 def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):

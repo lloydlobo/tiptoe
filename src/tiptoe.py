@@ -126,7 +126,17 @@ class Game:
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
         self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
 
+        def new_asset_mouse_crossaim() -> pg.SurfaceType:
+            mouse_size = pg.Vector2(pre.TILE_SIZE // 4)
+            mouse_surf = pg.Surface(mouse_size).convert()
+            mouse_surf.set_colorkey(pre.BLACK)
+            # mouse_surf.fill(pre.COLOR.GRASS) # use surfarray? pygame module for accessing surface pixel data using array interfaces Functions to convert between NumPy arrays and Surface objects. This module will only be functional when pygame can use the external NumPy package. If NumPy can't be imported, surfarray becomes a MissingModule object.
+
+            pg.draw.circle(mouse_surf, pre.COLOR.FLAMEGLOW, mouse_size // 2, pre.TILE_SIZE // 2, width=0)
+            return mouse_surf
+
         self.assets = Assets.initialize_assets()
+        self.assets.misc_surf.update({"mouse": new_asset_mouse_crossaim()})
 
         @dataclass
         class SFX:
@@ -362,6 +372,22 @@ class Game:
             raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE  # note: similar technique used in editor.py
             mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
+            # render blob mouse
+            if 0:
+                mouse_surf = self.assets.misc_surf.get("mouse")
+                if mouse_surf:
+                    mouse_dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
+                    mouse_mask: pg.Mask = pg.mask.from_surface(mouse_surf)
+                    mouse_silhouette = mouse_mask.to_surface(setcolor=(20, 20, 21, math.floor(255 / 2)), unsetcolor=(0, 0, 0, 0))
+                    for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                        self.display.blit(source=mouse_silhouette, dest=(mouse_dest - (pg.Vector2(offset) * pre.TILE_SIZE)))
+
+            # display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
+            # # display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+            # display_silhouette = display_mask.to_surface(setcolor=(10, 10, 10, 127), unsetcolor=(0, 0, 0, 0))
+            # for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            #     self.display_2.blit(display_silhouette, offset)
+
             # Flametorch: particle animation
             odds_of_flame: float = 0.006 * 49_999  # or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
             self.particles.extend(
@@ -394,7 +420,7 @@ class Game:
             # Enemy: update and render
             for enemy in self.enemies.copy():
                 kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
-                if enemy.action==Action.SLEEPING: # avoid border shadow
+                if enemy.action == Action.SLEEPING:  # avoid border shadow
                     enemy.render(self.display_2, render_scroll)
                 else:
                     enemy.render(self.display, render_scroll)
