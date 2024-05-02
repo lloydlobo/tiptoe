@@ -17,15 +17,6 @@ import pygame as pg
 import internal.prelude as pre
 
 
-################################################################################
-### UTILS
-################################################################################
-
-
-def clamp(value: int, min_val: int, max_val: int) -> int:
-    return min(max(value, min_val), max_val)
-
-
 rand_uniform = partial(uniform)
 rand_uniform.__doc__ = """New partial function for random.uniform to get a random number in the range [a, b) or [a, b] depending on rounding."""
 

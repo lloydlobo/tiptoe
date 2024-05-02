@@ -81,11 +81,11 @@ class Editor:
 
             mpos = pg.Vector2(pg.mouse.get_pos())
             mpos = mpos / pre.RENDER_SCALE
-            tile_pos = pg.Vector2(tuple(map(int, (mpos + self.scroll) // self.tilemap.tile_size)))
+            tile_pos = pg.Vector2(tuple(map(int, (mpos + self.scroll) // self.tilemap.tilesize)))
 
             # preview: at cursor the next tile to be placed
             if self.ongrid:
-                self.display.blit(cur_tile_img, tile_pos * self.tilemap.tile_size - self.scroll)
+                self.display.blit(cur_tile_img, tile_pos * self.tilemap.tilesize - self.scroll)
             else:  # notice smooth off grid preview
                 self.display.blit(cur_tile_img, mpos)
 

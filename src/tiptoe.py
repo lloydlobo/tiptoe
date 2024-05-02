@@ -1,5 +1,9 @@
 # Primer: https://www.pygame.org/docs/tut/newbieguide.html
 
+from functools import lru_cache
+from typing import Any
+
+
 try:
     import cProfile
     import itertools as it
@@ -19,6 +23,7 @@ try:
     if sys.version_info >= (3, 12):
         from types import GenericAlias  # pyright: ignore
     import pygame as pg
+    from pygame import Vector2 as vec2
 
     import internal.prelude as pre
     from internal.assets import Assets
@@ -67,6 +72,115 @@ class GameState(IntEnum):
     EXIT = auto()
 
 
+class SimpleCamera:
+    def __init__(self, size: tuple[int, int]) -> None:
+        self.size = pg.Vector2(size)
+        self.camera = pg.Rect(0, 0, self.size.x, self.size.y)
+        self.render_scroll = (0, 0)
+        self.scroll = pg.Vector2(0, 0)
+        self.scroll_ease: Final = pg.Vector2(1 / 32, 1 / 25)
+        # QUEST??? self.camera.size = self.screen.mustlock()
+
+    def update(self, target_pos: tuple[int, int]) -> None:
+        """Update the camera's position based on the target position.
+
+        Args:
+            target_pos (tuple[int, int]): The position (x, y) of the target object.
+        """
+        target_x = target_pos[0] - (self.size.x * 0.5)
+        target_y = target_pos[1] - (self.size.y * 0.5)
+
+        self.scroll.x += (target_x - self.scroll.x) * self.scroll_ease.x
+        self.scroll.y += (target_y - self.scroll.y) * self.scroll_ease.y
+        self.render_scroll = (int(self.scroll.x), int(self.scroll.y))
+
+    def _debug(self, surf: pg.SurfaceType, target_pos: tuple[int, int]) -> None:
+        tx = target_pos[0] - (self.size.x * 0.5)
+        ty = target_pos[1] - (self.size.y * 0.5)
+        rect = pg.Rect(tx - self.scroll.x, ty - self.scroll.y, self.size.x, self.size.y)
+
+        # draw the boundary
+        pg.draw.rect(surf, pre.GREEN, self.camera, width=2)
+        pg.draw.rect(surf, pre.PINK, rect, width=1)
+
+
+class Motion:
+    @staticmethod
+    def lerp(a: int | float, b: int | float, t: float) -> float:
+        return a + t * (b - a)
+
+    @lru_cache
+    @staticmethod
+    def pan_smooth(value: int | float, target: int, smoothness: int | float = 1) -> int | float:
+        tmp = value
+        tmp += (target - value) / smoothness * smoothness
+        return tmp
+
+
+class Camera:
+    def __init__(
+        self,
+        size: tuple[int, int],
+        pos: tuple[int, int] = (0, 0),
+        smoothness: int | float = 1,
+        gridlock: Optional[Tilemap] = None,
+    ) -> None:
+        self.size = vec2(size)
+        self.pos = vec2(pos)
+        self.smoothness = smoothness
+        self.pos_tupleint = int(self.pos.x), int(self.pos.y)
+        self.grid_withlock = gridlock
+
+        self.targetpos: Optional[tuple[int, int]] = None
+        self.targetrect: Optional[pg.Rect] = None
+        pass
+
+    @property
+    def target(self) -> Optional[tuple[int, int]]:
+        if self.targetrect:  # targetrect = pg.Rect(0, 0, 8, 16)
+            dx = self.targetrect.center[0] - int(self.size.x // 2)
+            dy = self.targetrect.center[1] - int(self.size.y // 2)
+            return (dx, dy)
+        elif self.targetpos:  # targetpos = (0, 0)
+            dx = self.targetpos[0] - int(self.size.x // 2)
+            dy = self.targetpos[1] - int(self.size.y // 2)
+            return (dx, dy)
+        return None
+
+    def set_target(self, target: Optional[tuple[int, int] | pg.Rect]) -> None:
+        if hasattr(target, "center") and isinstance(target, pg.Rect):
+            self.targetrect = target
+            self.targetpos = None
+        elif target is not None and isinstance(target, tuple) and len(target) == 2:
+            self.targetrect = None
+            self.targetpos = target
+        else:
+            self.targetrect = None
+            self.targetpos = None
+
+    def move(self, movement: tuple[int, int]) -> None:
+        self.pos += movement
+
+    def _update_pos_tupleint(self) -> None:
+        self.pos_tupleint = int(self.pos.x), int(self.pos.y)
+
+    def update(self) -> None:
+        target = (1, 1)  # todo
+
+        if not target:
+            return self._update_pos_tupleint()
+        self.pos.x = Motion.pan_smooth(self.pos.x, target[0], self.smoothness)
+        self.pos.y = Motion.pan_smooth(self.pos.y, target[1], self.smoothness)
+
+        if not self.grid_withlock:
+            return self._update_pos_tupleint()
+        xhi = self.grid_withlock.dimensions.x * self.grid_withlock.tilesize - self.size.x
+        yhi = self.grid_withlock.dimensions.y * self.grid_withlock.tilesize - self.size.y
+        self.pos.x = pre.clamp(self.pos.x, 0, xhi)
+        self.pos.y = pre.clamp(self.pos.y, 0, yhi)
+        return self._update_pos_tupleint()
+
+
 @dataclass
 class Button:
     text: str
@@ -109,7 +223,9 @@ class Game:
         # https://www.pygame.org/docs/tut/newbieguide.html
         display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE
 
+        # self.dimensions = pg.display.Info().current_w, pg.display.Info().current_h
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
+        self.dimensions = pg.Vector2(pre.DIMENSIONS)
 
         # |> see github:pygame/examples/resizing_new.py | Diagnostics:
         # "_set_autoresize" is not a known member of module "pygame.display"
@@ -223,6 +339,14 @@ class Game:
         self._dead_mid: Final = 10
         self._dead_hi: Final = 40
 
+        # fmt: off
+        self.scroll_ease: Final = pg.Vector2(1 / 30, 1 / 30)
+        self.camerasize = (self.display.get_width(), self.display.get_height())
+        self.camera = SimpleCamera(size=self.camerasize)
+        self.camera_2 = Camera(size=self.camerasize, pos=(0, 0), smoothness=self.scroll_ease.x, gridlock=self.tilemap)
+        self.camera_2.set_target(self.player.rect())
+        # fmt: on
+
         # Transition: abs(self.transition) == 30 => opaque screen see nothing
         # self.transition is 0 see eeverything; load level when completely black
         self._transition_lo: Final = -30
@@ -333,26 +457,20 @@ class Game:
 
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
-        val_spawner_kinds = (
+
+        _spwn_kinds: Final = (
             pre.SpawnerKind.PLAYER.value,
             pre.SpawnerKind.ENEMY.value,
             pre.SpawnerKind.PORTAL.value,
         )
 
         for spawner in self.tilemap.extract(
-            id_pairs=list(
-                zip(
-                    it.repeat(str(pre.TileKind.SPAWNERS.value), len(val_spawner_kinds)),
-                    val_spawner_kinds,
-                )
-            ),
-            keep=False,
+            list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(_spwn_kinds)), _spwn_kinds)),
+            False,
         ):
             match pre.SpawnerKind(spawner.variant):
-                case pre.SpawnerKind.PLAYER:
-                    self.player.pos = (
-                        spawner.pos.copy()
-                    )  # coerce to a mutable list if pos is a tuple
+                case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
+                    self.player.pos = spawner.pos.copy()
                     self.player.air_time = 0  # Reset time to avoid multiple spawns during fall
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
@@ -373,7 +491,6 @@ class Game:
 
         self.scroll = pg.Vector2(0.0, 0.0)
         # self._scroll_ease = pg.Vector2(1 / 25, 1 / 25)
-        self._scroll_ease = pg.Vector2(1 / 30, 1 / 30)
 
         # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead = 0
@@ -405,6 +522,56 @@ class Game:
             self.display.fill((0, 0, 0, 0))
             self.display_2.blit(bg, (0, 0))
 
+            ################################################################################
+            ### HANDLE EVENTS
+            ################################################################################
+
+            for event in pg.event.get():
+                if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+
+                    running = False  # since this func is called by mainmenu_screen, it will continue on from the loop inside game menu
+                    # FIXME:
+                    try:
+                        assert (
+                            not self.gameover
+                        ), "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+                    except AssertionError as e:
+                        self.gameover = False
+                        print(
+                            f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False"
+                        )
+
+                if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                    quit_exit()
+                if event.type == pg.QUIT:
+                    quit_exit()
+                if event.type == pg.VIDEORESIZE:
+                    self.screen = pg.display.get_surface()
+
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_LEFT:
+                        self.movement.left = True
+                    if event.key == pg.K_RIGHT:
+                        self.movement.right = True
+                    if event.key == pg.K_UP:
+                        if self.player.jump():
+                            self.sfx.jump.play()
+                    if event.key == pg.K_DOWN:
+                        self.player.dash()
+                if event.type == pg.KEYUP:
+                    if event.key == pg.K_LEFT:
+                        self.movement.left = False
+                    if event.key == pg.K_RIGHT:
+                        self.movement.right = False
+
+            if (_tmp_flag_cleanslate := 0) and _tmp_flag_cleanslate:
+                if random() < 0.0001:  # for application not responding messages(rare)
+                    pg.event.clear()
+
+            ################################################################################
+            ### GAME LOOP LOGIC
+            ################################################################################
+
             self.screenshake = max(0, self.screenshake - 1)
 
             # Transitions: game level
@@ -414,32 +581,20 @@ class Game:
                     try:
                         if self.level + 1 >= self._level_map_count:
                             self.reset_game()
-                            # FIXME: message from Game.reset_game():
-                            #           "in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there"
                             try:
-                                assert (
-                                    not self.gameover
-                                ), f"want gameover flag to be false. got {self.gameover=}"
+                                assert not self.gameover, f"expected gameover to be false."
                             except AssertionError as e:
                                 err_msg = f"error while running game from Game.run():\n\t{e}"
-                                if 0:
-                                    print(err_msg, file=sys.stderr)
-                                    quit_exit()
-                                else:
-                                    print(
-                                        f"allowing AssertionError instead of quit_exit():\n\t{err_msg}",
-                                        file=sys.stderr,
-                                    )
-                                    pass
-                            self.gameover = (
-                                True  # NOTE: Since this func is called by mainmenu_screen,
-                            )
-                            running = False  #      the process will continue on from the loop inside game menu.
-                            pass
+                                print(
+                                    f"allowing AssertionError instead of quit_exit():\n\t{err_msg}",
+                                    file=sys.stderr,
+                                )
+                            self.gameover = True  # note: run() is called by mainmenu_screen,
+                            running = False  # the process will continue on from the loop inside game menu.
                         else:
                             self.level = min(self.level + 1, self._level_map_count - 1)
                             self.load_level(self.level)
-                    except Exception as e:  # fixme: antipattern to use Exception?
+                    except Exception as e:
                         print(f"error while in game loop in Game.run():\n\t{e}", file=sys.stderr)
                         quit_exit()
 
@@ -454,65 +609,61 @@ class Game:
                     self.load_level(self.level)
 
             # Camera: update and parallax
-            self.scroll.x += (
-                self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x
-            ) * self._scroll_ease.x
-            self.scroll.y += (
-                self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y
-            ) * self._scroll_ease.y
-            render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
+            if 0:
+                self.scroll.x += (
+                    self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x
+                ) * self.scroll_ease.x
+                self.scroll.y += (
+                    self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y
+                ) * self.scroll_ease.y
+                render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
+            else:
+                _target = self.player.rect()
+                self.camera.update((_target.x, _target.y))
+                render_scroll = self.camera.render_scroll
+                if 1:
+                    self.camera_2.update()
+                    if 0:
+                        pprint(self.camera_2.__dict__)
 
             # Mouse: cursor position with offset
-            raw_mouse_pos = (
-                pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
-            )  # note: similar technique used in editor.py
+            raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
             mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
             # render blob mouse
             if 0:
                 mouse_surf = self.assets.misc_surf.get("mouse")
                 if mouse_surf:
-                    mouse_dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
-                    mouse_mask: pg.Mask = pg.mask.from_surface(mouse_surf)
-                    mouse_silhouette = mouse_mask.to_surface(
+                    dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
+                    mask: pg.Mask = pg.mask.from_surface(mouse_surf)
+                    silhouette = mask.to_surface(
                         setcolor=(20, 20, 21, math.floor(255 / 2)), unsetcolor=(0, 0, 0, 0)
                     )
                     for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                         self.display.blit(
-                            source=mouse_silhouette,
-                            dest=(mouse_dest - (pg.Vector2(offset) * pre.TILE_SIZE)),
+                            silhouette, (dest - (pg.Vector2(offset) * pre.TILE_SIZE))
                         )
 
-            # display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
-            # # display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-            # display_silhouette = display_mask.to_surface(setcolor=(10, 10, 10, 127), unsetcolor=(0, 0, 0, 0))
-            # for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            #     self.display_2.blit(display_silhouette, offset)
-
             # Flametorch: particle animation
-            odds_of_flame: float = (
-                0.006 * 49_999
-            )  # or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
+            odds_of_flame: float = 0.006 * 49_999  # big number controls spawn rate
             self.particles.extend(
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAME,
-                    pos=pg.Vector2(
-                        x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)
-                    ),
+                    pos=pg.Vector2((rect.x - random() * rect.w), (rect.y - random() * rect.h - 4)),
                     velocity=pg.Vector2(uniform(-0.03, 0.03), uniform(0.0, -0.03)),
                     frame=randint(0, 20),
                 )
                 for rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame) < (rect.w * rect.h)
-            )  # -4 because hitbox is 4 lower than top-right, while setting hitbox for torchspawners
+            )
+            # ^ (random * bignum) < pixel area (to avoid spawning particles at each frame)
+            # | pos: -4 because hitbox is 4 lower than top-right, while setting hitbox for torchspawners
             self.particles.extend(
                 Particle(
                     game=self,
                     p_kind=pre.ParticleKind.FLAMEGLOW,
-                    pos=pg.Vector2(
-                        x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)
-                    ),
+                    pos=pg.Vector2((rect.x - random() * rect.w), (rect.y - random() * rect.h - 4)),
                     velocity=pg.Vector2(uniform(-0.2, 0.2), uniform(0.1, 0.3)),
                     frame=randint(0, 20),
                 )
@@ -608,7 +759,10 @@ class Game:
                             < self.player.max_dead_hit_skipped_counter
                         ):
                             self.projectiles.remove(projectile)
-                            self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
+
+                            # Todo: should reset this if players action state changes from idle to something else
+                            self.dead_hit_skipped_counter += 1
+
                             self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
                             self.sparks.extend(
                                 Spark(
@@ -625,7 +779,10 @@ class Game:
                         else:  # Player dies
                             self.projectiles.remove(projectile)
                             self.dead += 1
+
+                            # Todo: should reset this if players action state changes from idle to something else
                             self.dead_hit_skipped_counter = 0
+
                             self.screenshake = max(self._max_screenshake, self.screenshake - 1)
                             self.sparks.extend(
                                 Spark(
@@ -641,7 +798,6 @@ class Game:
                                     self,
                                     p_kind=pre.ParticleKind.PARTICLE,
                                     pos=pg.Vector2(self.player.rect().center),
-                                    #                     math.cos( angle                   + math.pi) *  speed         * 0.5
                                     velocity=(
                                         pg.Vector2(
                                             (
@@ -653,7 +809,7 @@ class Game:
                                                 * 0.5,
                                             )
                                         )
-                                    ),
+                                    ),  # math.cos(angle + math.pi) * speed * 0.5
                                     frame=randint(0, 7),
                                 )
                                 for _ in range(30)
@@ -667,12 +823,9 @@ class Game:
                     self.sparks.remove(spark)
 
             # Display Mask: before particles
-            display_mask: pg.Mask = pg.mask.from_surface(
-                self.display
-            )  # 180 alpha to set color of outline or use 255//2
-            # display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+            display_mask: pg.Mask = pg.mask.from_surface(self.display)
             display_silhouette = display_mask.to_surface(
-                setcolor=(10, 10, 10, 127), unsetcolor=(0, 0, 0, 0)
+                setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0)
             )
             for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                 self.display_2.blit(display_silhouette, offset)
@@ -685,19 +838,13 @@ class Game:
                         particle.render(self.display, render_scroll)
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3  # * randint(-1, 1)
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.03  # * randint(-1, 1)
-
                         wave_amplitude = uniform(-1.0, 1.0) * 0.3 * 0.5
                         if wave_amplitude == 0:
                             wave_amplitude = 1
                         # JUICE: if player gets near, let the flames change!!!!
-                        if self.player.rect().colliderect(
-                            pg.Rect(
-                                particle.pos.x,
-                                particle.pos.y,
-                                pre.SIZE.FLAMEPARTICLE[0],
-                                pre.SIZE.FLAMEPARTICLE[1],
-                            )
-                        ):
+                        size = pre.SIZE.FLAMEPARTICLE
+                        particle_rect = pg.Rect(particle.pos.x, particle.pos.y, size[0], size[1])
+                        if self.player.rect().colliderect(particle_rect):
                             if self.player.pos.x < particle.pos.x and not self.player.flip:
                                 particle.velocity.x += -abs(wave_amplitude) * 0.2
                             if self.player.pos.x > particle.pos.x and self.player.flip:
@@ -708,23 +855,17 @@ class Game:
 
                         if kill_animation:
                             self.particles.remove(particle)
-                    case (
-                        pre.ParticleKind.FLAMEGLOW
-                    ):  # 0.035 avoids particle to loop from minus one to one of sine function, 0.3 controls amplitude
+                    case pre.ParticleKind.FLAMEGLOW:
                         kill_animation = particle.update()
                         img = particle.animation.img().copy()
                         wave_amplitude = uniform(-1.0, 1.0) * 0.3 * 0.5
                         if wave_amplitude == 0:
                             wave_amplitude = 1
-                        # ideal is display, but display_2 looks cool for flameglow
-                        self.display_2.blit(
-                            source=img,
-                            dest=(
-                                particle.pos.x - render_scroll[0] - img.get_width() // 2,
-                                particle.pos.y - render_scroll[1] - img.get_height() // 2,
-                            ),
-                            special_flags=pg.BLEND_RGB_ADD,
-                        )
+                        dest = (
+                            particle.pos.x - render_scroll[0] - img.get_width() // 2,
+                            particle.pos.y - render_scroll[1] - img.get_height() // 2,
+                        )  # ideal is display, but display_2 looks cool for flameglow
+                        self.display_2.blit(img, dest, special_flags=pg.BLEND_RGB_ADD)
                         # ^ use center of the image as origin
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3
                         particle.pos.x += (
@@ -736,47 +877,9 @@ class Game:
                     case _:
                         pass
 
-            for event in pg.event.get():
-                if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-
-                    running = False  # since this func is called by mainmenu_screen, it will continue on from the loop inside game menu
-                    # FIXME:
-                    try:
-                        assert (
-                            not self.gameover
-                        ), "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
-                    except AssertionError as e:
-                        self.gameover = False
-                        print(
-                            f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False"
-                        )
-
-                if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                    quit_exit()
-                if event.type == pg.QUIT:
-                    quit_exit()
-                if event.type == pg.VIDEORESIZE:
-                    self.screen = pg.display.get_surface()
-
-                if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_LEFT:
-                        self.movement.left = True
-                    if event.key == pg.K_RIGHT:
-                        self.movement.right = True
-                    if event.key == pg.K_UP:
-                        if self.player.jump():
-                            self.sfx.jump.play()
-                    if event.key == pg.K_DOWN:
-                        self.player.dash()
-                if event.type == pg.KEYUP:
-                    if event.key == pg.K_LEFT:
-                        self.movement.left = False
-                    if event.key == pg.K_RIGHT:
-                        self.movement.right = False
-
-            if (_tmp_flag_cleanslate := 0) and _tmp_flag_cleanslate:
-                if random() < 0.0001:  # for application not responding messages(rare)
-                    pg.event.clear()
+            ################################################################################
+            ### RENDER
+            ################################################################################
 
             # Render: display
             self.display_2.blit(

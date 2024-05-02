@@ -524,7 +524,7 @@ class Player(PhysicalEntity):
         # Handle death by air fall
         if self.air_time > self._air_time_freefall_death:
             if not self.game.dead:
-                self.game.screenshake = max(self.game.tilemap.tile_size, self.game.screenshake - 1)
+                self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 1)
             self.game.dead += 1  # Increment dead timer
 
         # Reset times when touch ground
@@ -601,7 +601,7 @@ class Player(PhysicalEntity):
                 dash = False
         if dash:
             self.game.sfx.dashbassy.play()
-            self.game.screenshake = max(self.game.tilemap.tile_size, self.game.screenshake - 0.05)
+            self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 0.05)
             return dash
         return dash
 

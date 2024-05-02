@@ -67,7 +67,7 @@ class Tilemap:
     def __init__(self, game: Game | Editor, tile_size: int = pre.TILE_SIZE) -> None:
         self.game = game
         self.offgrid_tiles: set[TileItem] = set()  # PERF: use set?
-        self.tile_size = tile_size
+        self.tilesize: int = tile_size
         self.tilemap: dict[str, TileItem] = {}  # use defaultdict?
         # print(self.offgrid_tiles)
         self.offgrid_tiles.add(TileItem(pre.TileKind.STONE, 0, pg.Vector2(0, 0)))
@@ -76,10 +76,8 @@ class Tilemap:
         # derived local like variables
         self.game_assets_tiles = self.game.assets.tiles
         _game_display_rect = self.game.display.get_rect()
-        self._dimensions: Final = (
-            _game_display_rect.w,
-            _game_display_rect.h,
-        )  # hack: this can be an issue if screen is resized!!!!
+        self.dimensions: Final = pg.Vector2(_game_display_rect.w, _game_display_rect.h)
+        # ^ hack: this can be an issue if screen is resized!!!!
 
         # constants
         self._autotile_map: Final = pre.AUTOTILE_MAP
@@ -109,7 +107,7 @@ class Tilemap:
 
     def physics_rects_around(self, pos: tuple[int, int]):
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
-        size = self.tile_size
+        size = self.tilesize
         return (
             self._pg_rect_p_fn(
                 (tile.pos.x * size),
@@ -150,7 +148,7 @@ class Tilemap:
                     # deepcopy does the next 2 things
                     #   matches.append(tile.copy())
                     #   matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
-                    matches[-1].pos *= self.tile_size  # convert to pixel coordinates
+                    matches[-1].pos *= self.tilesize  # convert to pixel coordinates
                     if not keep:
                         del self.tilemap[loc]
         except RuntimeError as e:
@@ -168,7 +166,7 @@ class Tilemap:
         Useful for flood fill to aid in auto tiling
         Note: Ported from DaFluffyPotato's tilemap.py
         """
-        dimensions_r = self._pg_rect_p_fn(0, 0, *self._dimensions)
+        dimensions_r = self._pg_rect_p_fn(0, 0, self.dimensions.x, self.dimensions.y)
         return dimensions_r.collidepoint(*gridpos)
 
     def floodfill(self, tile):  # type: ignore
@@ -254,7 +252,7 @@ class Tilemap:
         with open(path, "w") as f:
             json.dump(
                 dict(
-                    tile_size=self.tile_size,
+                    tile_size=self.tilesize,
                     tilemap=self.tilemap_to_json(),
                     offgrid=self.offgrid_tiles_to_json(),
                 ),
@@ -267,7 +265,8 @@ class Tilemap:
         with open(path, "r") as f:
             map_data = json.load(f)
         if map_data:
-            self.tile_size = map_data["tile_size"]
+            self.tilesize = map_data["tile_size"]
+            assert isinstance(self.tilesize, int), f"want int got. {type(self.tilesize)}"
             self.tilemap = dict(self.tilemap_json_to_dataclass(map_data["tilemap"]))
             self.offgrid_tiles = set(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
 
@@ -303,11 +302,11 @@ class Tilemap:
         ]
 
     def pos_as_grid_loc_vec2(self, vec2: pg.Vector2) -> pg.Vector2:
-        return vec2 // self.tile_size  # Vector element-wise division for efficiency
+        return vec2 // self.tilesize  # Vector element-wise division for efficiency
 
     def pos_as_grid_loc_tuple2(self, x: int | float, y: int | float) -> tuple[int, int]:
         """calc_tile_loc avoids pixel bordering zero to round to 1."""
-        return (int(x // self.tile_size), int(y // self.tile_size))
+        return (int(x // self.tilesize), int(y // self.tilesize))
 
     @staticmethod
     # def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
@@ -370,7 +369,7 @@ class Tilemap:
                     imgs = self.game_assets_tiles.get(tile.kind.value, None)
                     if imgs is not None and (index := tile.variant) < len(imgs):
                         img = imgs[index]
-                        blit_partial(img, (tile.pos * self.tile_size) - offset)
+                        blit_partial(img, (tile.pos * self.tilesize) - offset)
 
 
 # map_data = [

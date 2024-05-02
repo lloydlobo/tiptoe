@@ -10,22 +10,38 @@ if TYPE_CHECKING:
     from tiptoe import Game
 
 
-def render_debug_hud(game: Game, render_scroll: tuple[int, int], mouse_pos: Optional[tuple[int, int]] = None) -> None:
+def render_debug_hud(
+    game: Game, render_scroll: tuple[int, int], mouse_pos: Optional[tuple[int, int]] = None
+) -> None:
     t_size = pre.TILE_SIZE
     antialias = False
     key_w = 14
     val_w = 14
     line_height = game.font.get_linesize()
-    text_color = pre.CREAM
+    text_color = pre.Palette.COLOR0
     key_fillchar = " "
     val_fillchar = " "  # non monospace fonts look uneven vertically in tables
 
-    collisions_bitmap_str = " ".join(((k[0] + ('#' if v else ' ')) for k, v in game.player.collisions.__dict__.items())).upper().split(',')[0]
-    movement_bitmap_str = " ".join(list((k[0] + str(int(v))) for k, v in game.movement.__dict__.items())[0:2]).upper().split(',')[0]
+    collisions_bitmap_str = (
+        " ".join(
+            ((k[0] + ('#' if v else ' ')) for k, v in game.player.collisions.__dict__.items())
+        )
+        .upper()
+        .split(',')[0]
+    )
+    movement_bitmap_str = (
+        " ".join(list((k[0] + str(int(v))) for k, v in game.movement.__dict__.items())[0:2])
+        .upper()
+        .split(',')[0]
+    )
     player_action = val.value.upper() if (val := game.player.action) and val else None
 
     hud_elements = (
-        (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+        (
+            f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}"
+            if '.' in text
+            else f"{text.ljust(val_w,val_fillchar)}"
+        )
         for text in (
             ##################################
             f"CLOCK_FPS.{game.clock.get_fps():2.0f}",

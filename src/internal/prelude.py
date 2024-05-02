@@ -218,6 +218,15 @@ class Collisions:
 
 
 ################################################################################
+### UTILS
+################################################################################
+
+
+def clamp(value: int | float, lo: int | float, hi: int | float) -> int | float:
+    return min(max(value, lo), hi)
+
+
+################################################################################
 ### ANIMATION
 ################################################################################
 
@@ -525,7 +534,7 @@ DEBUG_GAME_ASSERTS = True
 DEBUG_GAME_PRINTLOG = False
 DEBUG_GAME_LOGGING = True
 DEBUG_GAME_CACHEINFO = False
-DEBUG_GAME_HUD = False
+DEBUG_GAME_HUD = True
 DEBUG_GAME_PROFILER = False
 DEBUG_GAME_UNITTEST = False
 DEBUG_GAME_STRESSTEST = False
@@ -572,7 +581,8 @@ SPRITESHEET_PATH = None
 BLACK = (0, 0, 0)
 CHARCOAL = (10, 10, 10)
 GREEN = hsl_to_rgb(120, 1, 0.25)
-PINK = hsl_to_rgb(300, 0.26, 0.18)
+# PINK = hsl_to_rgb(300, 0.26, 0.18)
+PINK = hsl_to_rgb(300, 0.36, 0.38)
 RED = hsl_to_rgb(0, 0.618, 0.328)
 TRANSPARENT = (0, 0, 0, 0)
 WHITE = (255, 255, 255)
@@ -624,7 +634,7 @@ class COLOR:
 
     GRANITE = Palette.COLOR7
     STONE = Palette.COLOR6
-    SPIKE = (145,145,145) or Palette.COLOR1
+    SPIKE = (145, 145, 145) or Palette.COLOR1
 
 
 @dataclass
