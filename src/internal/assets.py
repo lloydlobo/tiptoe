@@ -3,7 +3,8 @@ import math
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
-from random import randint, random, uniform  # pyright:ignore
+from random import randint, random, uniform
+from typing import Final  # pyright:ignore
 
 
 """Noise functions for procedural generation of content
@@ -418,27 +419,122 @@ class Assets:
     @staticmethod
     def create_spike_surfaces() -> list[pg.SurfaceType]:
         spike: list[pg.SurfaceType] = []
-        sides = 4
-        for i in range(sides):
+        orientations: Final = 4
+
+        def spikey_lines(
+            spike_surf: pg.SurfaceType,
+            orientation: int,
+            tipcount: int,
+            length: int,
+            thickness: int,
+            color: pre.ColorKind | pre.ColorValue,
+            outline_width: int,
+        ):
+            rect = spike_surf.get_rect()
+            spike_len = rect.w // tipcount
+            match orientation:
+                case 0:  # bottom
+                    for i in range(0, rect.w, spike_len):
+                        pg.draw.polygon(
+                            surf,
+                            color,
+                            [
+                                (rect.left + i, rect.bottom),
+                                (rect.left + i + spike_len // 2, rect.top),
+                                (rect.left + i + spike_len, rect.bottom),
+                            ],
+                        )
+                        pg.draw.polygon(
+                            surf,
+                            color,
+                            [
+                                (rect.left + i, rect.bottom // 2 + thickness // 4),
+                                (rect.left + i + spike_len // 2, 4 * rect.top),
+                                (rect.left + i + spike_len, rect.bottom // 2 + thickness // 4),
+                            ],
+                        )
+                    pass
+                case 1:  # top
+                    for i in range(0, rect.w, spike_len):
+                        pg.draw.polygon(
+                            surf,
+                            color,
+                            [
+                                (rect.left + i, -2 * rect.top),
+                                (
+                                    rect.left + i + spike_len // 2,
+                                    rect.bottom // 2 + thickness // 4,
+                                ),
+                                (rect.left + i + spike_len, -2 * rect.top),
+                            ],
+                        )
+                    pass
+                case 2:  # left
+                    # surf.fill(pre.COLOR.SPIKE)  # add filler
+                    for i in range(0, rect.w, spike_len):
+                        pg.draw.polygon(
+                            surf,
+                            color,
+                            [
+                                (rect.left + i, -2 * rect.top),
+                                (
+                                    rect.left + i + spike_len // 2,
+                                    rect.bottom // 2 + thickness // 4,
+                                ),
+                                (rect.left + i + spike_len, -2 * rect.top),
+                            ],
+                        )
+                case 3:  # right
+                    for i in range(0, rect.w, spike_len):
+                        pg.draw.polygon(
+                            surf,
+                            color,
+                            [
+                                (rect.left + i, -2 * rect.top),
+                                (
+                                    rect.left + i + spike_len // 2,
+                                    rect.bottom // 2 + thickness // 4,
+                                ),
+                                (rect.left + i + spike_len, -2 * rect.top),
+                            ],
+                        )
+                case _:
+                    raise ValueError(f"invalid spike orientation. got {orientation=}")
+            surf.set_colorkey(pre.COLOR.TRANSPARENTGLOW)  # remove filler
+            # pg.draw.polygon(spike_surf, color, outline, outline_width)
+
+        for orient in range(orientations):
             surf_16x16 = pg.Surface((pre.TILE_SIZE, pre.TILE_SIZE)).convert()
             surf_16x16.set_colorkey(pre.BLACK)
-            surf = pg.Surface((16, 6)).convert()
-            surf.set_colorkey(pre.BLACK)
-            surf.fill(pre.RED)
 
-            match i:
+            length, thickness = (16, 6)
+            tipcount = int(min(4, 16 // 4))
+            surf = pg.Surface((length, thickness)).convert()
+            surf.set_colorkey(pre.BLACK)
+            # surf.fill(pre.COLOR.SPIKE)
+            surf.fill(pre.COLOR.TRANSPARENTGLOW)  # add filler
+            # surf.fill(pre.BLACK)
+            color = pre.COLOR.SPIKE
+
+            match orient:
                 case 0:  # bottom
+                    spikey_lines(surf, orient, tipcount, length, thickness, color, 1)
                     surf_16x16.blit(surf, (0, surf_16x16.get_size()[1] - surf.get_size()[1]))
                 case 1:  # top (normal behavior, when height is less. reduced at bottom)
+                    spikey_lines(surf, orient, tipcount, length, thickness, color, 1)
                     surf_16x16.blit(surf, (0, 0))
                 case 2:  # left
+                    spikey_lines(surf, orient, tipcount, length, thickness, color, 1)
                     surf_16x16.blit(pg.transform.rotate(surf.copy(), 90), (0, 0))
                 case 3:  # right
+                    spikey_lines(surf, orient, tipcount, length, thickness, color, 1)
                     surf_16x16.blit(pg.transform.rotate(surf.copy(), -90.0), (16 - 6, 0))
                 case _:
-                    raise ValueError(f"unreachable value. have {sides} sides. got {i=}")
-
+                    raise ValueError(
+                        f"unreachable value. have {orientations} sides. got {orient=}"
+                    )
             spike.append(surf_16x16)
+
         return spike
 
     @staticmethod

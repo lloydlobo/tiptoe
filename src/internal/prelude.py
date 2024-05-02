@@ -600,33 +600,31 @@ class Palette:
 
 @dataclass
 class COLOR:
-    BACKGROUND = Palette.COLOR7
+    TRANSPARENTGLOW = (20, 20, 20)
 
-    ENEMY = Palette.COLOR5
-    ENEMYSLEEPING = Palette.COLOR7
-
-    PLAYER = Palette.COLOR4
-    PLAYERIDLE = Palette.COLOR4
-    PLAYERJUMP = Palette.COLOR4
-    PLAYERRUN = Palette.COLOR4
+    BACKGROUND = (12, 12, 14) or Palette.COLOR7
+    STAR = Palette.COLOR6
 
     FLAME = Palette.COLOR0
     FLAMEGLOW = Palette.COLOR0
     FLAMETORCH = Palette.COLOR3
 
+    ENEMY = Palette.COLOR5
+    ENEMYSLEEPING = Palette.COLOR7
     GUN = Palette.COLOR1
 
-    STAR = Palette.COLOR6
-
+    PLAYER = Palette.COLOR4
+    PLAYERIDLE = Palette.COLOR4
+    PLAYERJUMP = Palette.COLOR4
+    PLAYERRUN = Palette.COLOR4
     PLAYERSTAR = Palette.COLOR0
-
-    GRANITE = Palette.COLOR5
-    STONE = Palette.COLOR6
 
     PORTAL1 = Palette.COLOR0
     PORTAL2 = Palette.COLOR0
 
-    TRANSPARENTGLOW = (20, 20, 20)
+    GRANITE = Palette.COLOR7
+    STONE = Palette.COLOR6
+    SPIKE = (145,145,145) or Palette.COLOR1
 
 
 @dataclass
@@ -738,6 +736,24 @@ SPIKE_CONFIGURATIONS = [
     {'position': (10, 0), 'size': (6, 16), 'orientation': 'right'},
 ]
 
+# import pygame as pg
+# from pygame import Rect
+# SPIKE_CONFIGS = {
+#     'bottom': (16, 6, lambda pos, size, grace: Rect(pos.x + grace / 2, pos.y + (size - 6), 16 - grace, 6)),
+#     'top': (16, 6, lambda pos, grace: Rect(pos.x + grace / 2, pos.y, 16 - grace, 6)),
+#     'left': (6, 16, lambda pos, grace: Rect(pos.x, pos.y + grace / 2, 6, 16 - grace)),
+#     'right': (6, 16, lambda pos, size, grace: Rect(pos.x + (size - 6), pos.y + grace / 2, 6, 16 - grace))
+# }
+# class MyClass:
+#     def __init__(self):
+#         self.spike_tiles_hitbox = []
+#         for spike in self.tilemap.extract([("spike", v) for v in range(4)], keep=True):
+#             cfg = SPIKE_CONFIGS.get(spike.orientation)
+#             if not cfg:
+#                 raise ValueError(f"Invalid spike orientation: {spike.orientation}")
+#             w, h, rect_func = cfg
+#             rect = rect_func(spike.pos, pre.TILE_SIZE, _spikegrace)
+#             self.spike_tiles_hitbox.append(rect)
 
 ################################################################################
 ### SURFACE PYGAME
