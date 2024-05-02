@@ -18,7 +18,9 @@ from typing import (
 )
 
 
-if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
+if (
+    TYPE_CHECKING
+):  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from tiptoe import Game  # from editor import Editor
     from editor import Editor
 
@@ -29,7 +31,9 @@ import pygame as pg
 import internal.prelude as pre
 
 
-def pos_to_loc(x: int | float, y: int | float, offset: Union[tuple[int | float, int | float], None]) -> str:  # FIXME: the level editor you with is this, so if we cannot change this
+def pos_to_loc(
+    x: int | float, y: int | float, offset: Union[tuple[int | float, int | float], None]
+) -> str:  # FIXME: the level editor you with is this, so if we cannot change this
     """calc_pos_to_loc convert position with offset to json serialise-able key string for game level map"""
     return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}" if offset else f"{int(x)};{int(y)}"
 
@@ -72,7 +76,10 @@ class Tilemap:
         # derived local like variables
         self.game_assets_tiles = self.game.assets.tiles
         _game_display_rect = self.game.display.get_rect()
-        self._dimensions: Final = (_game_display_rect.w, _game_display_rect.h)  # hack: this can be an issue if screen is resized!!!!
+        self._dimensions: Final = (
+            _game_display_rect.w,
+            _game_display_rect.h,
+        )  # hack: this can be an issue if screen is resized!!!!
 
         # constants
         self._autotile_map: Final = pre.AUTOTILE_MAP
@@ -84,7 +91,9 @@ class Tilemap:
         self._locfmt_p_fn: Final = partial(f"{{}};{{}}".format)
         self._locfmt_p_fn.__doc__ = "This partial function takes x and y integers and serializes into json map_data dictionary keys."
         self._pg_rect_p_fn = partial(pg.Rect)
-        self._pg_rect_p_fn.__doc__ = "This partial function takes pygame Rect style object parameters and returns a Rect."
+        self._pg_rect_p_fn.__doc__ = (
+            "This partial function takes pygame Rect style object parameters and returns a Rect."
+        )
 
     def tiles_around(self, pos: tuple[int, int]):
         """note: need hashable position so pygame.Vector2 won't work for input parameter"""
@@ -135,7 +144,9 @@ class Tilemap:
                 if pre.DEBUG_EDITOR_ASSERTS:
                     q.appendleft((gk.ongrid, tile))  # type: ignore
                 if (tile.kind.value, tile.variant) in id_pairs:
-                    matches.append(deepcopy(tile))  # make clean copy of tile data, to avoid modification to original reference
+                    matches.append(
+                        deepcopy(tile)
+                    )  # make clean copy of tile data, to avoid modification to original reference
                     # deepcopy does the next 2 things
                     #   matches.append(tile.copy())
                     #   matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
@@ -178,8 +189,13 @@ class Tilemap:
                 neighbors.clear()
                 continue
             for dir in _directions:
-                if (loc := tile.pos + dir, check_loc := pos_to_loc_wo_offset_partial(loc.x, loc.y)) and check_loc in self.tilemap:
-                    if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
+                if (
+                    loc := tile.pos + dir,
+                    check_loc := pos_to_loc_wo_offset_partial(loc.x, loc.y),
+                ) and check_loc in self.tilemap:
+                    if (
+                        self.tilemap[check_loc].kind == tile.kind
+                    ):  # no worries if a different variant
                         neighbors.add(dir)
             if (sn := tuple(sorted(neighbors))) in self._autotile_map:
                 tile.variant = self._autotile_map[sn]
@@ -191,7 +207,9 @@ class Tilemap:
         DIRECTIONS: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
         neighbors: set[tuple[int, int]] = set()
-        tile_neighbors: defaultdict[tuple[int | float, int | float], set[tuple[int, int]]] = defaultdict(set)  # : defaultdict[pg.Vector2, set[tuple[int,int]]
+        tile_neighbors: defaultdict[tuple[int | float, int | float], set[tuple[int, int]]] = (
+            defaultdict(set)
+        )  # : defaultdict[pg.Vector2, set[tuple[int,int]]
 
         for tile in self.tilemap.values():
 
@@ -204,7 +222,9 @@ class Tilemap:
             for dx, dy in DIRECTIONS:
                 ngbr_loc = tile_pos[0] + dx, tile_pos[1] + dy
                 if (check_loc := self._locfmt_p_fn(ngbr_loc[0], ngbr_loc[1])) in self.tilemap:
-                    if (ngbr_tile := self.tilemap[check_loc]) and ngbr_tile.kind == tile.kind:  # can be any different variant
+                    if (
+                        ngbr_tile := self.tilemap[check_loc]
+                    ) and ngbr_tile.kind == tile.kind:  # can be any different variant
                         neighbors.add((dx, dy))
                         tile_neighbors[ngbr_loc].add((-dx, -dy))
 
@@ -232,7 +252,14 @@ class Tilemap:
     def save(self, path: str) -> None:
         # TODO: convert path type from str to use Path
         with open(path, "w") as f:
-            json.dump(dict(tile_size=self.tile_size, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()), f)
+            json.dump(
+                dict(
+                    tile_size=self.tile_size,
+                    tilemap=self.tilemap_to_json(),
+                    offgrid=self.offgrid_tiles_to_json(),
+                ),
+                f,
+            )
 
     def load(self, path: str) -> None:
         # TODO: convert path type from str to use Path
@@ -249,17 +276,31 @@ class Tilemap:
 
     def maybe_solid_gridtile_bool(self, pos: pg.Vector2) -> bool:
         """Return boolean if physics tile can be stepped on or None"""
-        return True if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in self._physics_tiles) else False
+        return (
+            True
+            if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in self._physics_tiles)
+            else False
+        )
 
     def maybe_solid_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
         """Return optional physics tile can be stepped on or None"""
-        return tile if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in self._physics_tiles) else None
+        return (
+            tile
+            if (tile := self.maybe_gridtile(pos)) and (tile and tile.kind in self._physics_tiles)
+            else None
+        )
 
     def tilemap_to_json(self) -> dict[str, TileItemJSON]:
-        return {key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for key, tile in self.tilemap.items()}
+        return {
+            key: TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant)
+            for key, tile in self.tilemap.items()
+        }
 
     def offgrid_tiles_to_json(self) -> list[TileItemJSON]:
-        return [TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant) for tile in self.offgrid_tiles]
+        return [
+            TileItemJSON(kind=tile.kind.value, pos=tuple(tile.pos), variant=tile.variant)
+            for tile in self.offgrid_tiles
+        ]
 
     def pos_as_grid_loc_vec2(self, vec2: pg.Vector2) -> pg.Vector2:
         return vec2 // self.tile_size  # Vector element-wise division for efficiency
@@ -271,7 +312,14 @@ class Tilemap:
     @staticmethod
     # def offgrid_tiles_json_to_dataclass(data: list[TileItemJSON]):  # -> list[TileItem]:
     def offgrid_tiles_json_to_dataclass(data: Sequence[TileItemJSON]):  # -> list[TileItem]:
-        return (TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data)
+        return (
+            TileItem(
+                kind=pre.TileKind(tile["kind"]),
+                pos=pg.Vector2(tile["pos"]),
+                variant=tile["variant"],
+            )
+            for tile in data
+        )
 
     @staticmethod
     def vec2_jsonstr(vec2: pg.Vector2) -> str:
@@ -282,7 +330,17 @@ class Tilemap:
     # def tilemap_json_to_dataclass(data: dict[str, TileItemJSON]):
     def tilemap_json_to_dataclass(data: Mapping[str, TileItemJSON]):
         # PERF: needs optimization. use generators or ctx manager for file i/o?
-        return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
+        return (
+            (
+                key,
+                TileItem(
+                    kind=pre.TileKind(tile["kind"]),
+                    pos=pg.Vector2(tile["pos"]),
+                    variant=tile["variant"],
+                ),
+            )
+            for key, tile in data.items()
+        )
 
     def render(self, surf: pg.Surface, offset: tuple[int, int] = (0, 0)) -> None:
         blit_partial = partial(surf.blit)
@@ -294,7 +352,9 @@ class Tilemap:
             blit_partial(self.game_assets_tiles[tile.kind.value][tile.variant], tile.pos - offset)
 
         xlo, ylo = self.pos_as_grid_loc_tuple2(offset[0], offset[1])
-        xhi, yhi = self.pos_as_grid_loc_tuple2(offset[0] + surf.get_width(), offset[1] + surf.get_height())
+        xhi, yhi = self.pos_as_grid_loc_tuple2(
+            offset[0] + surf.get_width(), offset[1] + surf.get_height()
+        )
         # Minor optimization: Pre-format string for potential slight speedup during loop iterations.
         # F-strings are generally preferred for readability.
         loc_format = f"{{}};{{}}"  # Pre-calculate string format
@@ -306,7 +366,11 @@ class Tilemap:
                 loc = loc_format.format(int(x), int(y))  # Use format method
                 if loc in self.tilemap:
                     tile = self.tilemap[loc]
-                    blit_partial(self.game_assets_tiles[tile.kind.value][tile.variant], (tile.pos * self.tile_size) - offset)
+                    # img = self.game_assets_tiles[tile.kind.value][tile.variant]
+                    imgs = self.game_assets_tiles.get(tile.kind.value, None)
+                    if imgs is not None and (index := tile.variant) < len(imgs):
+                        img = imgs[index]
+                        blit_partial(img, (tile.pos * self.tile_size) - offset)
 
 
 # map_data = [

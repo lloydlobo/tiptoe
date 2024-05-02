@@ -1,6 +1,5 @@
 # Primer: https://www.pygame.org/docs/tut/newbieguide.html
 
-
 try:
     import cProfile
     import itertools as it
@@ -25,7 +24,9 @@ try:
     from internal.assets import Assets
     from internal.entities import Action, Enemy, Player
     from internal.hud import render_debug_hud
-    from internal.move_commands import test__internal__move__commands__py
+    from internal.move_commands import (
+        test__internal__move__commands__py,
+    )
     from internal.particle import Particle
     from internal.spark import Spark
     from internal.spawner import Portal
@@ -71,7 +72,9 @@ class Button:
     text: str
     pos: pg.Vector2
     size: pg.Vector2
-    rect: pg.Rect = field(default_factory=lambda: pg.Rect(0, 0, pre.TILE_SIZE * 4, pre.TILE_SIZE * 3))
+    rect: pg.Rect = field(
+        default_factory=lambda: pg.Rect(0, 0, pre.TILE_SIZE * 4, pre.TILE_SIZE * 3)
+    )
 
     def draw(self, surf: pg.SurfaceType, fill_color: pre.ColorValue) -> None:
         pg.draw.rect(surf, fill_color, self.rect)
@@ -85,7 +88,13 @@ class Textz:
     # def __post_init__(self):
     #     self.font = pg.font.SysFont("monospace", self.font_size, bold=self.bold)
 
-    def render(self, surf: pg.SurfaceType, pos: tuple[int, int], text: str, color: pre.ColorValue = pg.Color('white')):
+    def render(
+        self,
+        surf: pg.SurfaceType,
+        pos: tuple[int, int],
+        text: str,
+        color: pre.ColorValue = pg.Color('white'),
+    ):
         text_surface = self.font.render(text, True, color)
         text_rect = text_surface.get_rect(center=pos)
         surf.blit(text_surface, text_rect)
@@ -94,10 +103,18 @@ class Textz:
 class Game:
     def __init__(self) -> None:
         pg.init()
-        display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE  # hwsurface flag does nothing in pygameg ver2.0+, doublebuf has someuse, but not a magic speed up flag. see https://www.pygame.org/docs/tut/newbieguide.html
+
+        # note: hwsurface flag does nothing in pygameg ver2.0+, doublebuf has
+        # someuse, but not a magic speed up flag. see
+        # https://www.pygame.org/docs/tut/newbieguide.html
+        display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
-        pg.display._set_autoresize(False)  # type: ignore ^ |> see github:pygame/examples/resizing_new.py | Diagnostics: "_set_autoresize" is not a known member of module "pygame.display" [reportAttributeAccessIssue]
+
+        # |> see github:pygame/examples/resizing_new.py | Diagnostics:
+        # "_set_autoresize" is not a known member of module "pygame.display"
+        # [reportAttributeAccessIssue]
+        pg.display._set_autoresize(False)  # pyright: ignore ^
         pg.display.set_caption(pre.CAPTION)
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
@@ -105,10 +122,11 @@ class Game:
 
         self.bgcolor = pre.COLOR.BACKGROUND
 
-        self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"  # note: font author suggest using font size in multiples of 9.
-        self.font = pg.font.Font(self.fontface_path, 18)  # alias for self.font_base -> [ xxs xs sm base md lg ]
-        self.font_sm = pg.font.Font(self.fontface_path, 12)  # author suggest using font size in multiples of 9.
-        self.font_xs = pg.font.Font(self.fontface_path, 9)  # author suggest using font size in multiples of 9.
+        # note: font author suggest using font size in multiples of 9.
+        self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"
+        self.font = pg.font.Font(self.fontface_path, 18)
+        self.font_sm = pg.font.Font(self.fontface_path, 12)
+        self.font_xs = pg.font.Font(self.fontface_path, 9)
 
         if pre.DEBUG_GAME_HUD:
             try:
@@ -121,18 +139,21 @@ class Game:
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[pre.Number] = deque([self.dt, self.dt])
 
-        self.config_handler: pre.UserConfig = get_user_config(pre.CONFIG_PATH)
-
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-        self._star_count: Final[int] = min(64, max(16, self.config_handler.star_count or pre.TILE_SIZE * 2))  # can panic if we get a float or string
+
+        self.config_handler: pre.UserConfig = get_user_config(pre.CONFIG_PATH)
+        _star_count = self.config_handler.star_count  # can panic if we get a float or string
+        self._star_count: Final[int] = min(64, max(16, _star_count or pre.TILE_SIZE * 2))
 
         def new_asset_mouse_crossaim() -> pg.SurfaceType:
+            # QUEST: use as player death anim similar to Celeste's Madeline
+            # rotating circles
             mouse_size = pg.Vector2(pre.TILE_SIZE // 4)
             mouse_surf = pg.Surface(mouse_size).convert()
             mouse_surf.set_colorkey(pre.BLACK)
-            # mouse_surf.fill(pre.COLOR.GRASS) # use surfarray? pygame module for accessing surface pixel data using array interfaces Functions to convert between NumPy arrays and Surface objects. This module will only be functional when pygame can use the external NumPy package. If NumPy can't be imported, surfarray becomes a MissingModule object.
-
-            pg.draw.circle(mouse_surf, pre.COLOR.FLAMEGLOW, mouse_size // 2, pre.TILE_SIZE // 2, width=0)
+            pg.draw.circle(
+                mouse_surf, pre.COLOR.FLAMEGLOW, mouse_size // 2, pre.TILE_SIZE // 2, width=0
+            )
             return mouse_surf
 
         self.assets = Assets.initialize_assets()
@@ -157,7 +178,9 @@ class Game:
             shootmiss: pg.mixer.Sound
 
         self.sfx = SFX(
+            # fmt: off
             ambienceheartbeatloop=pg.mixer.Sound((pre.SFX_PATH / "ambienceheartbeatloop.wav").__str__()),
+            # fmt: on
             ambienceportalnear=pg.mixer.Sound((pre.SFX_PATH / "ambienceportalnear.wav").__str__()),
             dash=pg.mixer.Sound((pre.SFX_PATH / "dash.wav").__str__()),
             dashbassy=pg.mixer.Sound((pre.SFX_PATH / "dashbassy.wav").__str__()),
@@ -172,7 +195,7 @@ class Game:
             shootmiss=pg.mixer.Sound((pre.SFX_PATH / "shootmiss.wav").__str__()),
         )
 
-        self.sfx.ambienceheartbeatloop.set_volume(0.1)  # note: loop it
+        self.sfx.ambienceheartbeatloop.set_volume(0.1)
         self.sfx.ambienceportalnear.set_volume(0.1)
         self.sfx.dash.set_volume(0.2)
         self.sfx.dashbassy.set_volume(0.2)
@@ -187,11 +210,10 @@ class Game:
         self.sfx.shootmiss.set_volume(0.2)
 
         self._player_starting_pos: Final = pg.Vector2(104, 145) or pg.Vector2(50, 50)
-        # self.mut_player_last_pos = self._player_starting_pos.copy()
-
         self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
+
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
         self.screenshake = 0
@@ -201,14 +223,11 @@ class Game:
         self._dead_mid: Final = 10
         self._dead_hi: Final = 40
 
-        # Transition: abs(self.transition) == 30 => opaque screen see nothing |
-        #   abs(self.transition) == 0 see eeverything; load level when completely black
+        # Transition: abs(self.transition) == 30 => opaque screen see nothing
+        # self.transition is 0 see eeverything; load level when completely black
         self._transition_lo: Final = -30
         self._transition_mid: Final = 0
         self._transition_hi: Final = 30
-
-        self.bg_colors = (pre.hsl_to_rgb(240, 0.3, 0.1), pre.hsl_to_rgb(240, 0.35, 0.1), pre.hsl_to_rgb(240, 0.3, 0.15), pre.COLOR.BACKGROUND)
-        self.bg_color_cycle = it.cycle(self.bg_colors)  # this returns copies with next fn call
 
         # load_level: declares and initializes level specific members
         self.level = 0
@@ -231,7 +250,9 @@ class Game:
         self.screenshake = 0
 
         try:
-            assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+            assert (
+                not self.gameover
+            ), "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
         except AssertionError as e:
             self.gameover = False  # -> this fixes: in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there
             print(f"error while running game from reset_game():\n\t{e}", file=sys.stderr)
@@ -266,33 +287,86 @@ class Game:
             )
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
-        self.spike_tiles_hitbox = [
-            pg.Rect(
-                (16 - 6) + spike.pos.x,
-                (16 - 6) + spike.pos.y,
-                16,
-                6,
-            )
-            for spike in self.tilemap.extract([("spike", 0)], keep=True)
-        ]
+        _spike_id_pairs: Final = [("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)]
+        _spike_cfg = pre.SPIKE_CONFIGURATIONS
+        self.spike_tiles_hitbox: list[pg.Rect] = []
+        _spike_horzsize = (16, 6)  # w,h
+        _spike_vertsize = (6, 16)  # w,h
+        _spikegrace = 4
+        for spike in self.tilemap.extract(_spike_id_pairs, keep=True):
+            match spike.variant:
+                case 0:  # bottom
+                    rect = pg.Rect(
+                        spike.pos.x + _spikegrace / 2,
+                        spike.pos.y + (pre.TILE_SIZE - _spike_horzsize[1]),
+                        _spike_horzsize[0] - _spikegrace,
+                        _spike_horzsize[1],
+                    )  # left, top, width, height
+                case 1:  # top
+                    rect = pg.Rect(
+                        spike.pos.x + _spikegrace / 2,
+                        spike.pos.y,  # + (pre.TILE_SIZE - _spike_horzsize[1]),
+                        _spike_horzsize[0] - _spikegrace,
+                        _spike_horzsize[1],
+                    )  # left, top, width, height
+                    pass
+                case 2:  # left
+                    rect = pg.Rect(
+                        spike.pos.x,
+                        spike.pos.y + _spikegrace / 2,  # + (pre.TILE_SIZE - _spike_horzsize[1]),
+                        _spike_vertsize[0],
+                        _spike_vertsize[1] - _spikegrace,
+                    )  # left, top, width, height
+                    pass
+                case 3:  # right
+                    rect = pg.Rect(
+                        spike.pos.x + (pre.TILE_SIZE - _spike_vertsize[0]),
+                        spike.pos.y + _spikegrace / 2,  # + (pre.TILE_SIZE - _spike_horzsize[1]),
+                        _spike_vertsize[0],
+                        _spike_vertsize[1] - _spikegrace,
+                    )  # left, top, width, height
+                    pass
+                case _:
+                    raise ValueError(f"unreachable value. invalid variant {spike.variant=}")
+
+            self.spike_tiles_hitbox.append(rect)
+
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
-        val_spawner_kinds = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
+        val_spawner_kinds = (
+            pre.SpawnerKind.PLAYER.value,
+            pre.SpawnerKind.ENEMY.value,
+            pre.SpawnerKind.PORTAL.value,
+        )
 
-        for spawner in self.tilemap.extract(id_pairs=list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(val_spawner_kinds)), val_spawner_kinds)), keep=False):
+        for spawner in self.tilemap.extract(
+            id_pairs=list(
+                zip(
+                    it.repeat(str(pre.TileKind.SPAWNERS.value), len(val_spawner_kinds)),
+                    val_spawner_kinds,
+                )
+            ),
+            keep=False,
+        ):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:
-                    self.player.pos = spawner.pos.copy()  # coerce to a mutable list if pos is a tuple
+                    self.player.pos = (
+                        spawner.pos.copy()
+                    )  # coerce to a mutable list if pos is a tuple
                     self.player.air_time = 0  # Reset time to avoid multiple spawns during fall
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
                 case pre.SpawnerKind.PORTAL:
-                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
+                    self.portal_spawners.append(
+                        Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE))
+                    )
 
         if pre.DEBUG_GAME_ASSERTS:
             assert self.player is not None, f"want a spawned player. got {self.player}"
             assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
-            assert (val := len(self.portal_spawners)) > 0, f"want atleast 1 spawned portal. got {val}"
+            assert (
+                val := len(self.portal_spawners)
+            ) > 0, f"want atleast 1 spawned portal. got {val}"
 
         # Particles go on display, but they are added after the displays merge so they don't receive the outline
         self.particles: list[Particle] = []
@@ -343,16 +417,23 @@ class Game:
                             # FIXME: message from Game.reset_game():
                             #           "in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there"
                             try:
-                                assert not self.gameover, f"want gameover flag to be false. got {self.gameover=}"
+                                assert (
+                                    not self.gameover
+                                ), f"want gameover flag to be false. got {self.gameover=}"
                             except AssertionError as e:
                                 err_msg = f"error while running game from Game.run():\n\t{e}"
                                 if 0:
                                     print(err_msg, file=sys.stderr)
                                     quit_exit()
                                 else:
-                                    print(f"allowing AssertionError instead of quit_exit():\n\t{err_msg}", file=sys.stderr)
+                                    print(
+                                        f"allowing AssertionError instead of quit_exit():\n\t{err_msg}",
+                                        file=sys.stderr,
+                                    )
                                     pass
-                            self.gameover = True  # NOTE: Since this func is called by mainmenu_screen,
+                            self.gameover = (
+                                True  # NOTE: Since this func is called by mainmenu_screen,
+                            )
                             running = False  #      the process will continue on from the loop inside game menu.
                             pass
                         else:
@@ -373,12 +454,18 @@ class Game:
                     self.load_level(self.level)
 
             # Camera: update and parallax
-            self.scroll.x += (self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self._scroll_ease.x
-            self.scroll.y += (self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y) * self._scroll_ease.y
+            self.scroll.x += (
+                self.player.rect().centerx - (self.display.get_width() * 0.5) - self.scroll.x
+            ) * self._scroll_ease.x
+            self.scroll.y += (
+                self.player.rect().centery - (self.display.get_height() * 0.5) - self.scroll.y
+            ) * self._scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
             # Mouse: cursor position with offset
-            raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE  # note: similar technique used in editor.py
+            raw_mouse_pos = (
+                pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
+            )  # note: similar technique used in editor.py
             mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
             # render blob mouse
@@ -387,9 +474,14 @@ class Game:
                 if mouse_surf:
                     mouse_dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
                     mouse_mask: pg.Mask = pg.mask.from_surface(mouse_surf)
-                    mouse_silhouette = mouse_mask.to_surface(setcolor=(20, 20, 21, math.floor(255 / 2)), unsetcolor=(0, 0, 0, 0))
+                    mouse_silhouette = mouse_mask.to_surface(
+                        setcolor=(20, 20, 21, math.floor(255 / 2)), unsetcolor=(0, 0, 0, 0)
+                    )
                     for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                        self.display.blit(source=mouse_silhouette, dest=(mouse_dest - (pg.Vector2(offset) * pre.TILE_SIZE)))
+                        self.display.blit(
+                            source=mouse_silhouette,
+                            dest=(mouse_dest - (pg.Vector2(offset) * pre.TILE_SIZE)),
+                        )
 
             # display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
             # # display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -398,21 +490,41 @@ class Game:
             #     self.display_2.blit(display_silhouette, offset)
 
             # Flametorch: particle animation
-            odds_of_flame: float = 0.006 * 49_999  # or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
+            odds_of_flame: float = (
+                0.006 * 49_999
+            )  # or 49_999 * 0.00001  # big number is to control spawn rate | random * bignum pixel area (to avoid spawning particles at each frame)
             self.particles.extend(
-                Particle(game=self, p_kind=pre.ParticleKind.FLAME, pos=pg.Vector2(x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)), velocity=pg.Vector2(uniform(-0.03, 0.03), uniform(0.0, -0.03)), frame=randint(0, 20))
+                Particle(
+                    game=self,
+                    p_kind=pre.ParticleKind.FLAME,
+                    pos=pg.Vector2(
+                        x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)
+                    ),
+                    velocity=pg.Vector2(uniform(-0.03, 0.03), uniform(0.0, -0.03)),
+                    frame=randint(0, 20),
+                )
                 for rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame) < (rect.w * rect.h)
             )  # -4 because hitbox is 4 lower than top-right, while setting hitbox for torchspawners
             self.particles.extend(
-                Particle(game=self, p_kind=pre.ParticleKind.FLAMEGLOW, pos=pg.Vector2(x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)), velocity=pg.Vector2(uniform(-0.2, 0.2), uniform(0.1, 0.3)), frame=randint(0, 20))
+                Particle(
+                    game=self,
+                    p_kind=pre.ParticleKind.FLAMEGLOW,
+                    pos=pg.Vector2(
+                        x=(rect.x - random() * rect.w), y=(rect.y - random() * rect.h - 4)
+                    ),
+                    velocity=pg.Vector2(uniform(-0.2, 0.2), uniform(0.1, 0.3)),
+                    frame=randint(0, 20),
+                )
                 for rect in self.flametorch_spawners.copy()
                 if (random() * odds_of_flame * 8) < (rect.w * rect.h)
             )
 
             # Stars: backdrop update and render
             self.stars.update()  # stars drawn behind everything else
-            self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
+            self.stars.render(
+                self.display_2, render_scroll
+            )  # display_2 blitting avoids masks depth
 
             # Tilemap: render
             self.tilemap.render(self.display, render_scroll)
@@ -438,12 +550,17 @@ class Game:
 
             # Player: update and render
             if not self.dead:
-                self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
+                self.player.update(
+                    self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0)
+                )
                 self.player.render(self.display, render_scroll)
 
             for spike_rect in self.spike_tiles_hitbox:
                 if self.player.rect().colliderect(spike_rect):
-                    self.player.jump()
+                    if 1:
+                        self.dead += 1
+                    else:
+                        self.player.jump()
 
             # Gun: projectiles and sparks
             for projectile in self.projectiles:
@@ -451,30 +568,57 @@ class Game:
                 projectile.timer += 1
                 # dest = pg.Vector2(projectile.pos) - render_scroll
                 img = self.assets.misc_surf["projectile"]
-                dest = (projectile.pos[0] - (img.get_width() * 0.5) - render_scroll[0], projectile.pos[1] - (img.get_height() * 0.5) - render_scroll[1])
+                dest = (
+                    projectile.pos[0] - (img.get_width() * 0.5) - render_scroll[0],
+                    projectile.pos[1] - (img.get_height() * 0.5) - render_scroll[1],
+                )
                 self.display.blit(img, dest)
 
                 # Projectile post render: update
-                projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])  # int -> precision for grid system
+                projectile_x, projectile_y = int(projectile.pos[0]), int(
+                    projectile.pos[1]
+                )  # int -> precision for grid system
 
                 if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
                     self.projectiles.remove(projectile)
                     spark_speed = 0.5
-                    spark_direction = math.pi if (projectile.velocity > 0) else 0  # unit circle direction (0 left, right math.pi)
-                    self.sparks.extend(Spark(projectile.pos, angle=(random() - spark_speed + spark_direction), speed=(2 + random())) for _ in range(4))  # projectile hit solid object -> sparks bounce opposite to that direction
+                    spark_direction = (
+                        math.pi if (projectile.velocity > 0) else 0
+                    )  # unit circle direction (0 left, right math.pi)
+                    self.sparks.extend(
+                        Spark(
+                            projectile.pos,
+                            angle=(random() - spark_speed + spark_direction),
+                            speed=(2 + random()),
+                        )
+                        for _ in range(4)
+                    )  # projectile hit solid object -> sparks bounce opposite to that direction
                     self.sfx.hitwall.play()
 
                 elif projectile.timer > 360:
                     self.projectiles.remove(projectile)
 
-                elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
+                elif (
+                    abs(self.player.dash_time) < self.player.dash_time_burst_2
+                ):  # vulnerable player
                     if self.player.rect().collidepoint(projectile_x, projectile_y):
                         # Player looses health but still alive
-                        if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):
+                        if (self.player.action == Action.IDLE) and (
+                            self.dead_hit_skipped_counter
+                            < self.player.max_dead_hit_skipped_counter
+                        ):
                             self.projectiles.remove(projectile)
                             self.dead_hit_skipped_counter += 1  # todo: should reset this if players action state changes from idle to something else
                             self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
-                            self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect().center), angle=(random() * math.pi * 2), speed=(2 + random()), color=pre.COLOR.PLAYER) for _ in range(30))
+                            self.sparks.extend(
+                                Spark(
+                                    pos=pg.Vector2(self.player.rect().center),
+                                    angle=(random() * math.pi * 2),
+                                    speed=(2 + random()),
+                                    color=pre.COLOR.PLAYER,
+                                )
+                                for _ in range(30)
+                            )
 
                             self.sfx.hitmisc.play()  # invincible player when idle for 3 lifes
 
@@ -483,7 +627,14 @@ class Game:
                             self.dead += 1
                             self.dead_hit_skipped_counter = 0
                             self.screenshake = max(self._max_screenshake, self.screenshake - 1)
-                            self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect().center), angle=random() * math.pi * 2, speed=((2 * uniform(0.618, 1.618)) + random())) for _ in range(30))
+                            self.sparks.extend(
+                                Spark(
+                                    pos=pg.Vector2(self.player.rect().center),
+                                    angle=random() * math.pi * 2,
+                                    speed=((2 * uniform(0.618, 1.618)) + random()),
+                                )
+                                for _ in range(30)
+                            )
 
                             self.particles.extend(
                                 Particle(
@@ -491,7 +642,18 @@ class Game:
                                     p_kind=pre.ParticleKind.PARTICLE,
                                     pos=pg.Vector2(self.player.rect().center),
                                     #                     math.cos( angle                   + math.pi) *  speed         * 0.5
-                                    velocity=(pg.Vector2((math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5, math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5))),
+                                    velocity=(
+                                        pg.Vector2(
+                                            (
+                                                math.cos((random() * math.pi * 2) + math.pi)
+                                                * (random() * 5)
+                                                * 0.5,
+                                                math.cos((random() * math.pi * 2) + math.pi)
+                                                * (random() * 5)
+                                                * 0.5,
+                                            )
+                                        )
+                                    ),
                                     frame=randint(0, 7),
                                 )
                                 for _ in range(30)
@@ -505,9 +667,13 @@ class Game:
                     self.sparks.remove(spark)
 
             # Display Mask: before particles
-            display_mask: pg.Mask = pg.mask.from_surface(self.display)  # 180 alpha to set color of outline or use 255//2
+            display_mask: pg.Mask = pg.mask.from_surface(
+                self.display
+            )  # 180 alpha to set color of outline or use 255//2
             # display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-            display_silhouette = display_mask.to_surface(setcolor=(10, 10, 10, 127), unsetcolor=(0, 0, 0, 0))
+            display_silhouette = display_mask.to_surface(
+                setcolor=(10, 10, 10, 127), unsetcolor=(0, 0, 0, 0)
+            )
             for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                 self.display_2.blit(display_silhouette, offset)
 
@@ -524,26 +690,47 @@ class Game:
                         if wave_amplitude == 0:
                             wave_amplitude = 1
                         # JUICE: if player gets near, let the flames change!!!!
-                        if self.player.rect().colliderect(pg.Rect(particle.pos.x, particle.pos.y, pre.SIZE.FLAMEPARTICLE[0], pre.SIZE.FLAMEPARTICLE[1])):
+                        if self.player.rect().colliderect(
+                            pg.Rect(
+                                particle.pos.x,
+                                particle.pos.y,
+                                pre.SIZE.FLAMEPARTICLE[0],
+                                pre.SIZE.FLAMEPARTICLE[1],
+                            )
+                        ):
                             if self.player.pos.x < particle.pos.x and not self.player.flip:
                                 particle.velocity.x += -abs(wave_amplitude) * 0.2
                             if self.player.pos.x > particle.pos.x and self.player.flip:
                                 particle.velocity.x += abs(wave_amplitude) * 0.2
-                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * wave_amplitude
+                        particle.pos.x += (
+                            math.sin(particle.animation.frame * 0.035) * wave_amplitude
+                        )
 
                         if kill_animation:
                             self.particles.remove(particle)
-                    case pre.ParticleKind.FLAMEGLOW:  # 0.035 avoids particle to loop from minus one to one of sine function, 0.3 controls amplitude
+                    case (
+                        pre.ParticleKind.FLAMEGLOW
+                    ):  # 0.035 avoids particle to loop from minus one to one of sine function, 0.3 controls amplitude
                         kill_animation = particle.update()
                         img = particle.animation.img().copy()
                         wave_amplitude = uniform(-1.0, 1.0) * 0.3 * 0.5
                         if wave_amplitude == 0:
                             wave_amplitude = 1
                         # ideal is display, but display_2 looks cool for flameglow
-                        self.display_2.blit(source=img, dest=(particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2), special_flags=pg.BLEND_RGB_ADD)
+                        self.display_2.blit(
+                            source=img,
+                            dest=(
+                                particle.pos.x - render_scroll[0] - img.get_width() // 2,
+                                particle.pos.y - render_scroll[1] - img.get_height() // 2,
+                            ),
+                            special_flags=pg.BLEND_RGB_ADD,
+                        )
                         # ^ use center of the image as origin
                         # particle.pos.x += math.sin(particle.animation.frame * 0.035) * 0.3
-                        particle.pos.x += math.sin(particle.animation.frame * 0.035) * (wave_amplitude, 0.3)[randint(0, 1)]
+                        particle.pos.x += (
+                            math.sin(particle.animation.frame * 0.035)
+                            * (wave_amplitude, 0.3)[randint(0, 1)]
+                        )
                         if kill_animation:
                             self.particles.remove(particle)
                     case _:
@@ -555,10 +742,14 @@ class Game:
                     running = False  # since this func is called by mainmenu_screen, it will continue on from the loop inside game menu
                     # FIXME:
                     try:
-                        assert not self.gameover, "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+                        assert (
+                            not self.gameover
+                        ), "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
                     except AssertionError as e:
                         self.gameover = False
-                        print(f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False")
+                        print(
+                            f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False"
+                        )
 
                 if event.type == pg.KEYDOWN and event.key == pg.K_q:
                     quit_exit()
@@ -588,15 +779,36 @@ class Game:
                     pg.event.clear()
 
             # Render: display
-            self.display_2.blit(self.display, (0, 0))  # blit: display on display_2 and then blit display_2 on screen for depth effect
-            _dest_screen_offset = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - (self.screenshake * 0.5), (self.screenshake * random()) - (self.screenshake * 0.5))
-            self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _dest_screen_offset)  # pixel art effect
+            self.display_2.blit(
+                self.display, (0, 0)
+            )  # blit: display on display_2 and then blit display_2 on screen for depth effect
+            _dest_screen_offset = (
+                (0, 0)
+                if not self.config_handler.screenshake
+                else (
+                    (self.screenshake * random()) - (self.screenshake * 0.5),
+                    (self.screenshake * random()) - (self.screenshake * 0.5),
+                )
+            )
+            self.screen.blit(
+                pg.transform.scale(self.display_2, self.screen.get_size()), _dest_screen_offset
+            )  # pixel art effect
 
             if pre.DEBUG_GAME_HUD:
-                if pre.DEBUG_GAME_STRESSTEST and (abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2):
-                    render_debug_hud(self, render_scroll=render_scroll, mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)))
+                if pre.DEBUG_GAME_STRESSTEST and (
+                    abs(self.clock_dt_recent_values[0] - self.clock_dt_recent_values[1]) < 2
+                ):
+                    render_debug_hud(
+                        self,
+                        render_scroll=render_scroll,
+                        mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)),
+                    )
                 else:
-                    render_debug_hud(self, render_scroll=render_scroll, mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)))
+                    render_debug_hud(
+                        self,
+                        render_scroll=render_scroll,
+                        mouse_pos=(int(mouse_pos.x), int(mouse_pos.y)),
+                    )
 
             # Draw: final display
             pg.display.flip()  # update: whole screen
@@ -631,12 +843,23 @@ def loading_screen(game: Game):
 
     title_textz_offy = 4 * pre.TILE_SIZE
 
-    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+    loading_indicator_textz_offy = math.floor(
+        min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)
+    ) - math.floor(pre.TILE_SIZE * 1.618)
 
     title_str = pre.CAPTION
-    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
+    title_textz_drawfn = partial(
+        title_textz.render,
+        pos=(w // 2, h // 2 - title_textz_offy),
+        text=title_str,
+        color=pre.WHITE,
+    )
 
-    loading_indicator_textz_drawfn = partial(loading_indicator_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), color=pre.WHITE)
+    loading_indicator_textz_drawfn = partial(
+        loading_indicator_textz.render,
+        pos=(w // 2, h - loading_indicator_textz_offy),
+        color=pre.WHITE,
+    )
     loading_indicator_text_str = next(cycle_loading_indicator_dots)
 
     loading_timer = 0
@@ -674,7 +897,9 @@ def loading_screen(game: Game):
 
         # pixel art effect for drop-shadow depth
         display_mask: pg.Mask = pg.mask.from_surface(game.display)
-        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        display_silhouette = display_mask.to_surface(
+            setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0)
+        )
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             game.display_2.blit(display_silhouette, offset)
 
@@ -685,7 +910,9 @@ def loading_screen(game: Game):
                 quit_exit()
 
         game.display_2.blit(game.display, (0, 0))
-        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+        game.screen.blit(
+            pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0)
+        )  # pixel art effect
 
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
@@ -699,8 +926,12 @@ def loading_screen(game: Game):
         ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
         try:
-            assert ok, f"loading_screen: error in {repr('while')} loop execution logic. want {max_count}. got {count}"
-            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
+            assert (
+                ok
+            ), f"loading_screen: error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert (
+                did_not_drop_frames
+            ), f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
         except AssertionError as e:
             print(f"loading_screen: AssertionError while loading screen:\n\t{e}", file=sys.stderr)
             quit_exit()
@@ -726,13 +957,25 @@ def gameover_screen(game: Game):
     instruction_textz = Textz(game.font_sm, bold=False)
 
     title_textz_offy = 4 * pre.TILE_SIZE
-    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+    loading_indicator_textz_offy = math.floor(
+        min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)
+    ) - math.floor(pre.TILE_SIZE * 1.618)
 
     title_str = "Game Over"
     instruction_str = f"esc*ape to main menu or q*uit to exit"
 
-    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
-    instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
+    title_textz_drawfn = partial(
+        title_textz.render,
+        pos=(w // 2, h // 2 - title_textz_offy),
+        text=title_str,
+        color=pre.WHITE,
+    )
+    instruction_textz_drawfn = partial(
+        instruction_textz.render,
+        pos=(w // 2, h - loading_indicator_textz_offy),
+        text=instruction_str,
+        color=pre.WHITE,
+    )
 
     loading_timer = 0
     count = 0
@@ -750,8 +993,12 @@ def gameover_screen(game: Game):
             title_textz_drawfn(game.display)
             instruction_textz_drawfn(game.display)
 
-        display_mask: pg.Mask = pg.mask.from_surface(game.display)  # pixel art effect for drop-shadow depth
-        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        display_mask: pg.Mask = pg.mask.from_surface(
+            game.display
+        )  # pixel art effect for drop-shadow depth
+        display_silhouette = display_mask.to_surface(
+            setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0)
+        )
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             game.display_2.blit(display_silhouette, offset)
 
@@ -771,11 +1018,15 @@ def gameover_screen(game: Game):
                         # continue on from the loop inside game menu
                         running = False
                     except Exception as e:  # fixme: using exception (anti-pattern)
-                        print(f"something went wrong while running mainmenu_screen from gameover_screen():\n\t{e}")
+                        print(
+                            f"something went wrong while running mainmenu_screen from gameover_screen():\n\t{e}"
+                        )
                         quit_exit()
 
         game.display_2.blit(game.display, (0, 0))
-        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+        game.screen.blit(
+            pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0)
+        )  # pixel art effect
 
         pg.display.flip()
         clock.tick(pre.FPS_CAP)
@@ -789,8 +1040,12 @@ def gameover_screen(game: Game):
         ok = count is max_count
         did_not_drop_frames = t_elapsed <= loading_screen_duration_sec
         try:
-            assert ok, f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
-            assert did_not_drop_frames, f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
+            assert (
+                ok
+            ), f"error in {repr('while')} loop execution logic. want {max_count}. got {count}"
+            assert (
+                did_not_drop_frames
+            ), f"error: {t_elapsed=} should be less than {loading_screen_duration_sec=} (unless game dropped frames)"
         except AssertionError as e:
             print(f"error while running game from gameover_screen():\n\t{e}", file=sys.stderr)
             quit_exit()
@@ -809,12 +1064,24 @@ def mainmenu_screen(game: Game):
 
     bgcolor = pre.CHARCOAL
     title_textz_offy = 4 * pre.TILE_SIZE
-    loading_indicator_textz_offy = math.floor(min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)) - math.floor(pre.TILE_SIZE * 1.618)
+    loading_indicator_textz_offy = math.floor(
+        min(0.618 * (pre.SCREEN_HEIGHT // 2 - title_textz_offy), 8 * pre.TILE_SIZE)
+    ) - math.floor(pre.TILE_SIZE * 1.618)
 
     title_textz = Textz(game.font, bold=True)
     instruction_textz = Textz(game.font_sm, bold=False)
-    title_textz_drawfn = partial(title_textz.render, pos=(w // 2, h // 2 - title_textz_offy), text=title_str, color=pre.WHITE)
-    instruction_textz_drawfn = partial(instruction_textz.render, pos=(w // 2, h - loading_indicator_textz_offy), text=instruction_str, color=pre.WHITE)
+    title_textz_drawfn = partial(
+        title_textz.render,
+        pos=(w // 2, h // 2 - title_textz_offy),
+        text=title_str,
+        color=pre.WHITE,
+    )
+    instruction_textz_drawfn = partial(
+        instruction_textz.render,
+        pos=(w // 2, h - loading_indicator_textz_offy),
+        text=instruction_str,
+        color=pre.WHITE,
+    )
 
     clock = pg.time.Clock()
 
@@ -826,8 +1093,12 @@ def mainmenu_screen(game: Game):
         title_textz_drawfn(game.display)
         instruction_textz_drawfn(game.display)
 
-        display_mask: pg.Mask = pg.mask.from_surface(game.display)  # pixel art effect for drop-shadow depth
-        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+        display_mask: pg.Mask = pg.mask.from_surface(
+            game.display
+        )  # pixel art effect for drop-shadow depth
+        display_silhouette = display_mask.to_surface(
+            setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0)
+        )
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             game.display_2.blit(display_silhouette, offset)
 
@@ -843,11 +1114,15 @@ def mainmenu_screen(game: Game):
                         if game.gameover:
                             gameover_screen(game)
                     except RuntimeError as e:
-                        print(f"error while running game from mainmenu_screen(), {e}", file=sys.stderr)
+                        print(
+                            f"error while running game from mainmenu_screen(), {e}",
+                            file=sys.stderr,
+                        )
                         quit_exit()
 
+        # pixel art effect with transform
         game.display_2.blit(game.display, (0, 0))
-        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))  # pixel art effect
+        game.screen.blit(pg.transform.scale(game.display_2, game.screen.get_size()), (0, 0))
 
         pg.display.flip()
         clock.tick(pre.FPS_CAP)

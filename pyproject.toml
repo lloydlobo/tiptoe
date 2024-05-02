@@ -2,7 +2,7 @@
 typeCheckingMode = "strict"
 
 [tool.black]
-line-length = 240                # 88
+line-length = 99                 # 79 | 88
 skip-string-normalization = true
 # target-version = ["py38"] # seems to fail on match statements
 include = '\.pyi?$'
@@ -18,7 +18,7 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 72
 # py_version = "38"
 lines_after_imports = 2
 skip = [".git", "__pycache__", "build", ".tox", ".pytest_cache"]

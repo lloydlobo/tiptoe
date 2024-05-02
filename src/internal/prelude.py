@@ -1,32 +1,38 @@
-"""This module implements general purpose utilities, helpers, constants, flags,
-providing project specific alternatives to Python's general purpose built-in
-library.
+"""This module contains all the classes, functions and constants used in the
+game.
 
-* Animation                 class
-* AutotileID                class
-* COLOR                     class
-* COUNT                     class
-* COUNTRANDOMFRAMES         class
-* Collisions                class
-* EntityKind                class
-* Math                      class
-* Movement                  class
-* ParticleKind              class
-# Palette                   class
-* Projectile                class
-* SpawnerKind               class
-* TileKind                  class
-* UserConfig                class
-* create_circle_surf        function
-* create_surface            function
-* create_surface_withalpha  function
-* create_surfaces           function
-* hex_to_rgb                function
-* hsl_to_rgb                function
-* load_img                  function
-* load_imgs                 function
-* rects_collidepoint        function
-* surfaces_collidepoint     function
+## Classes
+
+* Animation
+* AutotileID
+* COLOR
+* COUNT
+* COUNTRANDOMFRAMES
+* Collisions
+* EntityKind
+* Math
+* Movement
+* Palette
+* ParticleKind
+* Projectile
+* SpawnerKind
+* TileKind
+* UserConfig
+
+## Functions
+
+* create_circle_surf
+* create_surface
+* create_surface_withalpha
+* create_surfaces
+* hex_to_rgb
+* hsl_to_rgb
+* load_img
+* load_imgs
+* rects_collidepoint
+* surfaces_collidepoint
+* surfaces_get_outline_mask_from_surf
+* surfaces_vfx_outline_offsets_animation_frames
 """
 
 __all__ = [
@@ -57,41 +63,31 @@ __all__ = [
     "load_imgs",
     "rects_collidepoint",
     "surfaces_collidepoint",
+    "surfaces_get_outline_mask_from_surf",
+    "surfaces_vfx_outline_offsets_animation_frames",
 ]
 
 
-import itertools as it
 import math
 import os
-import sys
-from collections import defaultdict, deque
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto, unique
-from functools import lru_cache, partial, reduce
+from functools import lru_cache, partial
 from pathlib import Path
-from pprint import pprint
 from random import randint
 from typing import (
-    Any,
-    Callable,
-    Dict,
     Final,
     Generator,
     NamedTuple,
-    NoReturn,
     Optional,
-    Protocol,
     Sequence,
     SupportsFloat,
     SupportsIndex,
     Tuple,
     TypeAlias,
-    TypeVar,
     Union,
 )
 
-import _collections_abc
-import numpy as np
 import pygame as pg
 
 
@@ -132,16 +128,13 @@ class Projectile:
     timer: int  # frame timer
 
 
-# fmt:off
-@unique 
-class ParticleKind(Enum): 
+@unique
+class ParticleKind(Enum):
     """used for class AnimationMiscAssets"""
 
-    FLAME           = "flame"
-    FLAMEGLOW       = "flameglow"
-    # LEAF          = "leaf"
-    PARTICLE        = "particle" # player particle
-# fmt:on
+    FLAME = "flame"
+    FLAMEGLOW = "flameglow"
+    PARTICLE = "particle"  # player particle
 
 
 @unique
@@ -163,12 +156,16 @@ class TileKind(Enum):
     STONE = "stone"
 
 
-#  NOTE: ideally start with 1 (as 0 may be assumed as False)
-#   but we used 0,1,2 as variants for spawner 'tiles' while drawing the map.json via level editor in src/editor.py
-#   for the sake of the wrapping around all spawner variants, e.g. 0 1 2 0 1 2 ..... or it.cycle(...)
 @unique  # """Class decorator for enumerations ensuring unique member values."""
 class SpawnerKind(Enum):
-    # auto(): Instances are replaced with an appropriate value in Enum class suites.
+    """Enumerates the spawners that are used in the level editor.
+
+    NOTE: ideally start with 1 (as 0 may be assumed as False) but we used 0,1,2
+    as variants for spawner 'tiles' while drawing the map.json via level editor
+    in src/editor.py for the sake of the wrapping around all spawner variants,
+    e.g. 0 1 2 0 1 2 ..... or it.cycle(...)
+    """
+
     PLAYER = 0
     ENEMY = 1
     PORTAL = 2
@@ -186,7 +183,15 @@ class SpawnerKind(Enum):
 
 @dataclass
 class Movement:
-    """False == 0 and True == 1"""
+    """Movement is a dataclass of 4 booleans for each of the 4 cardinal
+    directions where movement is possible.
+
+    Note: False == 0 and True == 1
+
+    Example::
+
+        left, right, top, bottom = Movement(True, False, True, False)
+    """
 
     left: bool
     right: bool
@@ -196,7 +201,15 @@ class Movement:
 
 @dataclass
 class Collisions:
-    """False == 0 and True == 1"""
+    """Collisions is a dataclass of 4 booleans for each of the 4 cardinal
+    directions where collisions are possible.
+
+    Note: False == 0 and True == 1
+
+    Example::
+
+        left, right, top, bottom = Collisions(True, False, True, False)
+    """
 
     left: bool
     right: bool
@@ -210,6 +223,17 @@ class Collisions:
 
 
 class Animation:
+    """Animation is a class that holds a list of images and a duration for each
+    image to be displayed.
+
+    Example::
+
+        animation = Animation([image1, image2, image3], img_dur=5)
+
+    Note: if img_dur is not specified then it defaults to 5
+    Note: if loop is not specified then it defaults to True
+    """
+
     def __init__(self, images: list[pg.Surface], img_dur: int = 5, loop: bool = True) -> None:
         self.images: Final[list[pg.Surface]] = images  # this is not copied
         self.loop = loop
@@ -223,10 +247,11 @@ class Animation:
         self.frame = 0
 
     def copy(self) -> "Animation":
+        """Return a copy of the animation."""
         return Animation(self.images, self._img_duration, self.loop)
 
     def update(self) -> None:
-        """Increment frames like a movie screen roll or a marque"""
+        """Increment frames like a movie screen roll or a marque."""
         if self.loop:
             self.frame += 1
             self.frame %= self._total_frames
@@ -235,7 +260,7 @@ class Animation:
             if self.frame >= self._total_frames - 1:
                 self.done = True
 
-    def img(self) -> pg.Surface:
+    def img(self) -> pg.SurfaceType:
         """Returns current image to render in animation cycle.
 
         Similar to render phase in the '__init__ -> update -> render' cycle"""
@@ -247,16 +272,24 @@ class Animation:
 ################################################################################
 
 
-def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
-    """Load and return a pygame Surface image. Note: Ported from DaFluffyPotato's pygpen lib"""
+def load_img(
+    path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None
+) -> pg.Surface:
+    """Load and return a pygame Surface image.
+
+    Note: Ported from DaFluffyPotato's pygpen lib
+    """
     img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
     if colorkey is not None:
         img.set_colorkey(colorkey)
     return img
 
 
-def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
-    """listdir lists all image filenames in path directory and loads_img over each and returns list of pg.Surfaces
+def load_imgs(
+    path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None
+) -> list[pg.Surface]:
+    """Lists all image filenames in path directory and loads_img over each and
+    returns list of pg.Surfaces.
 
     Example::
 
@@ -264,7 +297,10 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
         load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
         ```
     """
-    return [load_img(f"{Path(path) / img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
+    return [
+        load_img(f"{Path(path) / img_name}", with_alpha, colorkey)
+        for img_name in sorted(os.listdir(path))
+    ]
 
 
 @dataclass
@@ -303,11 +339,28 @@ class UserConfig:
 
     @classmethod
     def from_dict(cls, config_dict: dict[str, str]):
-        """
-        Create an AppConfig instance from a dictionary.
+        """Create an AppConfig instance from a dictionary.
 
-        Handles converting string values to appropriate data types and setting defaults for missing keys.
+        Handles converting string values to appropriate data types and setting
+        defaults for missing keys.
+
+        Example::
+
+            ```python
+            config = AppConfig.from_dict(config_dict)
+            ```
+
+        Args:
+            config_dict: dict[str, str]
+
+        Returns:
+            AppConfig
+
+        Raises:
+            ValueError if config_dict is not valid
         """
+        # if not all(key in config_dict for key in cls.__annotations__):
+        #     raise ValueError("invalid config_dict")
         return cls(
             blur_enabled=config_dict.get('blur_enabled', 'false').lower() == 'true',
             blur_passes=int(config_dict.get('blur_passes', '1')),
@@ -346,11 +399,7 @@ class UserConfig:
                 k: v
                 for line in f
                 if (l := line.strip()) and not l.startswith("#")
-                for k, v in [
-                    l.split(
-                        maxsplit=1,
-                    )
-                ]
+                for k, v in [l.split(maxsplit=1)]
             }
 
 
@@ -360,35 +409,29 @@ class UserConfig:
 
 @lru_cache(maxsize=32)
 def hex_to_rgb(s: str) -> tuple[int, int, int]:
-    """HEX to RGB color:
+    """Convert hex color code to RGB color code.
 
-    The red, green and blue use 8 bits each, which have integer values from 0 to 255.
-    So the number of colors that can be generated is:
-    256×256×256 = 16777216 = 100000016
-    Hex to RGB conversion
-      - Get the 2 left digits of the hex color code and convert to decimal value to get the red color level.
-      - Get the 2 middle digits of the hex color code and convert to decimal value to get the green color level.
-      - Get the 2 right digits of the hex color code and convert to decimal value to get the blue color level.
-    Convert red hex color code FF0000 to RGB color: Hex = FF0000
-    R = FF16 = 25510, G = 0016 = 010, B = 0016 = 010
-    RGB = (255, 0, 0)
-    Source: https://www.rapidtables.com/convert/color/how-hex-to-rgb.html
+    Args:
+        s: hex color code
+
+    Returns:
+        tuple[int, int, int]
 
     Examples::
 
         assert hex_to_rgb("#ff0000") == (255, 0, 0)
-        assert hex_to_rgb("ff0000") == (255, 0, 0)
-        assert hex_to_rgb("#ffd700") == (255, 215, 0)
-        assert hex_to_rgb("#FFD700") == (255, 215, 0)
+        assert hex_to_rgb("#00ff00") == (0, 255, 0)
+        assert hex_to_rgb("#0000ff") == (0, 0, 255)
     """
-
     base: Final = 16
 
     if (n := len(s)) == 7:
         if s[0] == "#":
             s = s[1:]
             if DEBUG_GAME_ASSERTS:
-                assert len(s) == (n - 1), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
+                assert len(s) == (
+                    n - 1
+                ), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
         else:
             raise ValueError(f"want valid hex format string. got {s}")
 
@@ -401,8 +444,18 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
 def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
     """Convert hsl to rgb color value.
 
-    Constraints::
+    Args:
+        h: hue
+        s: saturation
+        l: lightness
 
+    Returns:
+        tuple[int, int, int]
+
+    Raises:
+        ValueError if h, s, l is not valid
+
+    Constraints:
         0 ≤ h < 360 and 0.0 ≤ s ≤ 1.0 and 0.0 ≤ l ≤ 1.0
 
     Examples::
@@ -424,11 +477,6 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
         assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
         assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
     """
-
-    # pre.hsl_to_rgb.cache_info()
-    #   Thu Apr 18 04:56:05 PM IST 2024
-    #   hits=79, misses=28, currsize=28
-
     if DEBUG_GAME_ASSERTS:
         assert 0 <= h <= 360
         assert 0 <= s <= 1
@@ -460,7 +508,9 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
     # convert to 0-255 scale
     #   note: round() instead of int() helps in precision. e.g. gray 127 -> 128
-    return ColorKind(round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
+    return ColorKind(
+        round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255)
+    )
 
 
 #############
@@ -468,124 +518,75 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
 
 # flags: debugging, etc
-# fmt: off
-DEBUG_EDITOR_ASSERTS    = False
-DEBUG_EDITOR_HUD        = True
+DEBUG_EDITOR_ASSERTS = False
+DEBUG_EDITOR_HUD = True
 
-DEBUG_GAME_ASSERTS      = True
-DEBUG_GAME_PRINTLOG     = False
-DEBUG_GAME_LOGGING      = True
-DEBUG_GAME_CACHEINFO    = False
-DEBUG_GAME_HUD          = False
-DEBUG_GAME_PROFILER     = False
-DEBUG_GAME_UNITTEST     = False
-DEBUG_GAME_STRESSTEST   = False
-# fmt: on
+DEBUG_GAME_ASSERTS = True
+DEBUG_GAME_PRINTLOG = False
+DEBUG_GAME_LOGGING = True
+DEBUG_GAME_CACHEINFO = False
+DEBUG_GAME_HUD = False
+DEBUG_GAME_PROFILER = False
+DEBUG_GAME_UNITTEST = False
+DEBUG_GAME_STRESSTEST = False
 
 
-# fmt: off
-CAMERA_SPEED            = 2  # use with editor camera move fast around the world
-FPS_CAP                 = 60
-RENDER_SCALE            = 2  # for editor
-SCALE                   = 0.5
-TILE_SIZE               = 16
-# fmt: on
+CAMERA_SPEED = 2  # use with editor camera move fast around the world
+FPS_CAP = 60
+RENDER_SCALE = 2  # for editor
+SCALE = 0.5
+TILE_SIZE = 16
 
 
-# fmt: off
-SCREEN_RESOLUTION_MODE = 1
-SCREEN_WIDTH            = (960 ,640)[SCREEN_RESOLUTION_MODE]
-SCREEN_HEIGHT           = (630 ,480)[SCREEN_RESOLUTION_MODE]
+SCREEN_RESOLUTION_MODE = 0
+SCREEN_WIDTH = (960, 640)[SCREEN_RESOLUTION_MODE]
+SCREEN_HEIGHT = (630, 480)[SCREEN_RESOLUTION_MODE]
 
-DIMENSIONS              = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
-DIMENSIONS_HALF         = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE)) # 340,240  # 640/480==4/3 | 853/480==16/9
-# fmt: on
+DIMENSIONS = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
+DIMENSIONS_HALF = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
 
-# fmt: off
-CAPTION                 = "tiptoe"
-CAPTION_EDITOR          = "tiptoe level editor"
-# fmt: on
+CAPTION = "tiptoe"
+CAPTION_EDITOR = "tiptoe level editor"
 
-# fmt: off
-SRC_PATH                        = Path("src")
+SRC_PATH = Path("src")
 
-SRC_DATA_PATH                   = SRC_PATH / "data"
+SRC_DATA_PATH = SRC_PATH / "data"
 
-SRC_DATA_IMAGES_PATH            = SRC_DATA_PATH / "images" 
-SRC_DATA_MAP_PATH               = SRC_DATA_PATH / "maps" 
+SRC_DATA_IMAGES_PATH = SRC_DATA_PATH / "images"
+SRC_DATA_MAP_PATH = SRC_DATA_PATH / "maps"
 
-SRC_DATA_IMAGES_ENTITIES_PATH   = SRC_DATA_IMAGES_PATH / "entities"
-# fmt: on
+SRC_DATA_IMAGES_ENTITIES_PATH = SRC_DATA_IMAGES_PATH / "entities"
 
 # aliases for directory paths
-# fmt: off
-CONFIG_PATH             = SRC_PATH / "config"
-ENTITY_PATH             = SRC_DATA_IMAGES_ENTITIES_PATH
-FONT_PATH               = SRC_DATA_PATH / "font"
-IMGS_PATH               = SRC_DATA_IMAGES_PATH 
-INPUTSTATE_PATH         = None  
-MAP_PATH                = SRC_DATA_MAP_PATH
-SFX_PATH                = SRC_DATA_PATH / "sfx"
-SPRITESHEET_PATH        = None
-# fmt: on
+CONFIG_PATH = SRC_PATH / "config"
+ENTITY_PATH = SRC_DATA_IMAGES_ENTITIES_PATH
+FONT_PATH = SRC_DATA_PATH / "font"
+IMGS_PATH = SRC_DATA_IMAGES_PATH
+INPUTSTATE_PATH = None
+MAP_PATH = SRC_DATA_MAP_PATH
+SFX_PATH = SRC_DATA_PATH / "sfx"
+SPRITESHEET_PATH = None
 
 
 # colors:
-# fmt: off
-# BEIGE                   = (15, 20, 25)
-# BGDARK                  = hsl_to_rgb(234, 0.1618, 0.0618)
-# BGDARKER                = hsl_to_rgb(234, 0.1618, 0.0328)
-BLACK                   = (0, 0, 0)
-# BLACKMID                = (1, 1, 1)
-CHARCOAL                = (10, 10, 10)
-# CREAM                   = hsl_to_rgb(0, 0.1618, 0.618)
-# DARKGRAY                = (20, 20, 20)
-# GRAY                    = hsl_to_rgb(0, 0, 0.5)
-GREEN                   = hsl_to_rgb(120, 1, 0.25)
-# MIDNIGHT                = (2, 2, 3)
-# OLIVE                   = hsl_to_rgb(60, 1, 0.25)
-# OLIVEMID                = hsl_to_rgb(60, 0.4, 0.25)
-# ORANGE                  = hsl_to_rgb(10,0.5,0.5)
-# PINKLIGHT               = hsl_to_rgb(300, 0.26, 0.4)
-PINK                    = hsl_to_rgb(300, 0.26, 0.18)
-# PURPLE                  = hsl_to_rgb(300, 1, 0.25)
-# PURPLEMID               = hsl_to_rgb(300, 0.3, 0.0828)
-RED                     = hsl_to_rgb(0, 0.618, 0.328)
-# SILVER                  = hsl_to_rgb(0, 0, 0.75)
-# TEAL                    = hsl_to_rgb(180, 0.4, 0.25)
-TRANSPARENT             = (0, 0, 0, 0)
-WHITE                   = (255, 255, 255)
-# YELLOW                  = hsl_to_rgb(60, 0.6, 0.3)
-# YELLOWMID               = hsl_to_rgb(60, 0.4, 0.25)
-# fmt: on
-
-
-# COLOR0 =
-# COLOR1 =
-# COLOR2 =
-# COLOR3 =
-# COLOR4 =
-# COLOR5 =
-# COLOR6 =
-# COLOR7 =
+BLACK = (0, 0, 0)
+CHARCOAL = (10, 10, 10)
+GREEN = hsl_to_rgb(120, 1, 0.25)
+PINK = hsl_to_rgb(300, 0.26, 0.18)
+RED = hsl_to_rgb(0, 0.618, 0.328)
+TRANSPARENT = (0, 0, 0, 0)
+WHITE = (255, 255, 255)
 
 
 @dataclass
 class Palette:
-    """Color Palette."""
+    """Color Palette.
 
-    # GIMP Palette
-    # #Palette Name: Rust Gold 8
-    # #Description: This pallete was made based on rust colors and gold tones.
-    # #Colors: 8
-    # 246	205	38	f6cd26
-    # 172	107	38	ac6b26
-    # 86	50	38	563226
-    # 51	28	23	331c17
-    # 187	127	87	bb7f57
-    # 114	89	86	725956
-    # 57	57	57	393939
-    # 32	32	32	202020
+    GIMP Palette
+    #Palette Name: Rust Gold 8
+    #Description: This pallete was made based on rust colors and gold tones.
+    #Colors: 8
+    """
 
     COLOR0 = 246, 205, 38  # f6cd26
     COLOR1 = 172, 107, 38  # ac6b26
@@ -597,41 +598,35 @@ class Palette:
     COLOR7 = 32, 32, 32  # 202020
 
 
-# fmt: off
 @dataclass
 class COLOR:
-    # BG                  = Palette.COLOR5 # or hsl_to_rgb(240, 0.328, 0.128)
-    # BGCOLORDARK         = Palette.COLOR5 # or (9, 9, 17) or hsl_to_rgb(240, 0.3, 0.05)
-    # BGCOLORDARKER       = Palette.COLOR5 # or hsl_to_rgb(240, 0.3, 0.04)
-    # BGCOLORDARKGLOW     = Palette.COLOR5 # or (((9 + 238) * 0.2, (9 + 238) * 0.2, (17 + 238) * 0.3), ((9 + 0) * 0.2, (9 + 0) * 0.2, (17 + 0) * 0.3))[randint(0, 1)] 
-    BACKGROUND          = Palette.COLOR7
+    BACKGROUND = Palette.COLOR7
 
-    ENEMY               = Palette.COLOR5
-    ENEMYSLEEPING       = Palette.COLOR7
+    ENEMY = Palette.COLOR5
+    ENEMYSLEEPING = Palette.COLOR7
 
-    PLAYER              = Palette.COLOR4
-    PLAYERIDLE          = Palette.COLOR4
-    PLAYERJUMP          = Palette.COLOR4
-    PLAYERRUN           = Palette.COLOR4
+    PLAYER = Palette.COLOR4
+    PLAYERIDLE = Palette.COLOR4
+    PLAYERJUMP = Palette.COLOR4
+    PLAYERRUN = Palette.COLOR4
 
-    FLAME               = Palette.COLOR0
-    FLAMEGLOW           = Palette.COLOR0 
-    FLAMETORCH          = Palette.COLOR3
+    FLAME = Palette.COLOR0
+    FLAMEGLOW = Palette.COLOR0
+    FLAMETORCH = Palette.COLOR3
 
-    GUN                 = Palette.COLOR1 
+    GUN = Palette.COLOR1
 
-    STAR                = Palette.COLOR6
+    STAR = Palette.COLOR6
 
-    PLAYERSTAR          = Palette.COLOR0
+    PLAYERSTAR = Palette.COLOR0
 
-    GRANITE               = Palette.COLOR5
-    STONE               = Palette.COLOR6
+    GRANITE = Palette.COLOR5
+    STONE = Palette.COLOR6
 
-    PORTAL1             = Palette.COLOR0
-    PORTAL2             = Palette.COLOR0
+    PORTAL1 = Palette.COLOR0
+    PORTAL2 = Palette.COLOR0
 
-    TRANSPARENTGLOW     = (20, 20, 20)
-# fmt: on
+    TRANSPARENTGLOW = (20, 20, 20)
 
 
 @dataclass
@@ -665,82 +660,83 @@ class SIZE:
     FLAMEGLOWPARTICLE = (2, 2)
     PLAYERIDLE = (PLAYER[0] + 1, PLAYER[1] - 1)
     PLAYERJUMP = (PLAYER[0] - 1, PLAYER[1])
-    PLAYERSTARDASHRADIUS = STAR or (int(PLAYER[0] - STAR[0] - 1), int(PLAYER[1] - STAR[1]))
     PLAYERRUN = (PLAYER[0] + 1, PLAYER[1] - 1)
+    PLAYERSTARDASHRADIUS = STAR or (int(PLAYER[0] - STAR[0] - 1), int(PLAYER[1] - STAR[1]))
     PORTAL = (max(5, round(PLAYER[0] * 1.618)), max(18, round(TILE_SIZE + 2)))
 
 
-# fmt: off
-NEIGHBOR_OFFSETS    = {
-    (-1,-1), ( 0,-1), ( 1,-1),
-    (-1, 0), ( 0, 0), ( 1, 0),
-    (-1, 1), ( 0, 1), ( 1, 1),
-}
-N_NEIGHBOR_OFFSETS  = 9
-# fmt: on
+NEIGHBOR_OFFSETS = {(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1)}
+N_NEIGHBOR_OFFSETS = 9
 
 
-# fmt: off
-AUTOTILE_TYPES      = { TileKind.STONE, TileKind.GRANITE }
-PHYSICS_TILES       = { TileKind.STONE, TileKind.GRANITE }
+AUTOTILE_TYPES = {TileKind.STONE, TileKind.GRANITE}
+PHYSICS_TILES = {TileKind.STONE, TileKind.GRANITE}
 
-SPAWNERS_KINDS      = { EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL }  # not used for now
-# fmt: on
+SPAWNERS_KINDS = {EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL}  # not used for now
 
 
-##############
-# AUTOTILING #
+################################################################################
+### AUTOTILING
+################################################################################
 
 
-# fmt: off
-# NOTE: prefer Enum over IntEnum
-# use 0 for the first (even though 0 seems as False) to wrap (%) around all
-# variation,,  it.cycle() or next(...)
-
-@unique 
+@unique
 class AutotileID(IntEnum):
     """Key ID via `AutoTileVariant` for `AUTOTILE_MAP`
 
     For example::
 
         assert list(range(0, 8 + 1)) is [x.value for x in AutoTileVariant]
+
+    (constant) AUTOTILE_MAP
+
+    offsets::
+
+        [ (-1,-1) ( 0,-1) ( 1,-1 )
+          (-1, 0) ( 0, 0) ( 1, 0 )
+          (-1, 1) ( 0, 1) ( 1, 1 ) ]
+
+    tiles::
+
+        { 0   1   2
+          7   8   3
+          6   5   4 }
     """
-    TOPLEFT         = auto(0)   # 0     
-    TOPCENTER       = auto()    # 1
-    TOPRIGHT        = auto()    # 2
-    MIDDLERIGHT     = auto()    # 3
-    BOTTOMRIGHT     = auto()    # 4
-    BOTTOMCENTER    = auto()    # 5
-    BOTTOMLEFT      = auto()    # 6
-    MIDDLELEFT      = auto()    # 7
-    MIDDLECENTER    = auto()    # 8
-# fmt: on
+
+    TOPLEFT = auto(0)  # 0
+    TOPCENTER = auto()  # 1
+    TOPRIGHT = auto()  # 2
+    MIDDLERIGHT = auto()  # 3
+    BOTTOMRIGHT = auto()  # 4
+    BOTTOMCENTER = auto()  # 5
+    BOTTOMLEFT = auto()  # 6
+    MIDDLELEFT = auto()  # 7
+    MIDDLECENTER = auto()  # 8
 
 
-"""
-offsets:
-    [ (-1,-1) ( 0,-1) ( 1,-1 )
-      (-1, 0) ( 0, 0) ( 1, 0 )
-      (-1, 1) ( 0, 1) ( 1, 1 ) ]
-
-tiles:
-    { 0   1   2 
-      7   8   3
-      6   5   4 }
-"""
-# fmt: off
 AUTOTILE_MAP = {
-    tuple(sorted([( 1, 0), ( 0, 1)                 ])): AutotileID.TOPLEFT      or 0,  # ES
-    tuple(sorted([( 1, 0), ( 0, 1), (-1, 0)        ])): AutotileID.TOPCENTER    or 1,  # ESW
-    tuple(sorted([(-1, 0), ( 0, 1)                 ])): AutotileID.TOPRIGHT     or 2,  # WS
-    tuple(sorted([(-1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLERIGHT  or 3,  # WSN
-    tuple(sorted([(-1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMRIGHT  or 4,  # WN
-    tuple(sorted([(-1, 0), ( 0,-1), ( 1, 0)        ])): AutotileID.BOTTOMCENTER or 5,  # WNE
-    tuple(sorted([( 1, 0), ( 0,-1)                 ])): AutotileID.BOTTOMLEFT   or 6,  # EN
-    tuple(sorted([( 1, 0), ( 0,-1), ( 0, 1)        ])): AutotileID.MIDDLELEFT   or 7,  # ENS
-    tuple(sorted([( 1, 0), (-1, 0), ( 0, 1), (0,-1)])): AutotileID.MIDDLECENTER or 8,  # EWSN
+    tuple(sorted([(1, 0), (0, 1)])): AutotileID.TOPLEFT or 0,  # ES
+    tuple(sorted([(1, 0), (0, 1), (-1, 0)])): AutotileID.TOPCENTER or 1,  # ESW
+    tuple(sorted([(-1, 0), (0, 1)])): AutotileID.TOPRIGHT or 2,  # WS
+    tuple(sorted([(-1, 0), (0, -1), (0, 1)])): AutotileID.MIDDLERIGHT or 3,  # WSN
+    tuple(sorted([(-1, 0), (0, -1)])): AutotileID.BOTTOMRIGHT or 4,  # WN
+    tuple(sorted([(-1, 0), (0, -1), (1, 0)])): AutotileID.BOTTOMCENTER or 5,  # WNE
+    tuple(sorted([(1, 0), (0, -1)])): AutotileID.BOTTOMLEFT or 6,  # EN
+    tuple(sorted([(1, 0), (0, -1), (0, 1)])): AutotileID.MIDDLELEFT or 7,  # ENS
+    tuple(sorted([(1, 0), (-1, 0), (0, 1), (0, -1)])): AutotileID.MIDDLECENTER or 8,  # EWSN
 }
-# fmt: on
+
+################################################################################
+### SPIKE NON-PHYSICS TILE HITBOX TILING
+################################################################################
+
+# Global constant for spike configurations
+SPIKE_CONFIGURATIONS = [
+    {'position': (0, 10), 'size': (16, 6), 'orientation': 'bottom'},
+    {'position': (0, 0), 'size': (16, 6), 'orientation': 'top'},
+    {'position': (0, 0), 'size': (6, 16), 'orientation': 'left'},
+    {'position': (10, 0), 'size': (6, 16), 'orientation': 'right'},
+]
 
 
 ################################################################################
@@ -748,7 +744,9 @@ AUTOTILE_MAP = {
 ################################################################################
 
 
-def surfaces_get_outline_mask_from_surf(surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]):
+def surfaces_get_outline_mask_from_surf(
+    surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]
+):
     """Create thick outer outlines for surface using masks."""
     m = pg.mask.from_surface(surf)
     m_outline: list[tuple[int, int]] = m.outline()
@@ -769,7 +767,9 @@ def surfaces_vfx_outline_offsets_animation_frames(
     iterations: int = 32,
     offsets: set[tuple[int, int]] = NEIGHBOR_OFFSETS,  # pyright: ignore
 ):
-    """Returns a Generator for a sequence of surfaces snake chasing it's tail effect in clockwise motion."""
+    """Returns a Generator for a sequence of surfaces snake chasing it's tail
+    effect in clockwise motion.
+    """
     return (
         surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst))
         for _ in range(iterations)
@@ -780,17 +780,25 @@ def surfaces_vfx_outline_offsets_animation_frames(
 
 def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):
     """Get a iterable generator of all surfaces that contain a point (x,y).
-    Source: https://www.pygame.org/docs/tut/newbieguide.html"""
+
+    Source: https://www.pygame.org/docs/tut/newbieguide.html
+    """
     return (s for s in sprites if s.get_rect().collidepoint(pos))
 
 
 def rects_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.Rect]):
     """Get a iterable generator of all rects that contain a point (x,y).
-    Source: https://www.pygame.org/docs/tut/newbieguide.html"""
+
+    Source: https://www.pygame.org/docs/tut/newbieguide.html
+    """
     return (s for s in sprites if s.collidepoint(pos))
 
 
-def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue) -> pg.SurfaceType:
+def create_surface(
+    size: tuple[int, int],
+    colorkey: tuple[int, int, int] | ColorValue,
+    fill_color: tuple[int, int, int] | ColorValue,
+) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -814,7 +822,8 @@ Parameters:
 
 Returns:
 
-    pg.SurfaceType"""
+    pg.SurfaceType
+"""
 
 
 def create_surface_withalpha(
@@ -855,9 +864,14 @@ create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
 create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
 
 
-def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:  # FIXME:
-    """FIXME!!! this is a special case for flameglow particle and should not be used here for general circle creation"""
+def create_circle_surf(
+    size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK
+) -> pg.SurfaceType:
     # FIXME:
+    """Special case for flameglow particle and should not be used here for
+    general circle creation.
+    """
+
     surf = pg.Surface(size).convert()
     ca, cb = iter(size)
     center = ca * 0.5, cb * 0.5
@@ -929,8 +943,7 @@ class Math:
 
     @staticmethod
     def advance_vec2_ip(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """
-        Advances a 2D vector (pg.Vector2) by a given angle and amount in place.
+        """Advances a 2D vector (pg.Vector2) by a given angle and amount in place.
 
         Args:
             vec2: The pg.Vector2 object representing the 2D vector to advance.
@@ -942,9 +955,10 @@ class Math:
         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
 
     @staticmethod
-    def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """
-        Advances a 2D point represented by a list of floats by a given angle and amount in place.
+    def advance_float2_ip(
+        point2: list[float], angle: SupportsFloatOrIndex, amount: Number
+    ) -> None:
+        """Advances a 2D point represented by a list of floats by a given angle and amount in place.
 
         Args:
             point2: A list of two floats representing the x and y coordinates of the 2D point.
@@ -964,8 +978,7 @@ class Math:
 
     @staticmethod
     def advance_int2_ip(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """
-        Advances a 2D point represented by a list of integers by a given angle and amount.
+        """Advances a 2D point represented by a list of integers by a given angle and amount.
 
         **Important:** This function uses floor division (`//`) to convert potentially floating-point
                       calculations to integers before assigning them to the list elements.
@@ -985,181 +998,3 @@ class Math:
 
         point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
         point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
-
-
-################################################################################
-### FUNCUTILS & ITERUTILS #
-################################################################################
-# NOTE: this is just for learning
-
-
-class Funcutils:
-    @staticmethod
-    def idiom_functools_reducer():
-        print(f"{ reduce(lambda x, y: x/y, [1, 2, 3, 4, 5]) = }")  # 0.008333333333333333
-        print(f"{ reduce(lambda x, y: x//y, [1, 2, 3, 4, 5]) = }")  # 0
-        print(f"{ reduce(lambda x, y: x*y, [1, 2, 3, 4, 5]) = }")  # 120
-        print(f"{ reduce(lambda x, y: x+y, [1, 2, 3, 4, 5]) = }")  # 15: calculates ((((1+2)+3)+4)+5)
-        print(f"{ reduce(lambda x, y: x-y, [1, 2, 3, 4, 5]) = }")  # -13
-        print(f"{ reduce(lambda x, y: x%y, [1, 2, 3, 4, 5]) = }")  # 1
-        print(f"{ reduce(lambda x, y: x**y, [1, 2, 3, 4, 5]) = }")  # 1
-        print(f"{ reduce(lambda x, y: x**(1/y), [1, 2, 3, 4, 5]) = }")  # 1.0
-
-
-class Iterutils:
-
-    @staticmethod
-    def idiom_it_cycle():
-        # THIS IS A STUB FOR DOCSTRING PORTED FROM collections as inspiration
-        """Like dict.update() but subtracts counts instead of replacing them.
-        Counts can be reduced below zero.  Both the inputs and outputs are
-        allowed to contain zero and negative counts.
-
-        Source can be an iterable, a dictionary, or another Counter instance.
-
-        >>> c = Counter('which')
-        >>> c.subtract('witch')             # subtract elements from another iterable
-        >>> c.subtract(Counter('watch'))    # subtract elements from another counter
-        >>> c['h']                          # 2 in which, minus 1 in witch, minus 1 in watch
-        0
-        >>> c['w']                          # 1 in which, minus 1 in witch, minus 1 in watch
-        -1
-
-        """
-        # bg = (0, 0, 0)
-        # ...
-        bg_colors = (hsl_to_rgb(240, 0.3, 0.1), hsl_to_rgb(240, 0.35, 0.1), hsl_to_rgb(240, 0.3, 0.15))
-        bg_color_cycle = it.cycle(bg_colors)
-        counter = 0
-        while True:
-            # display_2.blit(bg, (0, 0))
-            # ...
-            bg_color_cycle = it.cycle(bg_colors)
-            nxt_bg_color = next(bg_color_cycle)
-            # ...
-            # bg.fill(nxt_bg_color)
-            print(nxt_bg_color)
-            # ...
-            if (_user_quits := True) and _user_quits:
-                if counter >= 10:
-                    break
-            counter += 1
-
-    @staticmethod
-    def idiom_collection_defaultdict():
-        lst = {"a": (0, 0), "b": (1, 1)}
-        foo: defaultdict[str, list[tuple[int, int]]] = defaultdict(list)
-        for key, (x, y) in lst.items():
-            foo[key].append((x, y))
-        print(foo)
-
-    @staticmethod
-    def idiom_it_zip_long():
-        for x in it.zip_longest([1, 2, 3], [1, 2, 3, 4, 5, 6]):
-            print(x, end=" ")
-        print()
-
-    @staticmethod
-    def idiom_it_startmap():
-        # @fbaptiste: 05_itertools.ipynb
-        lst = [(3, x) for x in range(6)]
-        lst_starmap = it.starmap(math.pow, lst)
-        for i in lst_starmap:
-            print(i, end=" ")
-        # ^ >>> 1.0 3.0 9.0 27.0 81.0 243.0
-        print()
-
-    @staticmethod
-    def idiom_it_chain():
-        # @fbaptiste: 05_itertools.ipynb
-        lst1 = [1, 2, 3, 4, 5]
-        lst2 = "abcd"
-        lst3 = (100, 200, 300)
-        lst_chain = it.chain(lst1, lst2, lst3)
-        for el in it.chain.from_iterable(zip(lst_chain)):
-            print(el, end=" ")
-        # ^ >>> 1 2 3 4 5 a b c d 100 200 300
-        print()
-
-    @staticmethod
-    def idiom_it_islice():
-        # @fbaptiste: 05_itertools.ipynb
-        # slice iterator: it even support start stop and step, except negative slicing
-        for el in it.islice((el * 2 for el in range(10)), 3):
-            print(el, end=" ")
-        # ^ >>> 0 2 4
-        print()
-        for el in it.islice((el * 2 for el in range(10)), 1, None, 2):
-            print(el, end=" ")
-        # ^ >>> 2 6 10 14 18
-        print()
-        for el in it.islice((el * 2 for el in range(10)), 1, 5, 2):
-            print(el, end=" ")
-        # ^ >>> 2 6
-        print()
-        # slice sets: no guarantees of order in sets
-        s = {"a", "b", 10, 3.2}
-        for el in it.islice(s, 0, 2):
-            print(el, end=" ")
-        # ^ >>> b 10
-        print()
-        # t=it.tee()
-        # takew=it.takewhile()
-
-
-### PATHFINDING
-
-# todo: astar
-# todo: djikstra
-#     """
-#     """
-#     GIMP Palette
-#     #Palette Name: Ink
-#     #Description: Created by <a target="_blank" href="https://www.deviantart.com/aprilsundae">AprilSundae</a>.
-#     #Colors: 5
-#     COLOR0 = 31, 31, 41  # 1f1f29
-#     COLOR1 = 65, 58, 66  # 413a42
-#     COLOR2 = 89, 96, 112  # 596070
-#     COLOR3 = 150, 162, 179  # 96a2b3
-#     COLOR4 = 234, 240, 216  # eaf0d8
-#     """
-#
-#     """
-#     GIMP Palette
-#     #Palette Name: Hollow
-#     #Description: 2bit palette based on the colors from Hollow Knight. I won't take full credit as I just pulled the ones from the game that I thought worked as a 4 color palette
-#     #Colors: 4
-#     COLOR0 = 15, 15, 27  # 0f0f1b
-#     COLOR1 = 86, 90, 117  # 565a75
-#     COLOR2 = 198, 183, 190  # c6b7be
-#     COLOR3 = 250, 251, 246  # fafbf6
-#     """
-#
-#     """
-#     GIMP Palette
-#     #Palette Name: SLSO8
-#     #Description:
-#     #Colors: 8
-#     COLOR0 = 13, 43, 69  # 0d2b45
-#     COLOR1 = 32, 60, 86  # 203c56
-#     COLOR2 = 84, 78, 104  # 544e68
-#     COLOR3 = 141, 105, 122  # 8d697a
-#     COLOR4 = 208, 129, 89  # d08159
-#     COLOR5 = 255, 170, 94  # ffaa5e
-#     COLOR6 = 255, 212, 163  # ffd4a3
-#     COLOR7 = 255, 236, 214  # ffecd6
-#     """
-#
-#     """
-#     GIMP Palette
-#     #Palette Name: Oil 6
-#     #Description: Created by [GrafxKid](http://grafxkid.tumblr.com/palettes).
-#     #Colors: 6
-#     COLOR0 = 251, 245, 239  # fbf5ef
-#     COLOR1 = 242, 211, 171  # f2d3ab
-#     COLOR2 = 198, 159, 165  # c69fa5
-#     COLOR3 = 139, 109, 156  # 8b6d9c
-#     COLOR4 = 73, 77, 126  # 494d7e
-#     COLOR5 = 39, 39, 68  # 272744
-#     """
-#
