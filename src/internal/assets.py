@@ -1,17 +1,10 @@
 import itertools as it
 import math
-from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
-from random import randint, random, uniform
+from random import randint, random, uniform  # pyright: ignore
 from typing import Final  # pyright:ignore
 
-
-"""Noise functions for procedural generation of content
-Contains native code implementations of Perlin improved noise (with
-fBm capabilities) and Perlin simplex noise. Also contains a fast
-"fake noise" implementation in GLSL for execution in shaders."""
-import noise
 import pygame as pg
 
 import internal.prelude as pre
@@ -44,10 +37,7 @@ class Assets:
 
         @property
         def elems(self):
-            return {
-                pre.EntityKind.PLAYER.value: self.player,
-                pre.EntityKind.ENEMY.value: self.enemy,
-            }
+            return {pre.EntityKind.PLAYER.value: self.player, pre.EntityKind.ENEMY.value: self.enemy}
 
         # skipping error handling for performance
         def __getitem__(self, key: str) -> dict[str, pre.Animation]:
@@ -59,23 +49,11 @@ class Assets:
 
     @classmethod
     def initialize_editor_assets(cls):
-        player_spawner_surf = pre.create_surface_partialfn(
-            size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER
-        )
-        enemy_spawner_surf = pre.create_surface_partialfn(
-            size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY
-        )
+        player_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
+        enemy_spawner_surf = pre.create_surface_partialfn(size=pre.SIZE.ENEMY, fill_color=pre.COLOR.ENEMY)
 
-        asset_tiles_decor_variations = (
-            (2, pre.Palette.COLOR2, (4, 8)),
-            (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH),
-            (2, pre.COLOR.FLAMETORCH, (4, 5)),
-        )  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
-        asset_tiles_largedecor_variations = (
-            (2, pre.Palette.COLOR1, (32, 16)),
-            (2, pre.Palette.COLOR1, (32, 16)),
-            (2, pre.Palette.COLOR1, (32, 16)),
-        )  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
+        asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))
 
         return cls(
             entity=dict(),
@@ -86,35 +64,11 @@ class Assets:
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
                 granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
                 spike=cls.create_spike_surfaces(),
-                # spike=cls.create_spike_surfaces_from_config(),
                 # offgrid tiles
-                decor=list(
-                    it.chain.from_iterable(
-                        it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)
-                    )
-                ),
-                large_decor=list(
-                    it.chain.from_iterable(
-                        it.starmap(
-                            pre.create_surfaces_partialfn, asset_tiles_largedecor_variations
-                        )
-                    )
-                ),
-                portal=[
-                    pre.create_surface_partialfn(
-                        size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1
-                    ),
-                    pre.create_surface_partialfn(
-                        size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2
-                    ),
-                ],
-                spawners=[
-                    player_spawner_surf,
-                    enemy_spawner_surf.copy(),
-                    pre.create_surface_partialfn(
-                        size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1
-                    ),
-                ],
+                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
+                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
+                spawners=[player_spawner_surf, enemy_spawner_surf.copy(), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)],
             ),
             animations_entity=Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
             animations_misc=Assets.AnimationMiscAssets(particle=dict()),
@@ -122,82 +76,40 @@ class Assets:
 
     @classmethod
     def initialize_assets(cls):
-        player_entity_surf = pre.create_surface_partialfn(
-            size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER
-        )
-        enemy_entity_surf = pre.create_surface_partialfn(
-            size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY
-        )
+        player_entity_surf = pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER)
+        enemy_entity_surf = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY)
 
         player_idle_surf_frames = list(
             pre.create_surface_partialfn(
-                size=(
-                    int(pre.SIZE.PLAYER[0] + uniform(-1, 0)),
-                    int(pre.SIZE.PLAYER[1] + uniform(-1, 1)),
-                ),
+                size=(int(pre.SIZE.PLAYER[0] + uniform(-1, 0)), int(pre.SIZE.PLAYER[1] + uniform(-1, 1))),
                 fill_color=pre.COLOR.PLAYER,
             )
             for _ in range(9)
         )
-        player_run_surf_frames = list(
-            pre.create_surfaces_partialfn(
-                count=5, size=pre.SIZE.PLAYERRUN, fill_color=pre.COLOR.PLAYERRUN
-            )
-        )
-        player_jump_surf_frames = list(
-            pre.create_surfaces_partialfn(
-                count=5, size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP
-            )
-        )
+        player_run_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERRUN, fill_color=pre.COLOR.PLAYERRUN))
+        player_jump_surf_frames = list(pre.create_surfaces_partialfn(count=5, size=pre.SIZE.PLAYERJUMP, fill_color=pre.COLOR.PLAYERJUMP))
 
         esleepcount = 16
         if randint(0, 1):
             if randint(0, 1):
                 enemy_sleeping_surfs = cls.create_sleepy_enemy_surfaces(esleepcount)
             else:
-                enemy_outline_surf = pre.surfaces_get_outline_mask_from_surf(
-                    surf=enemy_entity_surf, color=pre.WHITE, width=1, loc=(0, 0)
-                )
+                enemy_outline_surf = pre.surfaces_get_outline_mask_from_surf(surf=enemy_entity_surf, color=pre.WHITE, width=1, loc=(0, 0))
                 enemy_sleeping_surfs = [(enemy_outline_surf.copy()) for _ in range(esleepcount)]
         else:
-            enemy_sleeping_surfs = list(
-                pre.surfaces_vfx_outline_offsets_animation_frames(
-                    surf=enemy_entity_surf,
-                    color=pre.Palette.COLOR5,
-                    width=3,
-                    iterations=esleepcount,
-                )
-            )
+            enemy_sleeping_surfs = list(pre.surfaces_vfx_outline_offsets_animation_frames(surf=enemy_entity_surf, color=pre.Palette.COLOR5, width=3, iterations=esleepcount))
 
-        background = pre.create_surface_partialfn(
-            size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND
-        )
+        background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
         misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0)
 
         stars = list(cls.create_star_surfaces())
 
-        asset_tiles_decor_variations = (
-            (2, pre.Palette.COLOR2, (4, 8)),
-            (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH),
-            (2, pre.COLOR.FLAMETORCH, (4, 5)),
-        )  # variants 0,1 (TBD)  # variants 2,3 (torch)  # variants 4,5 (TBD)
-        asset_tiles_largedecor_variations = (
-            (2, pre.RED, (16, 16 - 4)),
-            (2, pre.RED, (32, 16)),
-            (2, pre.RED, (32, 16)),
-        )  # variants 0,1 (TBD)  # variants 2,3 (TBD)  # variants 4,5 (TBD)
-        # portal_surf_1 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)
-        # portal_surf_2 = pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
+        asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))
 
-        flame_particles = [
-            pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME)
-            for _ in range(pre.COUNT.FLAMEPARTICLE)
-        ]
-        flameglow_particles = [
-            pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW)
-            for _ in range(pre.COUNT.FLAMEGLOW)
-        ]
+        flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)]
+        flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)]
 
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
@@ -208,28 +120,10 @@ class Assets:
                 stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
                 granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
                 spike=cls.create_spike_surfaces(),
-                # spike=cls.create_spike_surfaces_from_config(),
                 # offgrid tiles
-                decor=list(
-                    it.chain.from_iterable(
-                        it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)
-                    )
-                ),
-                large_decor=list(
-                    it.chain.from_iterable(
-                        it.starmap(
-                            pre.create_surfaces_partialfn, asset_tiles_largedecor_variations
-                        )
-                    )
-                ),
-                portal=[
-                    pre.create_surface_partialfn(
-                        size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1
-                    ),
-                    pre.create_surface_partialfn(
-                        size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2
-                    ),
-                ],
+                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
+                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
             ),
             animations_entity=Assets.AnimationEntityAssets(
                 player=dict(
@@ -240,30 +134,14 @@ class Assets:
                 enemy=dict(
                     sleeping=pre.Animation(enemy_sleeping_surfs, img_dur=18),
                     idle=pre.Animation([enemy_entity_surf.copy()], img_dur=6),
-                    run=pre.Animation(
-                        list(
-                            pre.create_surfaces_partialfn(
-                                count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP
-                            )
-                        ),
-                        img_dur=4,
-                    ),
+                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
                 ),
             ),
             animations_misc=Assets.AnimationMiscAssets(
                 particle=dict(
-                    flame=pre.Animation(
-                        flame_particles, img_dur=12, loop=False
-                    ),  # Set true for stress performance
-                    flameglow=pre.Animation(
-                        flameglow_particles, img_dur=24, loop=False
-                    ),  # Set true for stress  performance
-                    # particle == player dash particle, also used for death. use longer duration to spread into the stars
-                    particle=pre.Animation(
-                        list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))),
-                        img_dur=6,
-                        loop=False,
-                    ),
+                    flame=pre.Animation(flame_particles, img_dur=12, loop=False),  # Set true for stress performance
+                    flameglow=pre.Animation(flameglow_particles, img_dur=24, loop=False),  # Set true for stress  performance
+                    particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))), img_dur=6, loop=False),
                 )
             ),
         )
@@ -271,96 +149,34 @@ class Assets:
     @classmethod
     def create_sleepy_enemy_surfaces(cls, count: int):
         enemy_sleeping_surfs: list[pg.SurfaceType] = []
-        sleepy_star_sizes = it.cycle(
-            map(lambda x: x * 0.618 ** (1 * math.pi), (0, 1, 1, 2, 3, 5, 8, 13))
-        )
-        sleepy_star_colors = it.cycle(
-            (
-                pre.Palette.COLOR4,
-                pre.Palette.COLOR6,
-                pre.Palette.COLOR5,
-                pre.PINK,
-                pre.Palette.COLOR3,
-                pre.WHITE,
-            )
-        )
+        sleepy_star_sizes = it.cycle(map(lambda x: x * 0.618 ** (1 * math.pi), (0, 1, 1, 2, 3, 5, 8, 13)))
+        sleepy_star_colors = it.cycle((pre.Palette.COLOR4, pre.Palette.COLOR6, pre.Palette.COLOR5, pre.PINK, pre.Palette.COLOR3, pre.WHITE))
         sleepy_star_circle_width = 0
 
         for i in range(count):
-
             if randint(0, 1):
-                s = pre.create_surface_withalpha_partialfn(
-                    size=((pre.SIZE.ENEMY[0] - 0, pre.SIZE.ENEMY[1] - 0)),
-                    fill_color=pre.COLOR.ENEMYSLEEPING,
-                    alpha=234,
-                )
+                s = pre.create_surface_withalpha_partialfn(size=((pre.SIZE.ENEMY[0] - 0, pre.SIZE.ENEMY[1] - 0)), fill_color=pre.COLOR.ENEMYSLEEPING, alpha=234)
             else:
-                s = pre.create_surface_partialfn(
-                    size=(pre.SIZE.ENEMY[0], pre.SIZE.ENEMY[1] + randint(-1, 0)),
-                    fill_color=pre.COLOR.TRANSPARENTGLOW,
-                )
-
+                s = pre.create_surface_partialfn(size=(pre.SIZE.ENEMY[0], pre.SIZE.ENEMY[1] + randint(-1, 0)), fill_color=pre.COLOR.TRANSPARENTGLOW)
             srect = s.get_rect()
-            a, b, c, d = (
-                srect.topleft,
-                srect.topright,
-                srect.bottomright,
-                srect.bottomleft,
-            )  # clockwise
+            # clockwise
+            a, b, c, d = (srect.topleft, srect.topright, srect.bottomright, srect.bottomleft)
 
             ofst = (uniform(-16, 16), uniform(-4.5, 4.5), uniform(-2.5, 2.5))[randint(1, 2)]
 
             if 0:
                 cls.render_wobbly_surface(surf=s, outline_color=(pre.WHITE), frame=i)
-                cls.render_wobbly_surface(
-                    surf=s, outline_color=(pre.COLOR.TRANSPARENTGLOW), frame=i
-                )
+                cls.render_wobbly_surface(surf=s, outline_color=(pre.COLOR.TRANSPARENTGLOW), frame=i)
                 cls.render_wobbly_surface(surf=s, outline_color=pre.RED, frame=i)
 
             for j in range(16):
                 j %= 8
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (a[0] + ofst * j, a[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (b[0] + ofst * j, b[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (c[0] + ofst * j, c[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (d[0] + ofst * j, d[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (c[0] + ofst * j, c[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
-                pg.draw.circle(
-                    s,
-                    next(sleepy_star_colors),
-                    (b[0] + ofst * j, b[1] + ofst * j),
-                    next(sleepy_star_sizes),
-                    sleepy_star_circle_width,
-                )
+                pg.draw.circle(s, next(sleepy_star_colors), (a[0] + ofst * j, a[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (b[0] + ofst * j, b[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (c[0] + ofst * j, c[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (d[0] + ofst * j, d[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (c[0] + ofst * j, c[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
+                pg.draw.circle(s, next(sleepy_star_colors), (b[0] + ofst * j, b[1] + ofst * j), next(sleepy_star_sizes), sleepy_star_circle_width)
 
             enemy_sleeping_surfs.append(s)
 
@@ -426,69 +242,22 @@ class Assets:
             match orientation:
                 case 0:  # bottom
                     for i in range(0, rect.w, spike_len):
+                        pg.draw.polygon(surf, color, [(rect.left + i, rect.bottom), (rect.left + i + spike_len // 2, rect.top), (rect.left + i + spike_len, rect.bottom)])
                         pg.draw.polygon(
-                            surf,
-                            color,
-                            [
-                                (rect.left + i, rect.bottom),
-                                (rect.left + i + spike_len // 2, rect.top),
-                                (rect.left + i + spike_len, rect.bottom),
-                            ],
-                        )
-                        pg.draw.polygon(
-                            surf,
-                            color,
-                            [
-                                (rect.left + i, rect.bottom // 2 + thickness // 4),
-                                (rect.left + i + spike_len // 2, 4 * rect.top),
-                                (rect.left + i + spike_len, rect.bottom // 2 + thickness // 4),
-                            ],
+                            surf, color, [(rect.left + i, rect.bottom // 2 + thickness // 4), (rect.left + i + spike_len // 2, 4 * rect.top), (rect.left + i + spike_len, rect.bottom // 2 + thickness // 4)]
                         )
                     pass
                 case 1:  # top
                     for i in range(0, rect.w, spike_len):
-                        pg.draw.polygon(
-                            surf,
-                            color,
-                            [
-                                (rect.left + i, -2 * rect.top),
-                                (
-                                    rect.left + i + spike_len // 2,
-                                    rect.bottom // 2 + thickness // 4,
-                                ),
-                                (rect.left + i + spike_len, -2 * rect.top),
-                            ],
-                        )
+                        pg.draw.polygon(surf, color, [(rect.left + i, -2 * rect.top), (rect.left + i + spike_len // 2, rect.bottom // 2 + thickness // 4), (rect.left + i + spike_len, -2 * rect.top)])
                     pass
                 case 2:  # left
                     # surf.fill(pre.COLOR.SPIKE)  # add filler
                     for i in range(0, rect.w, spike_len):
-                        pg.draw.polygon(
-                            surf,
-                            color,
-                            [
-                                (rect.left + i, -2 * rect.top),
-                                (
-                                    rect.left + i + spike_len // 2,
-                                    rect.bottom // 2 + thickness // 4,
-                                ),
-                                (rect.left + i + spike_len, -2 * rect.top),
-                            ],
-                        )
+                        pg.draw.polygon(surf, color, [(rect.left + i, -2 * rect.top), (rect.left + i + spike_len // 2, rect.bottom // 2 + thickness // 4), (rect.left + i + spike_len, -2 * rect.top)])
                 case 3:  # right
                     for i in range(0, rect.w, spike_len):
-                        pg.draw.polygon(
-                            surf,
-                            color,
-                            [
-                                (rect.left + i, -2 * rect.top),
-                                (
-                                    rect.left + i + spike_len // 2,
-                                    rect.bottom // 2 + thickness // 4,
-                                ),
-                                (rect.left + i + spike_len, -2 * rect.top),
-                            ],
-                        )
+                        pg.draw.polygon(surf, color, [(rect.left + i, -2 * rect.top), (rect.left + i + spike_len // 2, rect.bottom // 2 + thickness // 4), (rect.left + i + spike_len, -2 * rect.top)])
                 case _:
                     raise ValueError(f"invalid spike orientation. got {orientation=}")
             surf.set_colorkey(pre.COLOR.TRANSPARENTGLOW)  # remove filler
@@ -521,9 +290,7 @@ class Assets:
                     spikey_lines(surf, orient, tipcount, length, thickness, color, 1)
                     surf_16x16.blit(pg.transform.rotate(surf.copy(), -90.0), (16 - 6, 0))
                 case _:
-                    raise ValueError(
-                        f"unreachable value. have {orientations} sides. got {orient=}"
-                    )
+                    raise ValueError(f"unreachable value. have {orientations} sides. got {orient=}")
             spike.append(surf_16x16)
 
         return spike
@@ -533,14 +300,7 @@ class Assets:
         size = pre.SIZE.STAR
         r, g, b = pre.COLOR.STAR
         return (
-            pre.create_surface_partialfn(
-                size=size,
-                fill_color=(
-                    min(255, r + math.floor(rand_uniform(-4.0, 4.0))),
-                    g + math.floor(rand_uniform(-4.0, 4.0)),
-                    b + math.floor(rand_uniform(-4.0, 4.0)),
-                ),
-            )
+            pre.create_surface_partialfn(size=size, fill_color=(min(255, r + math.floor(rand_uniform(-4.0, 4.0))), g + math.floor(rand_uniform(-4.0, 4.0)), b + math.floor(rand_uniform(-4.0, 4.0))))
             for _ in range(pre.COUNT.STAR)
         )  # Note: r overflows above 255 as r==(constant) COLOR6: tuple[Literal[255], Literal[212], Literal[163]]
 
@@ -549,9 +309,7 @@ class Assets:
         pass
 
     @classmethod
-    def render_wobbly_surface(
-        cls, surf: pg.SurfaceType, outline_color: pre.ColorValue = (20, 20, 20), frame: int = 0
-    ) -> None:
+    def render_wobbly_surface(cls, surf: pg.SurfaceType, outline_color: pre.ColorValue = (20, 20, 20), frame: int = 0) -> None:
         pre_surf_scale = 8
         amplitude = 10  # Adjust this value to control the wobbliness
         frequency = 0.1  # Adjust this value to control the frequency of wobbles
@@ -565,33 +323,17 @@ class Assets:
         for x in range(pgrect.left, pgrect.right):
             # Top side
             y1 = y2 = pgrect.top + int(amplitude * math.sin(frequency * (x - pgrect.left)))
-            pg.draw.line(
-                surf_,
-                line_color,
-                ((x + ofst) % pgrect.right, y1),
-                ((x + ofst) % pgrect.right + 1, y2),
-            )
+            pg.draw.line(surf_, line_color, ((x + ofst) % pgrect.right, y1), ((x + ofst) % pgrect.right + 1, y2))
             # Bottom side
-            y1 = y2 = pgrect.bottom + int(
-                amplitude * math.sin(frequency * (x - pgrect.left + pgrect.height))
-            )
-            pg.draw.line(
-                surf_,
-                line_color,
-                ((x - ofst) % (pgrect.left + 1), y1),
-                ((x + 1 - ofst) % (pgrect.left + 1), y2),
-            )
+            y1 = y2 = pgrect.bottom + int(amplitude * math.sin(frequency * (x - pgrect.left + pgrect.height)))
+            pg.draw.line(surf_, line_color, ((x - ofst) % (pgrect.left + 1), y1), ((x + 1 - ofst) % (pgrect.left + 1), y2))
         for y in range(pgrect.top, pgrect.bottom):
             # Left side
             x1 = x2 = pgrect.left + int(amplitude * math.sin(frequency * (y - pgrect.top)))
             pg.draw.line(surf_, line_color, (x1, (y - ofst)), (x2, y + 1 - ofst))
             # Right side
-            x1 = x2 = pgrect.right + int(
-                amplitude * math.sin(frequency * (y - pgrect.top + pgrect.width))
-            )
+            x1 = x2 = pgrect.right + int(amplitude * math.sin(frequency * (y - pgrect.top + pgrect.width)))
             pg.draw.line(surf_, line_color, (x1, y + ofst), (x2, y + 1 + ofst))
-        surf_ = pg.transform.smoothscale_by(
-            surf_.copy(), (1 / pre_surf_scale) * uniform(1.2, 1.2)
-        )  # to decrease *0.99999
+        surf_ = pg.transform.smoothscale_by(surf_.copy(), (1 / pre_surf_scale) * uniform(1.2, 1.2))  # to decrease *0.99999
         dest = surf_.copy().get_rect().topleft
         surf.blit(surf_, (dest[0] - 1, dest[1] - 1))

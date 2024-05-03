@@ -2,11 +2,18 @@
 
 # DIST
 
-# TODO: add dist or binary files here
+# DEV ARTIFACTS
+
+src/__pycache__
+src/internal/__pycache__
 
 # DRAFTS
 
 archive
 notes.md
+
+# MISC
+
 src/data/images
 src/data/sfx/peaks
+src/__pycache__

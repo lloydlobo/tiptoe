@@ -2,7 +2,7 @@
 typeCheckingMode = "strict"
 
 [tool.black]
-line-length = 99                 # 79 | 88
+line-length = 209                # 79 | 88 | 99
 skip-string-normalization = true
 # target-version = ["py38"] # seems to fail on match statements
 include = '\.pyi?$'
@@ -10,7 +10,9 @@ exclude = '''
 /(
   | \.git
   | __pycache__
+  | archive
   | build
+  | docs
   | \.tox
   | \.pytest_cache
 )/
@@ -21,4 +23,12 @@ profile = "black"
 line_length = 72
 # py_version = "38"
 lines_after_imports = 2
-skip = [".git", "__pycache__", "build", ".tox", ".pytest_cache"]
+skip = [
+  ".git",
+  "__pycache__",
+  "archive",
+  "build",
+  "docs",
+  ".tox",
+  ".pytest_cache",
+]

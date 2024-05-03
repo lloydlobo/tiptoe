@@ -17,6 +17,7 @@ in
 
         # [dependencies]
         py.pygame
+        # py.noise
 
         py.numpy
 

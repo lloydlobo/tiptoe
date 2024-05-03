@@ -231,6 +231,21 @@ def clamp(value: int | float, lo: int | float, hi: int | float) -> int | float:
 ################################################################################
 
 
+class Motion:
+    @staticmethod
+    def lerp(a: int | float, b: int | float, t: float) -> float:
+        return a + t * (b - a)
+
+    @lru_cache
+    @staticmethod
+    def pan_smooth(value: int | float, target: int, smoothness: int | float = 1) -> int | float:
+        # def smooth_approach(val, target, slowness=1):
+        #     val += (target - val) / slowness * min(elems['Window'].dt, slowness)
+        #     return val
+        value += (target - value) / smoothness * min(pg.time.get_ticks() * 0.001, smoothness)
+        return value
+
+
 class Animation:
     """Animation is a class that holds a list of images and a duration for each
     image to be displayed.
@@ -281,9 +296,7 @@ class Animation:
 ################################################################################
 
 
-def load_img(
-    path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None
-) -> pg.Surface:
+def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image.
 
     Note: Ported from DaFluffyPotato's pygpen lib
@@ -294,9 +307,7 @@ def load_img(
     return img
 
 
-def load_imgs(
-    path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None
-) -> list[pg.Surface]:
+def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
     """Lists all image filenames in path directory and loads_img over each and
     returns list of pg.Surfaces.
 
@@ -306,10 +317,7 @@ def load_imgs(
         load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
         ```
     """
-    return [
-        load_img(f"{Path(path) / img_name}", with_alpha, colorkey)
-        for img_name in sorted(os.listdir(path))
-    ]
+    return [load_img(f"{Path(path) / img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
 
 
 @dataclass
@@ -404,12 +412,7 @@ class UserConfig:
             print(f"reading configuration file at {repr(filepath)}")
 
         with open(filepath, "r") as f:
-            return {
-                k: v
-                for line in f
-                if (l := line.strip()) and not l.startswith("#")
-                for k, v in [l.split(maxsplit=1)]
-            }
+            return {k: v for line in f if (l := line.strip()) and not l.startswith("#") for k, v in [l.split(maxsplit=1)]}
 
 
 ##########
@@ -438,9 +441,7 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
         if s[0] == "#":
             s = s[1:]
             if DEBUG_GAME_ASSERTS:
-                assert len(s) == (
-                    n - 1
-                ), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
+                assert len(s) == (n - 1), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
         else:
             raise ValueError(f"want valid hex format string. got {s}")
 
@@ -517,9 +518,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
     # convert to 0-255 scale
     #   note: round() instead of int() helps in precision. e.g. gray 127 -> 128
-    return ColorKind(
-        round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255)
-    )
+    return ColorKind(round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
 
 
 #############
@@ -540,8 +539,16 @@ DEBUG_GAME_UNITTEST = False
 DEBUG_GAME_STRESSTEST = False
 
 
-CAMERA_SPEED = 2  # use with editor camera move fast around the world
 FPS_CAP = 60
+"""Frames per seconds.
+
+FPS of 60 == 16 milliseconds per frame
+1000ms / FPS = ms per frame.
+
+If it takes longer than 16 ms to render a frame, game slows down.
+"""
+
+CAMERA_SPEED = 2  # use with editor camera move fast around the world
 RENDER_SCALE = 2  # for editor
 SCALE = 0.5
 TILE_SIZE = 16
@@ -770,9 +777,7 @@ SPIKE_CONFIGURATIONS = [
 ################################################################################
 
 
-def surfaces_get_outline_mask_from_surf(
-    surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]
-):
+def surfaces_get_outline_mask_from_surf(surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]):
     """Create thick outer outlines for surface using masks."""
     m = pg.mask.from_surface(surf)
     m_outline: list[tuple[int, int]] = m.outline()
@@ -890,9 +895,7 @@ create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
 create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
 
 
-def create_circle_surf(
-    size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK
-) -> pg.SurfaceType:
+def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
     # FIXME:
     """Special case for flameglow particle and should not be used here for
     general circle creation.
@@ -981,9 +984,7 @@ class Math:
         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
 
     @staticmethod
-    def advance_float2_ip(
-        point2: list[float], angle: SupportsFloatOrIndex, amount: Number
-    ) -> None:
+    def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
         """Advances a 2D point represented by a list of floats by a given angle and amount in place.
 
         Args:

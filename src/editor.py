@@ -38,7 +38,7 @@ class Editor:
         self.last_save_time_readable: None | str = None
 
         # NOTE: custom level loading from here.. available levels==[0,1]
-        self.level = 0
+        self.level = 1
         self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
