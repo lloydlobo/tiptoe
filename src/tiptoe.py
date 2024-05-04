@@ -1,7 +1,7 @@
 import cProfile  # pyright: ignore
 
 import internal.prelude as pre  # pyright: ignore
-from game import Game, StartScreen, loading_screen  # pyright: ignore
+from game import Game, StartScreen  # pyright: ignore
 
 
 class Launcher(Game):

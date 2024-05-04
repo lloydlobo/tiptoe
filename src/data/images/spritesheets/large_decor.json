@@ -1,0 +1,50 @@
+{
+	"meta": {
+		"app": "manual",
+		"version": "0.1",
+		"image": "large_decor.png",
+		"size": {
+			"w": 224,
+			"h": 112
+		},
+		"scale": "1"
+	},
+	"large_decor": {
+		"tree": {
+			"size": {
+				"w": 112,
+				"h": 112
+			},
+			"frames": [
+				{
+					"x": 0,
+					"y": 0
+				}
+			]
+		},
+		"bush": {
+			"size": {
+				"w": 48,
+				"h": 16
+			},
+			"frames": [
+				{
+					"x": 112,
+					"y": 96
+				}
+			]
+		},
+		"pileofbricks": {
+			"size": {
+				"w": 32,
+				"h": 32
+			},
+			"frames": [
+				{
+					"x": 175,
+					"y": 80
+				}
+			]
+		}
+	}
+}

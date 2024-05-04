@@ -1,13 +1,15 @@
 import itertools as it
+import logging
 import math
 from dataclasses import dataclass
 from functools import partial
 from random import randint, random, uniform  # pyright: ignore
-from typing import Final  # pyright:ignore
+from typing import Final, Optional  # pyright:ignore
 
 import pygame as pg
 
 import internal.prelude as pre
+from internal.spritesheet import Spritesheet
 
 
 rand_uniform = partial(uniform)
@@ -55,6 +57,30 @@ class Assets:
         asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
         asset_tiles_largedecor_variations = ((2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)), (2, pre.Palette.COLOR1, (32, 16)))
 
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
+        decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
+
+        # #########################################3
+        # ### without pixelart
+        # #########################################3
+        # if 0:
+        #     asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))
+        #     large_decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
+        # #########################################3
+        # ### with pixelart
+        # #########################################3
+        # ld0 = pre.load_img((pre.IMGS_PATH / "tiles" / "large_decor" / "0.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # ld1 = pre.load_img((pre.IMGS_PATH / "tiles" / "large_decor" / "0.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # ld2 = pre.load_img((pre.IMGS_PATH / "tiles" / "large_decor" / "0.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # large_decor = [ld0, ld1, ld2]
+        spritesheet_large_decor = Spritesheet(
+            sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png",
+            metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json",
+        )
+        ld_sprites: list[pg.SurfaceType] = []
+        for group in ["tree", "bush", "pileofbricks"]:
+            ld_sprites.extend(spritesheet_large_decor.load_sprites("large_decor", group))
+
         return cls(
             entity=dict(),
             misc_surf=dict(),
@@ -65,8 +91,8 @@ class Assets:
                 granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
                 spike=cls.create_spike_surfaces(),
                 # offgrid tiles
-                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
-                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                decor=decor,
+                large_decor=ld_sprites,
                 portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
                 spawners=[
                     player_spawner_surf,
@@ -104,7 +130,8 @@ class Assets:
         else:
             enemy_sleeping_surfs = list(pre.surfaces_vfx_outline_offsets_animation_frames(surf=enemy_entity_surf, color=pre.Palette.COLOR5, width=3, iterations=esleepcount))
 
-        background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
+        if 0:
+            background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
 
         filename_bg1 = "bg1_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg1_480x315.png"
         filename_bg2 = "bg2_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg2_480x315.png"
@@ -123,11 +150,41 @@ class Assets:
 
         stars = list(cls.create_star_surfaces())
 
-        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
-        asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))
-
         flame_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)]
         flameglow_particles = [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)]
+
+        asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
+        decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
+
+        #########################################
+        ### without pixelart
+        #########################################
+        # if 0:
+        #     asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))
+        #     large_decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
+        #########################################
+        ### with pixelart
+        #########################################
+        # ld0 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # ld1 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # ld2 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
+        # large_decor_spritesheet = Spritesheet(
+        #     sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png",
+        #     metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json",
+        # )
+        # tree_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="tree")
+        # bush_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="bush")
+        # pileofbricks_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="pileofbricks")
+        # large_decor = [tree_sprites[0], bush_sprites[0], pileofbricks_sprites[0]]
+        #
+        logging.basicConfig(level=logging.DEBUG)
+        spritesheet_large_decor = Spritesheet(
+            sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png",
+            metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json",
+        )
+        ld_sprites: list[pg.SurfaceType] = []
+        for group in ["tree", "bush", "pileofbricks"]:
+            ld_sprites.extend(spritesheet_large_decor.load_sprites("large_decor", group))
 
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
@@ -139,8 +196,8 @@ class Assets:
                 granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
                 spike=cls.create_spike_surfaces(),
                 # offgrid tiles
-                decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
-                large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
+                decor=decor,
+                large_decor=ld_sprites,
                 portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
             ),
             animations_entity=Assets.AnimationEntityAssets(
