@@ -68,27 +68,31 @@ __all__ = [
 ]
 
 
-import math
-import os
-from dataclasses import dataclass
-from enum import Enum, IntEnum, auto, unique
-from functools import lru_cache, partial
-from pathlib import Path
-from random import randint
-from typing import (
-    Final,
-    Generator,
-    NamedTuple,
-    Optional,
-    Sequence,
-    SupportsFloat,
-    SupportsIndex,
-    Tuple,
-    TypeAlias,
-    Union,
-)
+try:
+    import math
+    import os
+    from dataclasses import dataclass
+    from enum import Enum, IntEnum, auto, unique
+    from functools import lru_cache, partial
+    from pathlib import Path
+    from random import randint
+    from typing import (
+        Final,
+        Generator,
+        NamedTuple,
+        Optional,
+        Sequence,
+        SupportsFloat,
+        SupportsIndex,
+        Tuple,
+        TypeAlias,
+        Union,
+    )
 
-import pygame as pg
+    import pygame as pg
+except ImportError as e:
+    print(f"failed to import packages:\n\t{e}")
+    exit(2)
 
 
 # import toml
@@ -137,12 +141,13 @@ class ParticleKind(Enum):
     PARTICLE = "particle"  # player particle
 
 
-@unique
+# @unique
 class EntityKind(Enum):
     PLAYER = "player"
     ENEMY = "enemy"
     # note: is portal an entity? if it can teleport and move then maybe consider it.
     PORTAL = "portal"
+    # PORTAL2 = "portal2"
 
 
 @unique  # """Class decorator for enumerations ensuring unique member values."""
@@ -169,6 +174,7 @@ class SpawnerKind(Enum):
     PLAYER = 0
     ENEMY = 1
     PORTAL = 2
+    # PORTAL2 = 3
 
     # PERF: use cls classmethod instead?
     def as_entity(self, entity_kind: EntityKind):
@@ -179,6 +185,8 @@ class SpawnerKind(Enum):
                 return self.ENEMY
             case EntityKind.PORTAL:
                 return self.PORTAL
+            # case EntityKind.PORTAL2:
+            #     return self.PORTAL2
 
 
 @dataclass
@@ -529,11 +537,11 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 DEBUG_EDITOR_ASSERTS = False
 DEBUG_EDITOR_HUD = True
 
-DEBUG_GAME_ASSERTS = True
+DEBUG_GAME_ASSERTS = False
 DEBUG_GAME_PRINTLOG = False
-DEBUG_GAME_LOGGING = True
+DEBUG_GAME_LOGGING = False
 DEBUG_GAME_CACHEINFO = False
-DEBUG_GAME_HUD = True
+DEBUG_GAME_HUD = False
 DEBUG_GAME_PROFILER = False
 DEBUG_GAME_UNITTEST = False
 DEBUG_GAME_STRESSTEST = False
@@ -620,7 +628,7 @@ class COLOR:
     TRANSPARENTGLOW = (20, 20, 20)
 
     BACKGROUND = (12, 12, 14) or Palette.COLOR7
-    STAR = Palette.COLOR6
+    STAR = PINK or Palette.COLOR3
 
     FLAME = Palette.COLOR0
     FLAMEGLOW = Palette.COLOR0
@@ -637,7 +645,7 @@ class COLOR:
     PLAYERSTAR = Palette.COLOR0
 
     PORTAL1 = Palette.COLOR0
-    PORTAL2 = Palette.COLOR0
+    PORTAL2 = Palette.COLOR4
 
     GRANITE = Palette.COLOR7
     STONE = Palette.COLOR6

@@ -68,7 +68,12 @@ class Assets:
                 decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations))),
                 large_decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations))),
                 portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
-                spawners=[player_spawner_surf, enemy_spawner_surf.copy(), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1)],
+                spawners=[
+                    player_spawner_surf,
+                    enemy_spawner_surf.copy(),
+                    pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1),
+                    pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2),
+                ],
             ),
             animations_entity=Assets.AnimationEntityAssets(player=dict(), enemy=dict()),
             animations_misc=Assets.AnimationMiscAssets(particle=dict()),
@@ -100,6 +105,19 @@ class Assets:
             enemy_sleeping_surfs = list(pre.surfaces_vfx_outline_offsets_animation_frames(surf=enemy_entity_surf, color=pre.Palette.COLOR5, width=3, iterations=esleepcount))
 
         background = pre.create_surface_partialfn(size=pre.DIMENSIONS, fill_color=pre.COLOR.BACKGROUND)
+
+        filename_bg1 = "bg1_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg1_480x315.png"
+        filename_bg2 = "bg2_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg2_480x315.png"
+        filename_bg3 = "bg3_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg3_480x315.png"
+
+        background = pre.load_img((pre.IMGS_PATH / "background" / filename_bg1).__str__())
+        bg1 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg1).__str__()).convert()
+        bg1.set_colorkey(pre.BLACK)
+        bg2 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg2).__str__()).convert()
+        bg2.set_colorkey(pre.BLACK)
+        bg3 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg3).__str__()).convert()
+        bg3.set_colorkey(pre.BLACK)
+
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
         misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0)
 
@@ -113,7 +131,7 @@ class Assets:
 
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
-            misc_surf=dict(background=background, gun=gun, projectile=misc_surf_projectile),
+            misc_surf=dict(background=background.copy(), bg1=bg1, bg2=bg2, bg3=bg3, gun=gun, projectile=misc_surf_projectile),
             misc_surfs=dict(stars=stars),
             tiles=dict(
                 # grid tiles

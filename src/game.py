@@ -1,41 +1,42 @@
 # Primer: https://www.pygame.org/docs/tut/newbieguide.html
 
-try:
-    import itertools as it
-    import math
-    import queue
-    import sys
-    import threading
-    import time
-    from collections import deque
-    from dataclasses import dataclass, field
-    from enum import Enum, auto
-    from functools import partial
-    from os import listdir, path
-    from pathlib import Path
-    from pprint import pprint  # pyright: ignore
-    from random import randint, random, uniform
-    from typing import Final, Iterator, NoReturn, Optional
+import itertools as it
+import math
+import queue
+import sys
+import threading
+import time
+from collections import deque
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from functools import partial
+from os import listdir, path
+from pathlib import Path
+from pprint import pprint  # pyright: ignore
+from random import randint, random, uniform
+from typing import Final, Iterator, NoReturn, Optional
 
-    from internal.entities import PhysicalEntity
+from internal.entities import PhysicalEntity
 
-    if sys.version_info >= (3, 12):
-        from types import GenericAlias  # pyright: ignore
-    import pygame as pg
-    from pygame import Vector2 as vec2
 
-    import internal.prelude as pre
-    from internal.assets import Assets
-    from internal.entities import Action, Enemy, Player
-    from internal.hud import render_debug_hud
-    from internal.particle import Particle
-    from internal.spark import Spark
-    from internal.spawner import Portal
-    from internal.stars import Stars
-    from internal.tilemap import Tilemap
-except ImportError as e:
-    print(f"failed to import packages:\n\t{e}")
-    exit(2)
+if sys.version_info >= (3, 12):
+    from types import GenericAlias  # pyright: ignore
+
+import pygame as pg
+from pygame import Vector2 as vec2
+
+import internal.prelude as pre
+from internal.assets import Assets
+from internal.entities import Action, Enemy, Player
+from internal.hud import render_debug_hud
+from internal.particle import Particle
+from internal.spark import Spark
+from internal.spawner import Portal
+from internal.stars import Stars
+from internal.tilemap import Tilemap
+
+
+vec2 = pg.Vector2
 
 
 def quit_exit(context: str = "") -> NoReturn:
@@ -231,6 +232,12 @@ class Textz:
         surf.blit(text_surface, text_rect)
 
 
+@dataclass
+class GameCheckpointState:
+    player_pos: tuple[float, float]
+    enemy_positions: list[tuple[float, float]]
+
+
 class Game:
     def __init__(self) -> None:
         pg.init()
@@ -373,6 +380,124 @@ class Game:
         # self.load_level(self.level)
         self.running = True
 
+    def gts_record_checkpoint(self):
+        player_position = (self.player.pos.x, self.player.pos.y)
+        enemy_positions = [(e.pos.x, e.pos.y) for e in self.enemies]
+        self.gcs_states.appendleft(GameCheckpointState(player_position, enemy_positions))
+
+    def gts_rewind_checkpoint(self):
+        if self.gcs_states:
+            prev_gts = self.gcs_states.pop()
+            self.player.pos = pg.Vector2(prev_gts.player_pos)
+
+    def gts_rewind_recent_checkpoint(self):
+        if self.gcs_states:
+            prev_gts = self.gcs_states.popleft()
+            self.player.pos = pg.Vector2(prev_gts.player_pos)
+
+    def run(self) -> None:
+        """This game loop runs continuously until user opts out via inputs.
+
+        Each iteration, computes user input non-blocking events, updates state
+        of the game, and renders the game.
+        future: Track delta time between each loop to control rate of gameplay.
+        """
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
+        pg.mixer.music.set_volume(0.1)
+        pg.mixer.music.play(-1)
+        if self.level == 0:
+            self.sfx.playerspawn.play()
+
+        surfw = pre.DIMENSIONS_HALF[0]
+        bg2_depth, bg3_depth = 0.5, 0.2
+        bg2_speed, bg3_speed = min(0.26, pre.TILE_SIZE / pre.FPS_CAP), min(0.4, (2 * pre.TILE_SIZE) / pre.FPS_CAP)  # slowest movement for sky, faster for clouds, fastest for mountains
+        bg2_x = bg3_x = 0
+        bg3_y = 0
+
+        gcs_timer = 0
+
+        while self.running:
+            self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
+
+            self.display.fill((0, 0, 0, 0))
+            self.display_2.blit(self.bg1, (0, 0))
+            bg2_x -= bg2_speed
+            bg3_x -= bg3_speed
+            if bg2_x < -surfw:
+                bg2_x = 0
+            if bg3_x < -surfw:
+                bg3_x = 0
+            bg3_y = max(0, 28 - self.camera.render_scroll[1] * bg3_depth)
+            self.display_2.blit(self.bg2, (bg2_x * bg2_depth, 0))
+            self.display_2.blit(self.bg2, ((bg2_x + surfw) * bg2_depth, 0))  # wrap around
+            self.display_2.blit(self.bg3, (0, bg3_y))
+            self.display_2.blit(self.bg3, (0 + surfw, bg3_y))  # wrap around
+
+            if (_tmpflag_rewind_glitch_enabled := 0) and _tmpflag_rewind_glitch_enabled:
+                # QUEST: introduce absurd rewinding checkpoints when in 'Delirium' in later levels ???
+                if gcs_timer > 0 and (2 * (gcs_timer + 1)) % pre.FPS_CAP == 0:
+                    self.gts_rewind_checkpoint()
+                    self.gts_record_checkpoint()
+                    gcs_timer = -10 * pre.FPS_CAP  # rewind timer for 10 secs 'wait-time'
+                gcs_timer += 1
+
+            self.events()
+            self.update()
+            self.render()
+
+    def events(self) -> None:
+        for event in pg.event.get():
+            # note: exit game loop while self.running and continue on from the caller
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                self.running = False
+                # context: gameover->mainmenu->playing->pressed Escape
+                # leads to gameover but want mainmenu[pause like]
+                try:
+                    assert not self.gameover, "failed to overide gameover flag after reset"
+                except AssertionError as e:
+                    self.gameover = False
+                    print(f"ignoring AssertionError: {e}\ncontext: TEMPFIX: overiding gameover to False")
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                quit_exit()
+            if event.type == pg.QUIT:
+                quit_exit()
+            if event.type == pg.VIDEORESIZE:
+                self.screen = pg.display.get_surface()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_LEFT:
+                    self.movement.left = True
+                if event.key == pg.K_RIGHT:
+                    self.movement.right = True
+                if event.key == pg.K_UP:
+                    if self.player.jump():
+                        self.sfx.jump.play()
+                if event.key == pg.K_DOWN:
+                    self.player.dash()
+                if event.key == pg.K_c:
+                    self.gts_record_checkpoint()
+                if event.key == pg.K_x:
+                    self.gts_rewind_checkpoint()
+                if event.key == pg.K_z:
+                    self.gts_rewind_recent_checkpoint()
+            if event.type == pg.KEYUP:
+                if event.key == pg.K_LEFT:
+                    self.movement.left = False
+                if event.key == pg.K_RIGHT:
+                    self.movement.right = False
+
+    def render(self) -> None:
+        """Render display."""
+        # self.display.fill((0, 0, 0, 0))
+        # self.display_2.blit(self.assets.misc_surf["background"], (0, 0))
+
+        self.display_2.blit(self.display, (0, 0))
+
+        _offset = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - (self.screenshake * 0.5), (self.screenshake * random()) - (self.screenshake * 0.5))
+        self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _offset)
+
+        # Draw: final display
+        pg.display.flip()  # update: whole screen
+
     def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
         surf = font.render(text, True, color)
         rect = surf.get_rect()
@@ -450,6 +575,12 @@ class Game:
         self.projectiles: list[pre.Projectile] = []
         self.sparks: list[Spark] = []
 
+        self.bg1 = self.assets.misc_surf["bg1"]
+        self.bg2 = self.assets.misc_surf["bg2"]
+        self.bg3 = self.assets.misc_surf["bg3"]
+
+        self.gcs_states: deque[GameCheckpointState] = deque([])
+
         # SPAWNERS
         # increment = math.floor((90 - progress) / len(_spwn_kinds))  # FIXME: can be wrong
         self.flametorch_spawners = [
@@ -474,6 +605,7 @@ class Game:
             pre.SpawnerKind.PLAYER.value,
             pre.SpawnerKind.ENEMY.value,
             pre.SpawnerKind.PORTAL.value,
+            # pre.SpawnerKind.PORTAL2.value,
         )
 
         increment = math.floor((80 - progress) / len(_spwn_kinds))  # FIXME: can be wrong
@@ -489,6 +621,8 @@ class Game:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
                 case pre.SpawnerKind.PORTAL:
                     self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
+                # case pre.SpawnerKind.PORTAL2:
+                #     self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL2, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
             progress += increment  # FIXME: can be wrong
             if progressbar is not None:
                 progressbar.put(progress)
@@ -530,63 +664,7 @@ class Game:
             # print(f"{progress}%")
             time.sleep(0.150)
 
-    def run(self) -> None:
-        """This game loop runs continuously until user opts out via inputs.
-
-        Each iteration, computes user input non-blocking events, updates state
-        of the game, and renders the game.
-        future: Track delta time between each loop to control rate of gameplay.
-        """
-
-        # pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
-        # pg.mixer.music.set_volume(0.1)
-        # pg.mixer.music.play(-1)
-
-        if self.level == 0:
-            self.sfx.playerspawn.play()
-
-        self.last_tick_recorded = pg.time.get_ticks()
-
-        while self.running:
-            self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
-            self.events()
-            self.update()
-            self.render()
-
-    def events(self) -> None:
-        for event in pg.event.get():
-            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                self.running = False  # note: exit game loop while self.running and continue on from the caller
-                try:
-                    assert not self.gameover, "failed to overide gameover flag after reset. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
-                except AssertionError as e:
-                    self.gameover = False
-                    print(f"ignoring AssertionError: {e}\n\tcontext: TEMPFIX: overiding gameover to False")
-            if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                quit_exit()
-            if event.type == pg.QUIT:
-                quit_exit()
-            if event.type == pg.VIDEORESIZE:
-                self.screen = pg.display.get_surface()
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_LEFT:
-                    self.movement.left = True
-                if event.key == pg.K_RIGHT:
-                    self.movement.right = True
-                if event.key == pg.K_UP:
-                    if self.player.jump():
-                        self.sfx.jump.play()
-                if event.key == pg.K_DOWN:
-                    self.player.dash()
-            if event.type == pg.KEYUP:
-                if event.key == pg.K_LEFT:
-                    self.movement.left = False
-                if event.key == pg.K_RIGHT:
-                    self.movement.right = False
-
     def update(self) -> None:
-        self.display.fill((0, 0, 0, 0))
-        self.display_2.blit(self.assets.misc_surf["background"], (0, 0))
         # Camera: update and parallax
         if 0:
             self.scroll.x += (self.player.rect.centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self.scroll_ease.x
@@ -816,16 +894,6 @@ class Game:
                     self.clock_dt_recent_values.pop()
             except Exception as e:
                 print(f"exception during rendering debugging HUD: {e}")
-
-    def render(self) -> None:
-        """Render display."""
-        self.display_2.blit(self.display, (0, 0))
-
-        _offset = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - (self.screenshake * 0.5), (self.screenshake * random()) - (self.screenshake * 0.5))
-        self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _offset)
-
-        # Draw: final display
-        pg.display.flip()  # update: whole screen
 
 
 def loading_screen(game: Game):
@@ -1198,7 +1266,7 @@ class StartScreen:
                 quit_exit()
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                 pg.mixer.music.fadeout(1000)
-                self.game.set_mainscreen(LoadingScreen(game=self.game, level=0))
+                self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
 
                 if 0:  # TODO: debugging
                     self.game.run()
@@ -1229,16 +1297,3 @@ class StartScreen:
         self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
 
         pg.display.flip()
-
-
-# if __name__ == "__main__":
-#     if pre.DEBUG_GAME_UNITTEST:
-#         test__internal__move__commands__py()
-#
-#     if pre.DEBUG_GAME_PROFILER:
-#         cProfile.run("Game().load_level(0)", sort="cumulative")
-#         cProfile.run("Game().run()", sort="cumulative")
-#
-#     game = Game()
-#     loading_screen(game)
-#     StartScreen(game).run()

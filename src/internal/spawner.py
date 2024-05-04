@@ -6,6 +6,7 @@ import pygame as pg
 
 import internal.prelude as pre
 
+
 if TYPE_CHECKING:
     from tiptoe import Game
 
@@ -19,9 +20,9 @@ class Spawner:
         self.pos = pos.copy()
         self.size = size
 
-        self._spawner_kind: Final = skind
-        self._entity_kind: Final = ekind
-        self.assets: Final[list[pg.Surface]] = self.game.assets.tiles[self._entity_kind.value]
+        self.spawner_kind: Final = skind
+        self.entity_kind: Final = ekind
+        self.assets: Final[list[pg.Surface]] = self.game.assets.tiles[self.entity_kind.value]
 
     def rect(self) -> pg.Rect:
         return pg.Rect(self.pos.x, self.pos.y, self.size.x, self.size.y)

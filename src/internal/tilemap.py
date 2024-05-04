@@ -353,7 +353,10 @@ class Tilemap:
         # ====
 
         for tile in self.offgrid_tiles:
-            blit_partial(self.game_assets_tiles[tile.kind.value][tile.variant], tile.pos - offset)
+            imgs = self.game_assets_tiles.get(tile.kind.value, None)
+            if imgs is not None and (index := tile.variant) < len(imgs):
+                img = imgs[index]  # blit_partial(self.game_assets_tiles[tile.kind.value][tile.variant], tile.pos - offset)
+                blit_partial(img, tile.pos - offset)
 
         xlo, ylo = self.pos_as_grid_loc_tuple2(offset[0], offset[1])
         xhi, yhi = self.pos_as_grid_loc_tuple2(offset[0] + surf.get_width(), offset[1] + surf.get_height())
