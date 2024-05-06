@@ -81,14 +81,33 @@ class Assets:
         for group in ["tree", "bush", "pileofbricks"]:
             ld_sprites.extend(spritesheet_large_decor.load_sprites("large_decor", group))
 
+        spritesheet_tileset = Spritesheet(
+            sheet_path=pre.IMGS_PATH / "spritesheets" / "tileset.png",
+            metadata_path=pre.IMGS_PATH / "spritesheets" / "tileset.json",
+        )
+        # grass_sprites: list[pg.SurfaceType] = spritesheet_tileset.load_sprites("tiles", "grass")
+        granite_sprites: list[pg.SurfaceType] = spritesheet_tileset.load_sprites("tiles", "granite")
+        stone_sprites: list[pg.SurfaceType] = spritesheet_tileset.load_sprites("tiles", "stone")
+
+        spritesheet_tileset_greenvalley = Spritesheet(
+            sheet_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.png",
+            metadata_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.json",
+        )
+        grass_sprites: list[pg.SurfaceType] = spritesheet_tileset_greenvalley.load_sprites("tiles", "grass")
+        grassplatform_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform")
+
         return cls(
             entity=dict(),
             misc_surf=dict(),
             misc_surfs=dict(),
             tiles=dict(
                 # grid tiles
-                stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
+                # stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
+                stone=stone_sprites,
+                # granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
+                granite=granite_sprites,
+                grass=grass_sprites,  # NOTE: if sprite isn't loaded, it is still a physical tile but transparent
+                grassplatform=grassplatform_sprites,
                 spike=cls.create_spike_surfaces(),
                 # offgrid tiles
                 decor=decor,
@@ -136,6 +155,7 @@ class Assets:
         filename_bg1 = "bg1_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg1_480x315.png"
         filename_bg2 = "bg2_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg2_480x315.png"
         filename_bg3 = "bg3_320x240.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg3_480x315.png"
+        # filename_bg4 = "bg4_480x315.png" if pre.SCREEN_RESOLUTION_MODE == 1 else "bg4_480x315.png"
 
         background = pre.load_img((pre.IMGS_PATH / "background" / filename_bg1).__str__())
         bg1 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg1).__str__()).convert()
@@ -144,6 +164,8 @@ class Assets:
         bg2.set_colorkey(pre.BLACK)
         bg3 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg3).__str__()).convert()
         bg3.set_colorkey(pre.BLACK)
+        # bg4 = pre.load_img((pre.IMGS_PATH / "background" / filename_bg4).__str__()).convert()
+        # bg4.set_colorkey(pre.BLACK)
 
         gun = pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN)
         misc_surf_projectile = pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0)
@@ -156,60 +178,94 @@ class Assets:
         asset_tiles_decor_variations = ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))
         decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_decor_variations)))
 
-        #########################################
-        ### without pixelart
-        #########################################
-        # if 0:
-        #     asset_tiles_largedecor_variations = ((2, pre.RED, (16, 16 - 4)), (2, pre.RED, (32, 16)), (2, pre.RED, (32, 16)))
-        #     large_decor = list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, asset_tiles_largedecor_variations)))
-        #########################################
-        ### with pixelart
-        #########################################
-        # ld0 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
-        # ld1 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
-        # ld2 = pre.load_img((pre.IMGS_PATH / "spritesheets" / "large_decor.png").__str__(), with_alpha=False, colorkey=pre.BLACK)
-        # large_decor_spritesheet = Spritesheet(
-        #     sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png",
-        #     metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json",
-        # )
-        # tree_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="tree")
-        # bush_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="bush")
-        # pileofbricks_sprites = large_decor_spritesheet.load_sprites(s_category="large_decor", s_group="pileofbricks")
-        # large_decor = [tree_sprites[0], bush_sprites[0], pileofbricks_sprites[0]]
-        #
         logging.basicConfig(level=logging.DEBUG)
-        spritesheet_large_decor = Spritesheet(
-            sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png",
-            metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json",
-        )
-        ld_sprites: list[pg.SurfaceType] = []
+        spritesheet_large_decor = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "large_decor.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "large_decor.json")
+        large_decor_surfaces: list[pg.SurfaceType] = []
         for group in ["tree", "bush", "pileofbricks"]:
-            ld_sprites.extend(spritesheet_large_decor.load_sprites("large_decor", group))
+            large_decor_surfaces.extend(spritesheet_large_decor.load_sprites("large_decor", group))
+
+        spritesheet_tileset = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "tileset.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "tileset.json")
+        granite_sprites = spritesheet_tileset.load_sprites("tiles", "granite")
+        stone_sprites = spritesheet_tileset.load_sprites("tiles", "stone")
+
+        spritesheet_player = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "player.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "player.json")
+        player_idle_sprites = spritesheet_player.load_sprites("player", "idle")
+        player_run_sprites = spritesheet_player.load_sprites("player", "run")
+        player_jump_sprites = spritesheet_player.load_sprites("player", "jump")
+
+        for i, p in enumerate(player_idle_sprites.copy()):
+            x = pg.transform.scale_by(p, 0.64)
+            player_idle_sprites[i] = x
+        for i, p in enumerate(player_run_sprites.copy()):
+            x = pg.transform.scale_by(p, 0.64)
+            player_run_sprites[i] = x
+        for i, p in enumerate(player_jump_sprites.copy()):
+            x = pg.transform.scale_by(p, 0.64)
+            player_jump_sprites[i] = x
+
+        spritesheet_enemy_slime_idle = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy_slime_idle.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy_slime_idle.json")
+        enemy_slime_idle_sprites = spritesheet_enemy_slime_idle.load_sprites("enemy", "idle")
+
+        spritesheet_enemy_idle_run = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.json")
+        enemy_idle_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "idle")
+        enemy_run_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "run")
+
+        spritesheet_tileset_greenvalley = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.json")
+        grass_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grass")
+        grassplatform_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform")
 
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
-            misc_surf=dict(background=background.copy(), bg1=bg1, bg2=bg2, bg3=bg3, gun=gun, projectile=misc_surf_projectile),
+            misc_surf=dict(
+                background=background.copy(),
+                bg1=bg1,
+                bg2=bg2,
+                bg3=bg3,
+                # bg4=bg4,
+                gun=gun,
+                projectile=misc_surf_projectile,
+            ),
             misc_surfs=dict(stars=stars),
             tiles=dict(
                 # grid tiles
-                stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
-                granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
-                spike=cls.create_spike_surfaces(),
+                # stone=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.STONE)),
+                stone=stone_sprites,
+                # granite=list(pre.create_surfaces_partialfn(9, fill_color=pre.COLOR.GRANITE)),
+                grass=grass_sprites,
+                grassplatform=grassplatform_sprites,
+                granite=granite_sprites,
+                # spike=cls.create_spike_surfaces(),
+                spike=[
+                    pre.load_img(str(pre.IMGS_PATH / "tiles" / "spikes" / "0.png"), colorkey=pre.BLACK),
+                ],
                 # offgrid tiles
                 decor=decor,
-                large_decor=ld_sprites,
+                large_decor=large_decor_surfaces,
                 portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
             ),
             animations_entity=Assets.AnimationEntityAssets(
                 player=dict(
-                    idle=pre.Animation(player_idle_surf_frames, img_dur=6),
-                    run=pre.Animation(player_run_surf_frames, img_dur=4),
-                    jump=pre.Animation(player_jump_surf_frames, img_dur=4, loop=False),
+                    # idle=pre.Animation(player_idle_surf_frames, img_dur=6),
+                    # run=pre.Animation(player_run_surf_frames, img_dur=4),
+                    # jump=pre.Animation(player_jump_surf_frames, img_dur=4, loop=False),
+                    # idle=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "player" / "idle"), colorkey=pre.BLACK), img_dur=6),
+                    # run=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "player" / "run"), colorkey=pre.BLACK), img_dur=4),
+                    # jump=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "player" / "jump"), colorkey=pre.BLACK), img_dur=6, loop=False),
+                    idle=pre.Animation(player_idle_sprites, img_dur=12),
+                    run=pre.Animation(player_run_sprites, img_dur=4),
+                    jump=pre.Animation(player_jump_sprites, img_dur=6, loop=False),
                 ),
                 enemy=dict(
-                    sleeping=pre.Animation(enemy_sleeping_surfs, img_dur=18),
-                    idle=pre.Animation([enemy_entity_surf.copy()], img_dur=6),
-                    run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
+                    # sleeping=pre.Animation(enemy_sleeping_surfs, img_dur=18),
+                    # sleeping=pre.Animation(enemy_sleeping_sprites, img_dur=18),
+                    # sleeping=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "enemy" / "idle"), colorkey=pre.BLACK), img_dur=18),
+                    # idle=pre.Animation([enemy_entity_surf.copy()], img_dur=6),
+                    # run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
+                    # idle=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "enemy" / "idle"), colorkey=pre.BLACK), img_dur=6),
+                    # run=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "enemy" / "run"), colorkey=pre.BLACK), img_dur=6),
+                    sleeping=pre.Animation(enemy_slime_idle_sprites, img_dur=12),
+                    idle=pre.Animation(enemy_slime_idle_sprites, img_dur=6),
+                    run=pre.Animation(enemy_slime_idle_sprites, img_dur=4),
                 ),
             ),
             animations_misc=Assets.AnimationMiscAssets(

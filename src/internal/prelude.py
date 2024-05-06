@@ -152,13 +152,18 @@ class EntityKind(Enum):
 
 @unique  # """Class decorator for enumerations ensuring unique member values."""
 class TileKind(Enum):
-    DECOR = "decor"
     GRANITE = "granite"
-    LARGE_DECOR = "large_decor"
-    PORTAL = "portal"
-    SPAWNERS = "spawners"
-    SPIKE = "spike"
+    GRASS = "grass"
+    GRASSPLATFORM = "grassplatform"
     STONE = "stone"
+
+    SPIKE = "spike"
+    PORTAL = "portal"
+
+    SPAWNERS = "spawners"
+
+    DECOR = "decor"
+    LARGE_DECOR = "large_decor"
 
 
 @unique  # """Class decorator for enumerations ensuring unique member values."""
@@ -563,8 +568,8 @@ TILE_SIZE = 16
 
 
 SCREEN_RESOLUTION_MODE = 0
-SCREEN_WIDTH = (960, 640)[SCREEN_RESOLUTION_MODE]
-SCREEN_HEIGHT = (630, 480)[SCREEN_RESOLUTION_MODE]
+SCREEN_WIDTH = (960, 640, 640, 320)[SCREEN_RESOLUTION_MODE]
+SCREEN_HEIGHT = (630, 480, 360, 180)[SCREEN_RESOLUTION_MODE]
 
 DIMENSIONS = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
 DIMENSIONS_HALF = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))
@@ -595,10 +600,11 @@ SPRITESHEET_PATH = None
 # colors:
 BLACK = (0, 0, 0)
 CHARCOAL = (10, 10, 10)
-GREEN = hsl_to_rgb(120, 1, 0.25)
+GREEN = (0, 255, 0) or hsl_to_rgb(120, 1, 0.25)
 # PINK = hsl_to_rgb(300, 0.26, 0.18)
 PINK = hsl_to_rgb(300, 0.36, 0.38)
-RED = hsl_to_rgb(0, 0.618, 0.328)
+RED = (255, 0, 0) or hsl_to_rgb(0, 0.618, 0.328)
+BLUE = (0, 0, 255)
 TRANSPARENT = (0, 0, 0, 0)
 WHITE = (255, 255, 255)
 
@@ -628,7 +634,7 @@ class COLOR:
     TRANSPARENTGLOW = (20, 20, 20)
 
     BACKGROUND = (12, 12, 14) or Palette.COLOR7
-    STAR = PINK or Palette.COLOR3
+    STAR = (200, 200, 200) or PINK or Palette.COLOR3
 
     FLAME = Palette.COLOR0
     FLAMEGLOW = Palette.COLOR0
@@ -692,8 +698,10 @@ NEIGHBOR_OFFSETS = {(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1)
 N_NEIGHBOR_OFFSETS = 9
 
 
-AUTOTILE_TYPES = {TileKind.STONE, TileKind.GRANITE}
-PHYSICS_TILES = {TileKind.STONE, TileKind.GRANITE}
+AUTOTILE_TYPES = {TileKind.STONE, TileKind.GRANITE, TileKind.GRASS}
+AUTOTILE_HORIZONTAL_TYPES = {TileKind.GRASSPLATFORM}
+
+PHYSICS_TILES = {TileKind.STONE, TileKind.GRANITE, TileKind.GRASS, TileKind.GRASSPLATFORM}
 
 SPAWNERS_KINDS = {EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL}  # not used for now
 
@@ -748,6 +756,39 @@ AUTOTILE_MAP = {
     tuple(sorted([(1, 0), (0, -1), (0, 1)])): AutotileID.MIDDLELEFT or 7,  # ENS
     tuple(sorted([(1, 0), (-1, 0), (0, 1), (0, -1)])): AutotileID.MIDDLECENTER or 8,  # EWSN
 }
+"""Coordinates for a minimum 9 cell or 6 cell similar tiles in contact with each other.
+
+Example::
+offsets::
+
+    [ (-1,-1) ( 0,-1) ( 1,-1 )
+      (-1, 0) ( 0, 0) ( 1, 0 )
+      (-1, 1) ( 0, 1) ( 1, 1 ) ]
+
+tiles::
+
+    { 0   1   2
+      7   8   3
+      6   5   4 }
+"""
+
+AUTOTILE_HORIZONTAL_MAP = {
+    tuple(sorted([(1, 0)])): AutotileID.TOPLEFT or 0,  # ES
+    tuple(sorted([(1, 0), (-1, 0)])): AutotileID.TOPCENTER or 1,  # ESW
+    tuple(sorted([(-1, 0)])): AutotileID.TOPRIGHT or 2,  # WS
+}
+"""Coordinates for a platform with only tiles in sequence without any similar tile above or below them.
+
+Example::
+
+    ```txt
+    #####
+    00000
+
+    #####
+    01112
+    ```
+"""
 
 ################################################################################
 ### SPIKE NON-PHYSICS TILE HITBOX TILING

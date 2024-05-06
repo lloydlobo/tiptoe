@@ -1,0 +1,38 @@
+{
+	"meta": {
+		"app": "manual",
+		"version": "0.1",
+		"image": "enemy_slime_idlw.png",
+		"size": {
+			"w": 64,
+			"h": 16
+		},
+		"scale": "1"
+	},
+	"enemy": {
+		"idle": {
+			"size": {
+				"w": 16,
+				"h": 16
+			},
+			"frames": [
+				{
+					"x": 0,
+					"y": 0
+				},
+				{
+					"x": 16,
+					"y": 0
+				},
+				{
+					"x": 32,
+					"y": 0
+				},
+				{
+					"x": 48,
+					"y": 0
+				}
+			]
+		}
+	}
+}

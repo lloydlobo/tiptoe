@@ -21,6 +21,7 @@ from pygame import Vector2 as vec2
 
 import internal.prelude as pre
 from internal.assets import Assets
+from internal.camera import SimpleCamera
 from internal.entities import Action, Enemy, PhysicalEntity, Player
 from internal.hud import render_debug_hud
 from internal.particle import Particle
@@ -78,137 +79,6 @@ class GameState(Enum):
     PAUSE = auto()
     EXIT = auto()
     NEXTLEVEL = auto()
-
-
-class SimpleCamera:
-    def __init__(self, size: tuple[int, int]) -> None:
-        self.size = pg.Vector2(size)
-        self.camera = pg.Rect(0, 0, self.size.x, self.size.y)
-        self.render_scroll = (0, 0)
-        self.scroll = pg.Vector2(0, 0)
-        self.scroll_ease: Final = pg.Vector2(1 / 32, 1 / 25)
-        # QUEST??? self.camera.size = self.screen.mustlock()
-
-    def update(self, target_pos: tuple[int, int]) -> None:
-        """Update the camera's position based on the target position.
-
-        Args:
-            target_pos (tuple[int, int]): The position (x, y) of the target object.
-        """
-        target_x = target_pos[0] - (self.size.x * 0.5)
-        target_y = target_pos[1] - (self.size.y * 0.5)
-
-        self.scroll.x += (target_x - self.scroll.x) * self.scroll_ease.x
-        self.scroll.y += (target_y - self.scroll.y) * self.scroll_ease.y
-        self.render_scroll = (int(self.scroll.x), int(self.scroll.y))
-
-    def _debug(self, surf: pg.SurfaceType, target_pos: tuple[int, int]) -> None:
-        tx = target_pos[0] - (self.size.x * 0.5)
-        ty = target_pos[1] - (self.size.y * 0.5)
-        rect = pg.Rect(tx - self.scroll.x, ty - self.scroll.y, self.size.x, self.size.y)
-
-        # draw the boundary
-        pg.draw.rect(surf, pre.GREEN, self.camera, width=2)
-        pg.draw.rect(surf, pre.PINK, rect, width=1)
-
-
-class Camera:
-    """Camera system for render scroll.
-
-    Ported from DaFluffyPotato's pygpen /misc/camera.py
-    """
-
-    def __init__(self, size: tuple[int, int], pos: tuple[int, int] = (0, 0), smoothness: int | float = 1, gridlock: Optional[Tilemap] = None) -> None:
-        self.size = vec2(size)
-        self.pos = vec2(pos)
-        self.smoothness = max(0.5, smoothness)
-        self.grid_withlock = gridlock
-        # render_scroll
-        self.pos_tupleint = int(self.pos.x), int(self.pos.y)
-
-        self.targetpos: Optional[tuple[int, int]] = None
-        self.targetrect: Optional[pg.Rect] = None
-        pass
-
-    @property
-    def target(self) -> Optional[tuple[int, int]]:
-        if self.targetrect:  # targetrect = pg.Rect(0, 0, 8, 16)
-            dx = self.targetrect.center[0] - int(self.size.x // 2)
-            dy = self.targetrect.center[1] - int(self.size.y // 2)
-            return (dx, dy)
-        elif self.targetpos:  # targetpos = (0, 0)
-            dx = self.targetpos[0] - int(self.size.x // 2)
-            dy = self.targetpos[1] - int(self.size.y // 2)
-            return (dx, dy)
-        return None
-
-    def set_target(self, target: Optional[tuple[int, int] | PhysicalEntity]) -> None:
-        if isinstance(target, pg.Rect) and hasattr(target, "center"):
-            # pprint((target.__dict__, time.time()))
-            self.targetrect = target
-            self.targetpos = None
-        elif isinstance(target, PhysicalEntity) and hasattr(target, "rect"):
-            # pprint((target.__dict__, time.time()))
-            self.targetrect = target.rect
-            self.targetpos = None
-        elif target is not None and isinstance(target, tuple) and len(target) == 2:
-            # pprint((target, time.time()))
-            self.targetrect = None
-            self.targetpos = target
-        else:
-            # pprint((target, time.time()))
-            self.targetrect = None
-            self.targetpos = None
-
-    def move(self, movement: tuple[int, int]) -> None:
-        self.pos += movement
-
-    def _update_pos_tupleint(self) -> None:
-        self.pos_tupleint = int(self.pos.x), int(self.pos.y)
-
-    def __iter__(self) -> Iterator[int]:
-        for val in self.pos_tupleint:
-            yield val
-
-    def __getitem__(self, itemindex: int) -> int:
-        """
-        x = self.camera_2[0]
-        y = self.camera_2[1]
-        """
-        if pre.DEBUG_GAME_ASSERTS:
-            try:
-                assert 0 <= itemindex < 2, f"want itemindex in {repr([0, 1])}, got {itemindex}"
-            except AssertionError:
-                raise AssertionError(f"assertion error while getting itemindex: {itemindex}")
-        return self.pos_tupleint[itemindex]
-
-    def update(self) -> None:
-        target = self.target
-        # pprint((target, time.time()))
-
-        # print(f"before smooth {self.pos}")
-        if not target:
-            return self._update_pos_tupleint()
-        self.pos.x = pre.Motion.pan_smooth(self.pos.x, target[0], self.smoothness)
-        self.pos.y = pre.Motion.pan_smooth(self.pos.y, target[1], self.smoothness)
-        # print(f"after smooth {self.pos}")
-
-        if not self.grid_withlock:
-            return self._update_pos_tupleint()
-        # print(f"after smooth berfore grid {self.pos}")
-        xhi = self.grid_withlock.dimensions.x * self.grid_withlock.tilesize - self.size.x
-        yhi = self.grid_withlock.dimensions.y * self.grid_withlock.tilesize - self.size.y
-        # TODO: fix clamp
-        if 0:
-            self.pos.x = pre.clamp(self.pos.x, 0, xhi)
-            self.pos.y = pre.clamp(self.pos.y, 0, yhi)
-        else:
-            # self.pos[0] = max(0, min(self.tilemap_lock.dimensions[0] * self.tilemap_lock.tile_size[0] - self.size[0], self.pos[0]))
-            # self.pos[1] = max(0, min(self.tilemap_lock.dimensions[1] * self.tilemap_lock.tile_size[1] - self.size[1], self.pos[1]))
-            self.pos.x = max(0, min(xhi, self.pos.x))
-            self.pos.y = max(0, min(yhi, self.pos.y))
-        # print(f"after smooth after grid {self.pos}")
-        return self._update_pos_tupleint()
 
 
 @dataclass
@@ -323,8 +193,6 @@ class Game:
         self.scroll_ease: Final = pg.Vector2(1 / 30, 1 / 30)
         self.camerasize = self.display.get_size()
         self.camera = SimpleCamera(size=self.camerasize)
-        self.camera_2 = Camera(size=(self.camerasize[0] - 14, self.camerasize[1] - 14), pos=(0, 0), smoothness=self.scroll_ease.x, gridlock=self.tilemap)
-        self.camera_2.set_target(self.player)
 
         # Transition: abs(self.transition) == 30 => opaque screen see nothing
         # self.transition is 0 see eeverything; load level when completely black
@@ -365,15 +233,16 @@ class Game:
         of the game, and renders the game.
         future: Track delta time between each loop to control rate of gameplay.
         """
-        pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
-        pg.mixer.music.set_volume(0.1)
+        # pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music"/ "intro_loop.wav").__str__())
+        pg.mixer.music.set_volume(0.5)
         pg.mixer.music.play(-1)
         if self.level == 0:
             self.sfx.playerspawn.play()
 
         surfw = pre.DIMENSIONS_HALF[0]
+        bg2_speed, bg3_speed = min(0.1, pre.TILE_SIZE / pre.FPS_CAP), min(0.4, (2 * pre.TILE_SIZE) / pre.FPS_CAP)  # slowest movement for sky, faster for clouds, fastest for mountains
         bg2_depth, bg3_depth = 0.3, 0.5
-        bg2_speed, bg3_speed = min(0.16, pre.TILE_SIZE / pre.FPS_CAP), min(0.4, (2 * pre.TILE_SIZE) / pre.FPS_CAP)  # slowest movement for sky, faster for clouds, fastest for mountains
         bg2_x = bg3_x = 0
         bg2_y = bg3_y = 0
 
@@ -389,27 +258,35 @@ class Game:
             self.display.fill((0, 0, 0, 0))
             self.display_2.blit(self.bg1, (0, 0))
 
-            bg2_x -= bg2_speed
-            # bg3_x -= bg3_speed
-            if bg2_x < -surfw:
-                bg2_x = 0
-            # if bg3_x < -surfw: bg3_x = 0
-            moveby_x = pre.Motion.lerp(24, 8, abs(1 - ((0.1328, 0.09)[randint(0, 1)] * 0.35 * math.sin((self.player.dash_time)))))  # always 0. use dash
-            moveby_y = pre.Motion.lerp(24, 8, abs(1 - (0.06 * 0.03 * 0.35 * math.sin((self.player.velocity.y)))))
-            bg2_y = max(0, moveby_y - self.camera.render_scroll[1] * bg2_depth)
-            bg3_x = max(0, moveby_x - self.camera.render_scroll[0] * bg3_depth)
-            bg3_y = max(0, moveby_y - self.camera.render_scroll[1] * bg3_depth)
+            if (_tmpflag_parallax_enableed := 1) and _tmpflag_parallax_enableed:
+                bg2_x -= bg2_speed
+                # bg3_x -= bg3_speed
+                if bg2_x < -surfw:
+                    bg2_x = 0
+                # if bg3_x < -surfw:
+                #     bg3_x = 0
+                moveby_x = pre.Motion.lerp(24, 8, abs(1 - ((0.1328, 0.09)[randint(0, 1)] * 0.35 * math.sin((self.player.dash_time)))))  # always 0. use dash
+                # moveby_y = pre.Motion.lerp(32, 16, abs(1 - (0.06 * 0.03 * 0.35 * math.sin((self.player.velocity.y)))))
+                moveby_y = pre.Motion.lerp(32, 16, abs(self.player.rect.bottom - self.dimensions.y))
 
-            if 0:  # easy on preformance
-                self.display_2.blit(self.bg2, (bg2_x, 0))
-                self.display_2.blit(self.bg2, ((bg2_x + surfw), 0))  # wrap around
-            self.display_2.blit(self.bg2, (bg2_x, bg2_y))
-            self.display_2.blit(self.bg2, ((bg2_x + surfw), bg2_y))  # wrap around
+                bg2_y = max(0, moveby_y - self.camera.render_scroll[1] * bg2_depth)
+                bg3_x = max(0, moveby_x - self.camera.render_scroll[0] * bg3_depth)
+                # bg3_x = max(0, 24 - self.camera.render_scroll[0] * bg3_depth)
+                bg3_y = max(0, moveby_y - self.camera.render_scroll[1] * bg3_depth)
+
+            if 1:  # easy on preformance
+                self.display_2.blit(self.bg2, (-bg2_x, 0))
+                self.display_2.blit(self.bg2, (-(bg2_x + surfw), 0))  # wrap around
+            else:
+                self.display_2.blit(self.bg2, (bg2_x, bg2_y))
+                self.display_2.blit(self.bg2, ((bg2_x + surfw), bg2_y))  # wrap around
+
             if 0:  # easy on preformance
                 self.display_2.blit(self.bg3, (0, bg3_y))
                 self.display_2.blit(self.bg3, (0 + surfw, bg3_y))  # wrap around
-            self.display_2.blit(self.bg3, (bg3_x, bg3_y))
-            self.display_2.blit(self.bg3, (bg3_x - surfw, bg3_y))  # wrap around
+            else:
+                self.display_2.blit(self.bg3, (bg3_x, bg3_y))
+                self.display_2.blit(self.bg3, (bg3_x - surfw, bg3_y))  # wrap around
 
             if (_tmpflag_rewind_glitch_enabled := 0) and _tmpflag_rewind_glitch_enabled:
                 # QUEST: introduce absurd rewinding checkpoints when in 'Delirium' in later levels ???
@@ -513,6 +390,7 @@ class Game:
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
         self.screenshake = 0
+        self.camera.reset()
         try:
             assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
         except AssertionError as e:
@@ -618,30 +496,27 @@ class Game:
             time.sleep(0.150)
 
     def update(self) -> None:
+
         # Camera: update and parallax
         if 0:
             self.scroll.x += (self.player.rect.centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self.scroll_ease.x
             self.scroll.y += (self.player.rect.centery - (self.display.get_height() * 0.5) - self.scroll.y) * self.scroll_ease.y
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
         else:
-            if 0:
-                self.camera_2.update()
-                # self.camera_2.move(movement=(self.movement.right, self.movement.left))
-                render_scroll = self.camera_2[0], self.camera_2[1]
-                # self.camera_2.move(render_scroll)
-                if 0:
-                    pprint(self.camera_2.__dict__)
-            else:
-                _target = self.player.rect
-                self.camera.update((_target.x, _target.y))
-                render_scroll = self.camera.render_scroll
+            _target = self.player.rect
+            # print(_target.bottom, _target.bottom // 2)
+            self.camera.update((_target.centerx, _target.bottom // 2), map_size=(pre.DIMENSIONS_HALF[0] * 3, pre.DIMENSIONS_HALF[1]), dt=self.dt)
+            render_scroll = self.camera.render_scroll
+
+            if pre.DEBUG_GAME_HUD:
+                self.camera.debug(self.display_2, (int(_target.x), int(_target.y)))
 
         # Mouse: cursor position with offset
         raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
         mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
-        # render blob mouse
         if 0:
+            # Render mouse blog
             mouse_surf = self.assets.misc_surf.get("mouse")
             if mouse_surf:
                 dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
@@ -736,12 +611,14 @@ class Game:
         # Enemy: update and render
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
-            match enemy.action:
-                case Action.SLEEPING:  # avoid border shadow
-                    enemy.render(self.display_2, render_scroll)
-                case _:
-                    enemy.render(self.display, render_scroll)
-                    pass
+            enemy.render(self.display, render_scroll)
+            if 0: # no border for sleeping invisibility
+                match enemy.action:
+                    case Action.SLEEPING:  # avoid border shadow
+                        enemy.render(self.display_2, render_scroll)
+                    case _:
+                        enemy.render(self.display, render_scroll)
+                        pass
             if kill_animation:
                 self.enemies.remove(enemy)
 
