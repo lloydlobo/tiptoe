@@ -188,27 +188,21 @@ class Assets:
         granite_sprites = spritesheet_tileset.load_sprites("tiles", "granite")
         stone_sprites = spritesheet_tileset.load_sprites("tiles", "stone")
 
-        spritesheet_player = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "player.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "player.json")
+        spritesheet_enemy = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy.json")
+        enemy_idle_sprites = spritesheet_enemy.load_sprites("enemy", "idle")
+        enemy_run_sprites = spritesheet_enemy.load_sprites("enemy", "idle")
+        enemy_jump_sprites = spritesheet_enemy.load_sprites("enemy", "idle")
+        spritesheet_player = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "player1.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "player1.json")
         player_idle_sprites = spritesheet_player.load_sprites("player", "idle")
-        player_run_sprites = spritesheet_player.load_sprites("player", "run")
-        player_jump_sprites = spritesheet_player.load_sprites("player", "jump")
-
-        for i, p in enumerate(player_idle_sprites.copy()):
-            x = pg.transform.scale_by(p, 0.64)
-            player_idle_sprites[i] = x
-        for i, p in enumerate(player_run_sprites.copy()):
-            x = pg.transform.scale_by(p, 0.64)
-            player_run_sprites[i] = x
-        for i, p in enumerate(player_jump_sprites.copy()):
-            x = pg.transform.scale_by(p, 0.64)
-            player_jump_sprites[i] = x
+        player_run_sprites = spritesheet_player.load_sprites("player", "idle")
+        player_jump_sprites = spritesheet_player.load_sprites("player", "idle")
 
         spritesheet_enemy_slime_idle = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy_slime_idle.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy_slime_idle.json")
         enemy_slime_idle_sprites = spritesheet_enemy_slime_idle.load_sprites("enemy", "idle")
 
-        spritesheet_enemy_idle_run = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.json")
-        enemy_idle_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "idle")
-        enemy_run_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "run")
+        # spritesheet_enemy_idle_run = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "enemy_idle_run.json")
+        # enemy_idle_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "idle")
+        # enemy_run_sprites = spritesheet_enemy_idle_run.load_sprites("enemy", "run")
 
         spritesheet_tileset_greenvalley = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "tilesetmapdecorations.json")
         grass_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grass")
@@ -263,9 +257,9 @@ class Assets:
                     # run=pre.Animation(list(pre.create_surfaces_partialfn(count=8, fill_color=pre.COLOR.ENEMY, size=pre.SIZE.ENEMYJUMP)), img_dur=4),
                     # idle=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "enemy" / "idle"), colorkey=pre.BLACK), img_dur=6),
                     # run=pre.Animation(pre.load_imgs(str(pre.IMGS_PATH / "entities" / "enemy" / "run"), colorkey=pre.BLACK), img_dur=6),
-                    sleeping=pre.Animation(enemy_slime_idle_sprites, img_dur=12),
-                    idle=pre.Animation(enemy_slime_idle_sprites, img_dur=6),
-                    run=pre.Animation(enemy_slime_idle_sprites, img_dur=4),
+                    sleeping=pre.Animation(enemy_idle_sprites, img_dur=12),
+                    idle=pre.Animation(enemy_idle_sprites, img_dur=6),
+                    run=pre.Animation(enemy_run_sprites, img_dur=4),
                 ),
             ),
             animations_misc=Assets.AnimationMiscAssets(

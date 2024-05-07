@@ -7,22 +7,20 @@ import sys
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from functools import partial
 from os import listdir, path
 from pathlib import Path
 from pprint import pprint  # pyright: ignore
 from random import randint, random, uniform
-from typing import Final, Iterator, NoReturn, Optional
+from typing import Final, NoReturn, Optional
 
 import pygame as pg
-from pygame import Vector2 as vec2
 
 import internal.prelude as pre
 from internal.assets import Assets
 from internal.camera import SimpleCamera
-from internal.entities import Action, Enemy, PhysicalEntity, Player
+from internal.entities import Action, Enemy, Player
 from internal.hud import render_debug_hud
 from internal.particle import Particle
 from internal.spark import Spark
@@ -34,10 +32,8 @@ from internal.tilemap import Tilemap
 def quit_exit(context: str = "") -> NoReturn:
     if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
         print(f"{pre.hsl_to_rgb.cache_info() = }")
-
     if context:
         print(f"{context}")
-
     pg.quit()
     sys.exit()
 
@@ -91,20 +87,16 @@ class Game:
     def __init__(self) -> None:
         pg.init()
 
-        # note: hwsurface flag does nothing in pygameg ver2.0+, doublebuf has
-        # someuse, but not a magic speed up flag. see
-        # https://www.pygame.org/docs/tut/newbieguide.html
-        display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE
+        # note: hwsurface flag does nothing in pygameg ver2.0+, doublebuf has someuse, but not a magic speed up flag.
+        # see https://www.pygame.org/docs/tut/newbieguide.html
+        display_flags = pg.DOUBLEBUF | pg.NOFRAME | pg.HWSURFACE  # SCLAED | FULLSCREEN
 
         # self.dimensions = pg.display.Info().current_w, pg.display.Info().current_h
         self.mainscreen = None  # @property ??
         self.screen = pg.display.set_mode(pre.DIMENSIONS, pg.RESIZABLE, display_flags)
         self.dimensions = pg.Vector2(pre.DIMENSIONS)
 
-        # |> see github:pygame/examples/resizing_new.py | Diagnostics:
-        # "_set_autoresize" is not a known member of module "pygame.display"
-        # [reportAttributeAccessIssue]
-        pg.display._set_autoresize(False)  # pyright: ignore ^
+        pg.display._set_autoresize(False)  # pyright: ignore |> see github:pygame/examples/resizing_new.py
         pg.display.set_caption(pre.CAPTION)
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
@@ -132,17 +124,7 @@ class Game:
         _star_count = self.config_handler.star_count  # can panic if we get a float or string
         self._star_count: Final[int] = min(64, max(16, _star_count or pre.TILE_SIZE * 2))
 
-        def new_asset_mouse_crossaim() -> pg.SurfaceType:
-            # QUEST: use as player death anim similar to Celeste's Madeline
-            # rotating circles
-            mouse_size = pg.Vector2(pre.TILE_SIZE // 4)
-            mouse_surf = pg.Surface(mouse_size).convert()
-            mouse_surf.set_colorkey(pre.BLACK)
-            pg.draw.circle(mouse_surf, pre.COLOR.FLAMEGLOW, mouse_size // 2, pre.TILE_SIZE // 2, width=0)
-            return mouse_surf
-
         self.assets = Assets.initialize_assets()
-        self.assets.misc_surf.update({"mouse": new_asset_mouse_crossaim()})
 
         self.sfx = SFX(
             # fmt: off
@@ -194,8 +176,9 @@ class Game:
         self.camerasize = self.display.get_size()
         self.camera = SimpleCamera(size=self.camerasize)
 
-        # Transition: abs(self.transition) == 30 => opaque screen see nothing
-        # self.transition is 0 see eeverything; load level when completely black
+        # Transition:
+        #   abs(self.transition) == 30 => opaque screen see nothing
+        #   self.transition is 0 see eeverything; load level when completely black
         self._transition_lo: Final = -30
         self._transition_mid: Final = 0
         self._transition_hi: Final = 30
@@ -233,16 +216,16 @@ class Game:
         of the game, and renders the game.
         future: Track delta time between each loop to control rate of gameplay.
         """
-        # pg.mixer.music.load((pre.SRC_DATA_PATH / "music.wav").__str__())
-        pg.mixer.music.load((pre.SRC_DATA_PATH / "music"/ "intro_loop.wav").__str__())
-        pg.mixer.music.set_volume(0.5)
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / "intro_loop.wav").__str__())
+        pg.mixer.music.set_volume(0.2)
         pg.mixer.music.play(-1)
+
         if self.level == 0:
             self.sfx.playerspawn.play()
 
         surfw = pre.DIMENSIONS_HALF[0]
-        bg2_speed, bg3_speed = min(0.1, pre.TILE_SIZE / pre.FPS_CAP), min(0.4, (2 * pre.TILE_SIZE) / pre.FPS_CAP)  # slowest movement for sky, faster for clouds, fastest for mountains
-        bg2_depth, bg3_depth = 0.3, 0.5
+        bg2_speed, bg3_speed = 0.1, 0.4
+        bg2_depth, bg3_depth = 0.1, 0.8
         bg2_x = bg3_x = 0
         bg2_y = bg3_y = 0
 
@@ -254,40 +237,34 @@ class Game:
 
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
-
             self.display.fill((0, 0, 0, 0))
             self.display_2.blit(self.bg1, (0, 0))
-
             if (_tmpflag_parallax_enableed := 1) and _tmpflag_parallax_enableed:
                 bg2_x -= bg2_speed
-                # bg3_x -= bg3_speed
                 if bg2_x < -surfw:
                     bg2_x = 0
-                # if bg3_x < -surfw:
-                #     bg3_x = 0
-                moveby_x = pre.Motion.lerp(24, 8, abs(1 - ((0.1328, 0.09)[randint(0, 1)] * 0.35 * math.sin((self.player.dash_time)))))  # always 0. use dash
-                # moveby_y = pre.Motion.lerp(32, 16, abs(1 - (0.06 * 0.03 * 0.35 * math.sin((self.player.velocity.y)))))
-                moveby_y = pre.Motion.lerp(32, 16, abs(self.player.rect.bottom - self.dimensions.y))
-
-                bg2_y = max(0, moveby_y - self.camera.render_scroll[1] * bg2_depth)
-                bg3_x = max(0, moveby_x - self.camera.render_scroll[0] * bg3_depth)
-                # bg3_x = max(0, 24 - self.camera.render_scroll[0] * bg3_depth)
-                bg3_y = max(0, moveby_y - self.camera.render_scroll[1] * bg3_depth)
-
-            if 1:  # easy on preformance
-                self.display_2.blit(self.bg2, (-bg2_x, 0))
-                self.display_2.blit(self.bg2, (-(bg2_x + surfw), 0))  # wrap around
+                # bg3_x -= bg3_speed
+                # if bg3_x < -surfw: bg3_x = 0
+                # moveby_x = pre.Motion.lerp(24, 8, abs(1 - ((0.1328, 0.09)[randint(0, 1)] * 0.35 * math.sin((self.player.dash_time)))))  # always 0. use dash
+                # moveby_x = 0  # always 0. use dash
+                # moveafter_x = self.dimensions.x / 2  # or use 4
+                moveafter_x = self.level_map_size[0]  # this fixes, full range movement of bg3 mountains from start to end
+                moveafter_y = pre.Motion.lerp(32, 16, abs(self.player.pos.y - self.dimensions.y))
+                bg2_y = max(0, (moveafter_y - self.camera.render_scroll[1]) * bg2_depth)
+                bg3_x = max(0, (moveafter_x - self.camera.render_scroll[0]) * bg3_speed * bg3_depth)
+                bg3_y = max(0, moveafter_y - self.camera.render_scroll[1] // 2 * bg3_depth)
+            if 0:  # easy on performance
+                self.display_2.blit(self.bg2, (bg2_x, 0))
+                self.display_2.blit(self.bg2, ((bg2_x + surfw), 0))  # wrap around
             else:
                 self.display_2.blit(self.bg2, (bg2_x, bg2_y))
                 self.display_2.blit(self.bg2, ((bg2_x + surfw), bg2_y))  # wrap around
-
-            if 0:  # easy on preformance
+            if 0:  # easy on performance
                 self.display_2.blit(self.bg3, (0, bg3_y))
                 self.display_2.blit(self.bg3, (0 + surfw, bg3_y))  # wrap around
             else:
                 self.display_2.blit(self.bg3, (bg3_x, bg3_y))
-                self.display_2.blit(self.bg3, (bg3_x - surfw, bg3_y))  # wrap around
-
+                self.display_2.blit(self.bg3, ((bg3_x - surfw), bg3_y))  # wrap around
             if (_tmpflag_rewind_glitch_enabled := 0) and _tmpflag_rewind_glitch_enabled:
                 # QUEST: introduce absurd rewinding checkpoints when in 'Delirium' in later levels ???
                 if gcs_timer > 0 and (2 * (gcs_timer + 1)) % pre.FPS_CAP == 0:
@@ -305,8 +282,6 @@ class Game:
             # note: exit game loop while self.running and continue on from the caller
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 self.running = False
-                # context: gameover->mainmenu->playing->pressed Escape
-                # leads to gameover but want mainmenu[pause like]
                 try:
                     assert not self.gameover, "failed to overide gameover flag after reset"
                 except AssertionError as e:
@@ -342,16 +317,17 @@ class Game:
 
     def render(self) -> None:
         """Render display."""
-        # self.display.fill((0, 0, 0, 0))
-        # self.display_2.blit(self.assets.misc_surf["background"], (0, 0))
-
         self.display_2.blit(self.display, (0, 0))
-
-        _offset = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - (self.screenshake * 0.5), (self.screenshake * random()) - (self.screenshake * 0.5))
+        _offset = (
+            (0, 0)
+            if not self.config_handler.screenshake
+            else (
+                (self.screenshake * random()) - (self.screenshake * 0.5),
+                (self.screenshake * random()) - (self.screenshake * 0.5),
+            )
+        )
         self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _offset)
-
-        # Draw: final display
-        pg.display.flip()  # update: whole screen
+        pg.display.flip()
 
     def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
         surf = font.render(text, True, color)
@@ -360,8 +336,8 @@ class Game:
         self.display.blit(surf, rect)
 
     def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | Game"]):
-        # delete existing screen (NOTE: are we deleting game copy?)
         if self.mainscreen != None:
+            # delete existing screen (QUEST?: are we deleting game copy?)
             del self.mainscreen
             self.mainscreen = None
 
@@ -374,8 +350,7 @@ class Game:
         if self.gameover:
             return AppState.MENUSTATE, GameState.EXIT
         elif not self.running:
-            # NOTE: we could just set gamestate form keyeven or update loop
-
+            # note: we could just set gamestate form keyevent or update loop
             return AppState.GAMESTATE, GameState.NEXTLEVEL
 
     def reset_game(self) -> None:
@@ -396,8 +371,9 @@ class Game:
         except AssertionError as e:
             self.gameover = False  # -> this fixes: in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there
             print(f"error while running game from reset_game():\n\t{e}", file=sys.stderr)
+
         self.level = 0
-        self.lvl_load_level(self.level)  # TODO: offload it to loading screen as it is going to call it?
+        self.lvl_load_level(self.level)
 
     def _lvl_load_level_map(self, map_id: int):
         self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
@@ -414,8 +390,13 @@ class Game:
         progress = 0
         if progressbar is not None:
             progressbar.put(progress)
+        self.level_map_size = (pre.DIMENSIONS_HALF[0] * 3, pre.DIMENSIONS_HALF[1])
+        """self.level_map_size::
+
+        This is used to update camera based on each level's tilemap's dimension limit... hardcoded for now"""
 
         self._lvl_load_level_map(map_id)
+
         if 0:
             try:
                 assert not self.gameover, f"want gameover flag to be false. got {self.gameover=}"
@@ -436,7 +417,6 @@ class Game:
         self.bg3 = self.assets.misc_surf["bg3"]
 
         # SPAWNERS
-        # increment = math.floor((90 - progress) / len(_spwn_kinds))  # FIXME: can be wrong
         self.ftorch_spawners = [
             pg.Rect(
                 max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x,
@@ -505,7 +485,7 @@ class Game:
         else:
             _target = self.player.rect
             # print(_target.bottom, _target.bottom // 2)
-            self.camera.update((_target.centerx, _target.bottom // 2), map_size=(pre.DIMENSIONS_HALF[0] * 3, pre.DIMENSIONS_HALF[1]), dt=self.dt)
+            self.camera.update((_target.centerx, _target.bottom // 2), map_size=self.level_map_size, dt=self.dt)
             render_scroll = self.camera.render_scroll
 
             if pre.DEBUG_GAME_HUD:
@@ -612,7 +592,7 @@ class Game:
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
             enemy.render(self.display, render_scroll)
-            if 0: # no border for sleeping invisibility
+            if 0:  # no border for sleeping invisibility
                 match enemy.action:
                     case Action.SLEEPING:  # avoid border shadow
                         enemy.render(self.display_2, render_scroll)

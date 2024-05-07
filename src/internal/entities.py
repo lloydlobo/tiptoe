@@ -239,7 +239,7 @@ class Enemy(PhysicalEntity):
 
             case _:  # todo: see what's cooking here...
                 if (_tmp_featur_sleeping := 1) and _tmp_featur_sleeping:
-                    threat_dist = pre.TILE_SIZE * 10
+                    threat_dist = pre.TILE_SIZE * 12
                     player_distance_to_enemy = self.game.player.pos.distance_to(self.pos)
                     self.is_player_close_by = (abs(player_distance_to_enemy)) < threat_dist
                 pass
