@@ -1,8 +1,10 @@
 # vim: modeline
 
+import argparse
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import pygame as pg
 
@@ -12,7 +14,7 @@ from internal.tilemap import TileItem, Tilemap, pos_to_loc
 
 
 class Editor:
-    def __init__(self) -> None:
+    def __init__(self, level_id: Optional[int] = None) -> None:
         pg.init()
 
         display_flags = pg.HWSURFACE | pg.DOUBLEBUF | pg.NOFRAME
@@ -38,7 +40,9 @@ class Editor:
         self.last_save_time_readable: None | str = None
 
         # NOTE: custom level loading from here.. available levels==[0,1]
-        self.level = 0
+        # level =
+
+        self.level = level_id if level_id is not None else 0
         self.load_level(self.level)
 
     def load_level(self, map_id: int) -> None:
@@ -209,7 +213,24 @@ class Editor:
 
 
 if __name__ == "__main__":
-    Editor().run()
+    """
+    usage: editor.py [-h]
+
+    options:
+      -h, --help  show this help message and exit
+
+    Example::
+
+       $ python src/editor.py 0
+       $ python src/editor.py 1
+    """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("level", help="edit map for given level id", type=int)
+    args = parser.parse_args()
+
+    ed = Editor(level_id=int(args.level))
+    ed.run()
 
 # The line beneath this is called `modeline`. See `:help modeline`
 # vim: ts=2 sts=2 sw=2 et

@@ -216,7 +216,16 @@ class Game:
         of the game, and renders the game.
         future: Track delta time between each loop to control rate of gameplay.
         """
-        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / "intro_loop.wav").__str__())
+        level_music_filename = "intro_loop.wav"
+        match self.level:
+            case 0:
+                level_music_filename = "theme_1.wav"
+            case 1:
+                level_music_filename = "theme_2.wav"
+            case _:
+                pass
+
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / level_music_filename).__str__())
         pg.mixer.music.set_volume(0.2)
         pg.mixer.music.play(-1)
 
@@ -1051,8 +1060,8 @@ class StartScreen:
 
     def run(self) -> None:
         # play background music
-        pg.mixer.music.load(pre.SRC_DATA_PATH / "music.wav")
-        pg.mixer.music.set_volume(0.5)  # HACK: does this affect all from here?
+        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "intro_loop.wav")
+        pg.mixer.music.set_volume(0.3)
         pg.mixer.music.play(loops=-1)
 
         while self.running:
