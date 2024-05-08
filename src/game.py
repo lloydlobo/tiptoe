@@ -309,17 +309,17 @@ class Game:
                     self.movement.left = True
                 if event.key == pg.K_RIGHT:
                     self.movement.right = True
-                if event.key == pg.K_UP:
+                if event.key in (pg.K_SPACE, pg.K_c):
                     if self.player.jump():
                         self.sfx.jump.play()
-                if event.key == pg.K_DOWN:
+                if event.key in (pg.K_x, pg.K_v):
                     self.player.dash()
-                if event.key == pg.K_c:
+                if event.key == pg.K_s:  # set checkpoint
                     self.gts_record_checkpoint()
-                if event.key == pg.K_x:
-                    self.gts_rewind_checkpoint()
                 if event.key == pg.K_z:
                     self.gts_rewind_recent_checkpoint()
+                if event.key == pg.K_d:
+                    self.gts_rewind_checkpoint()
             if event.type == pg.KEYUP:
                 if event.key == pg.K_LEFT:
                     self.movement.left = False
