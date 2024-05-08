@@ -438,6 +438,15 @@ class Game:
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
         self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
+        self.bouncepad_spawners = [
+            pg.Rect(
+                tileitem.pos.x,
+                tileitem.pos.y + 32 - 8,  # 4 thickness
+                pre.TILE_SIZE,  # actual w 16
+                pre.TILE_SIZE,  # actual h 64
+            )
+            for tileitem in self.tilemap.extract([("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True)
+        ]
 
         progress += 10
         if progressbar is not None:
@@ -453,7 +462,7 @@ class Game:
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
                     self.player.pos = spawner.pos.copy()
-                    self.player.air_time = 0  # Reset time to avoid multiple spawns during fall
+                    self.player.air_timer = 0  # Reset time to avoid multiple spawns during fall
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
                 case pre.SpawnerKind.PORTAL:
@@ -613,9 +622,16 @@ class Game:
             if kill_animation:
                 self.enemies.remove(enemy)
 
-        for spike_rect in self.spike_spawners:
-            if self.player.rect.colliderect(spike_rect):
+        for rect_spike in self.spike_spawners:
+            if self.player.rect.colliderect(rect_spike):
                 self.dead += 1
+        for rect_bp in self.bouncepad_spawners:
+            self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1])) # for debugging
+            if self.player.rect.colliderect(rect_bp):
+                # self.player.velocity.y = -(3.5) # default jump force + ..
+                self.player.jump()
+                self.player.air_timer = 0  # HACK: to avoid simulating freefall death
+                self.player.velocity.y = -5
 
         _radius_ = 2
         for i, state in enumerate(self.gcs_states):

@@ -420,7 +420,7 @@ class Player(PhysicalEntity):
         super().__init__(game, pre.EntityKind.PLAYER, pos, size)  # NOTE: allow entity kind to be passed to Player class, to use switchable player mid games
 
         # Constants
-        self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
+        self._air_time_freefall_death: Final = 2.5 * pre.FPS_CAP  # 120 or 2 seconds
         self._coyote_timer_hi = 0.2  # 0.2 sec
         self._coyote_timer_lo = 0.0
         self._dash_force: Final = 8

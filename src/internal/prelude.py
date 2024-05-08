@@ -157,7 +157,10 @@ class TileKind(Enum):
     GRASSPLATFORM = "grassplatform"
     STONE = "stone"
 
+    # spawner tiles
     SPIKE = "spike"
+    BOUNCEPAD = "bouncepad"
+    # special level spawner entry exit tile
     PORTAL = "portal"
 
     SPAWNERS = "spawners"

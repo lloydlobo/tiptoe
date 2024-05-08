@@ -96,6 +96,8 @@ class Assets:
         grass_sprites: list[pg.SurfaceType] = spritesheet_tileset_greenvalley.load_sprites("tiles", "grass")
         grassplatform_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform")
 
+        spritesheet_bouncepad = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "bouncepad.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "bouncepad.json")
+        bouncepad_sprites = spritesheet_bouncepad.load_sprites("tiles", "bouncepad")
         return cls(
             entity=dict(),
             misc_surf=dict(),
@@ -108,7 +110,9 @@ class Assets:
                 granite=granite_sprites,
                 grass=grass_sprites,  # NOTE: if sprite isn't loaded, it is still a physical tile but transparent
                 grassplatform=grassplatform_sprites,
+                # spawned tiles
                 spike=cls.create_spike_surfaces(),
+                bouncepad=bouncepad_sprites,
                 # offgrid tiles
                 decor=decor,
                 large_decor=ld_sprites,
@@ -208,6 +212,9 @@ class Assets:
         grass_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grass")
         grassplatform_sprites = spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform")
 
+        spritesheet_bouncepad = Spritesheet(sheet_path=pre.IMGS_PATH / "spritesheets" / "bouncepad.png", metadata_path=pre.IMGS_PATH / "spritesheets" / "bouncepad.json")
+        bouncepad_sprites = spritesheet_bouncepad.load_sprites("tiles", "bouncepad")
+
         return cls(
             entity=dict(enemy=enemy_entity_surf, player=player_entity_surf),
             misc_surf=dict(
@@ -232,6 +239,7 @@ class Assets:
                 spike=[
                     pre.load_img(str(pre.IMGS_PATH / "tiles" / "spikes" / "0.png"), colorkey=pre.BLACK),
                 ],
+                bouncepad=bouncepad_sprites,
                 # offgrid tiles
                 decor=decor,
                 large_decor=large_decor_surfaces,
