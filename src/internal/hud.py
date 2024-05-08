@@ -47,7 +47,7 @@ def render_debug_hud(game: Game, surface: pg.SurfaceType, render_scroll: tuple[i
             f"PLYR_FLIP.{str(game.player.flip).upper()}",
             f"PLYR_POS.{game.player.pos.__round__(0)}",
             f"PLYR_VEL.{str(game.player.velocity.__round__(0))}",
-            f"PLYR_DASH.{str(game.player.dash_time)}",
+            f"PLYR_DASH.{str(game.player.dash_timer)}",
             ##################################
         )
     )

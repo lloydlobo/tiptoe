@@ -198,6 +198,8 @@ class Game:
         enemy_positions = [(e.pos.x, e.pos.y) for e in self.enemies]
 
         self.gcs_states.appendleft(GameCheckpointState(player_position, enemy_positions))
+        if self.gcs_states.__len__() > 3:
+            self.gcs_states.pop()
 
     def gts_rewind_checkpoint(self):
         if self.gcs_states:
@@ -615,6 +617,29 @@ class Game:
             if self.player.rect.colliderect(spike_rect):
                 self.dead += 1
 
+        _radius_ = 2
+        for i, state in enumerate(self.gcs_states):
+            _r = _radius_ * (1 + 1 / (1 + i))
+            # _r *=  _radius_ * abs(math.sin(1.618 / (i + 1))) * 0.328
+            # _r *= _radius_ * 0.1618
+
+            pg.draw.circle(
+                self.display,
+                pre.GREENGLOW,
+                # pre.BLUEGLOW,
+                center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])),
+                radius=(_r + 1),
+            )
+            pg.draw.circle(
+                self.display,
+                pre.GREENBLURB,
+                center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])),
+                radius=_r,
+            )
+
+            if pre.DEBUG_GAME_STRESSTEST:
+                self.draw_text(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
+
         # Player: update and render
         if not self.dead:
             self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
@@ -640,7 +665,7 @@ class Game:
                 self.sfx.hitwall.play()
             elif projectile.timer > 360:
                 self.projectiles.remove(projectile)
-            elif abs(self.player.dash_time) < self.player.dash_time_burst_2:  # vulnerable player
+            elif abs(self.player.dash_timer) < self.player.dash_time_burst_2:  # vulnerable player
                 if self.player.rect.collidepoint(projectile_x, projectile_y):
                     # Player looses health but still alive
                     if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):

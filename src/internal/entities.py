@@ -259,7 +259,7 @@ class Enemy(PhysicalEntity):
 
         # Enemy: sleepy slumber like death!
         player = self.game.player
-        player_invincible = abs(player.dash_time) > player.dash_time_burst_2
+        player_invincible = abs(player.dash_timer) > player.dash_time_burst_2
         if player_invincible:
             if player.rect.colliderect(self.rect):
                 if self._can_die:
@@ -411,18 +411,22 @@ class Enemy(PhysicalEntity):
             self.alert_timer = self._max_alert_time
 
 
+
+
 class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.PLAYER, pos, size)  # NOTE: allow entity kind to be passed to Player class, to use switchable player mid games
 
         # Constants
         self._air_time_freefall_death: Final = 2 * pre.FPS_CAP  # 120 or 2 seconds
-        self._jump_thrust: Final = 3
+        self._coyote_timer_hi = 0.1
+        self._coyote_timer_lo = 0.0
         self._dash_thrust: Final = 8
-        self._jumps: Final = 2
+        self._jump_thrust: Final = 3
+        self._jumps: Final = 1
         self._max_air_time: Final = 5
-        self.max_dead_hit_skipped_counter: Final = 3
         self._max_dash_time: Final = 60  # directional velocity vector
+        self.max_dead_hit_skipped_counter: Final = 3
 
         self.dash_time_burst_1: Final = self._max_dash_time
         self.dash_time_burst_2: Final = 50
@@ -432,8 +436,9 @@ class Player(PhysicalEntity):
         self._drawcircle_starfn = partial(pg.draw.circle, color=pre.COLOR.PLAYERSTAR)
 
         # Timers
-        self.air_time = 0
-        self.dash_time = 0
+        self.air_timer = 0
+        self.dash_timer = 0
+        self.coyote_timer = self._coyote_timer_lo
 
         # Flags
         self.jumps = self._jumps
@@ -449,32 +454,30 @@ class Player(PhysicalEntity):
         """
         super().update(tilemap, movement)
 
-        self.air_time += 1
+        self.air_timer += 1
 
         # Handle death by air fall
-        if self.air_time > self._air_time_freefall_death:
+        if self.air_timer > self._air_time_freefall_death:
             if not self.game.dead:
                 self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 1)
             self.game.dead += 1  # Increment dead timer
 
         # Reset times when touch ground
         if self.collisions.down:
-            if self.air_time > self._max_air_time:  # Credit: mrc
-                # TODO:
-                #    self.game.sfx["land_anim"]
-                # print(f"{time.time()}: render land anim")
-                # print(f"{time.time()}: play land sound")
+            if self.air_timer > self._max_air_time:  # Credit: mrc
                 self.game.sfx.jumplanding.play()
-                pass
-            self.air_time = 0
+
+            self.air_timer = 0
+            self.coyote_timer = self._coyote_timer_hi
             self.jumps = self._jumps
         else:
-            pass
+            self.coyote_timer -= 1 / pre.FPS_CAP
             # self.air_time += self.game.clock_dt
+            pass
 
         # Update action based on player state
         if not self.wall_slide:
-            if self.air_time > self._max_air_time - 1:
+            if self.air_timer > self._max_air_time - 1:
                 self.set_action(Action.JUMP)
             elif movement.x != 0:
                 self.set_action(Action.RUN)
@@ -482,31 +485,28 @@ class Player(PhysicalEntity):
                 self.set_action(Action.IDLE)  # Player IDLE state blends into the nearby color and can't be seen by enemies
 
         # Handle dash
-        if abs(self.dash_time) in {self.dash_time_burst_1, self.dash_time_burst_2}:
-            # TODO: spawn dash burst particles
-            pass
-        if self.dash_time > 0:  # 0:60
-            self.dash_time = max(0, self.dash_time - 1)
-        if self.dash_time < 0:  # -60:0
-            self.dash_time = min(0, self.dash_time + 1)
-        if abs(self.dash_time) > 50:  # at first ten frames of dash abs(60 -> 50)
-            self.velocity.x = self._dash_thrust * (abs(self.dash_time) / self.dash_time)  # Modify speed based on direction
-            if abs(self.dash_time) == 51:
+        if abs(self.dash_timer) in {self.dash_time_burst_1, self.dash_time_burst_2}:
+            pass # note: spawn dash burst particles
+        if self.dash_timer > 0:  # 0:60
+            self.dash_timer = max(0, self.dash_timer - 1)
+        if self.dash_timer < 0:  # -60:0
+            self.dash_timer = min(0, self.dash_timer + 1)
+        if abs(self.dash_timer) > 50:  # at first ten frames of dash abs(60 -> 50)
+            self.velocity.x = self._dash_thrust * (abs(self.dash_timer) / self.dash_timer)  # Modify speed based on direction
+            if abs(self.dash_timer) == 51:
                 self.velocity.x *= 0.1  # Deceleration also acts as a cooldown for next trigger
-            # TODO: spawn dash streeam particles
-            pass
-
+            # note: spawn dash streeam particles
         # Normalize horizontal velocity
         self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
-
         return True
 
     def jump(self) -> bool:
         """Returns True if player jumps successfully"""
-        if self.jumps:
+        if self.jumps and self.coyote_timer > self._coyote_timer_lo:
             self.velocity.y = -self._jump_thrust  # Go up in -y direction
             self.jumps -= 1
-            self.air_time = self._max_air_time
+            self.air_timer = self._max_air_time
+            self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
             return True  # hack: play jump sound at the caller
         return False
 
@@ -514,11 +514,11 @@ class Player(PhysicalEntity):
         """Initiate a dash action"""
         dash = True
 
-        match self.dash_time, self.flip:
+        match self.dash_timer, self.flip:
             case 0, True:
-                self.dash_time = -self._max_dash_time
+                self.dash_timer = -self._max_dash_time
             case 0, False:
-                self.dash_time = self._max_dash_time
+                self.dash_timer = self._max_dash_time
             case _:
                 dash = False
         if dash:
@@ -530,7 +530,7 @@ class Player(PhysicalEntity):
     def calculate_bezier_particle_radius(self) -> float:
         """Example:: 0.68 1.37 2.08 2.80 3.52 4 4 4 4 4"""
         pstar_radius: Final = pre.SIZE.PLAYERSTARDASHRADIUS[0]
-        dash_amount: Final = abs(self.dash_time)
+        dash_amount: Final = abs(self.dash_timer)
         t = 1.0 - (dash_amount / self._max_dash_time)  # Calculate the Bezier curve parameter t
         radius = ((1 - t) ** 2 * 0) + (2 * t * (1 - t) * 1) + (t**2 * 3)  # Calculate the radius based on the Bezier curve quadratic formula
         radius *= pstar_radius * 0.5  # Scale the radius based on the maximum dash time and the playersstar dash size
@@ -549,8 +549,8 @@ class Player(PhysicalEntity):
         """
         # The order of rendering matters. The starplayer should not be overwritten by the player during the initial dash burst.
         # But how does it affect performance?
-        near_freefall_death = self.air_time + self._max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death  # ^ how to use this as walrus operator?
-        if (not (abs(self.dash_time) <= self.dash_time_burst_2)) or near_freefall_death:
+        near_freefall_death = self.air_timer + self._max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death  # ^ how to use this as walrus operator?
+        if (not (abs(self.dash_timer) <= self.dash_time_burst_2)) or near_freefall_death:
             self._drawcircle_starfn(
                 surface=surf,
                 center=(self.pos - offset),
@@ -564,7 +564,7 @@ class Player(PhysicalEntity):
                     center=(self.pos - offset),
                     radius=self.calculate_bezier_particle_radius() * 1.328,
                 )
-            if not self.game.screen.get_rect().contains(self.rect) and self.air_time >= self._air_time_freefall_death:  # dying
+            if not self.game.screen.get_rect().contains(self.rect) and self.air_timer >= self._air_time_freefall_death:  # dying
                 self._drawcircle_starfn(
                     surface=surf,
                     center=(self.pos - offset),
