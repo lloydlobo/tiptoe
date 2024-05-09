@@ -158,7 +158,8 @@ class Game:
         self.sfx.shoot.set_volume(0.1)
         self.sfx.shootmiss.set_volume(0.2)
 
-        self._player_starting_pos: Final = pg.Vector2(104, 145) or pg.Vector2(50, 50)
+        # self._player_starting_pos: Final = pg.Vector2(104, 145) or pg.Vector2(50, 50)
+        self._player_starting_pos: Final = pg.Vector2(50, 50)
         self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
@@ -368,6 +369,7 @@ class Game:
         self.clock = pg.time.Clock()
         self.dt = 0
 
+
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
@@ -375,8 +377,8 @@ class Game:
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
-        self.screenshake = 0
         self.camera.reset()
+        self.screenshake = 0
         try:
             assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
         except AssertionError as e:
@@ -462,7 +464,8 @@ class Game:
 
         self.particles: list[Particle] = []
 
-        self.scroll = pg.Vector2(0.0, 0.0)
+        self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
+        self.camera.reset()
 
         self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...

@@ -27,10 +27,10 @@ class SimpleCamera:
         self._camera_font = pg.font.SysFont("monospace", 9, bold=True)
 
     def reset(self):
-        # NOTE: can just init on each level 
+        # NOTE: can just init on each level
         self.camera = pg.Rect(0, 0, self.size.x, self.size.y)
-        self.render_scroll = (0, 0)
         self.scroll = vec2(0, 0)
+        self.render_scroll = (0, 0)
         self._tmp_target_xy = (0, 0)
 
     # map_size: (476, 312)
