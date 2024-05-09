@@ -32,20 +32,26 @@ void UpdateFoos(const FooUpdateIn* in, size_t count, FooUpdateOut* out, float f)
 
 from __future__ import annotations
 
+import itertools as it
 import json
 import sys
 from collections import defaultdict, deque, namedtuple
 from collections.abc import Iterator
 from copy import deepcopy
 from functools import partial
+from pprint import pprint
 from typing import (
     TYPE_CHECKING,
+    Dict,
     Final,
     Iterable,
+    List,
     Mapping,
     MutableSequence,
     Optional,
     Sequence,
+    Set,
+    Tuple,
     TypedDict,
     Union,
 )
@@ -70,7 +76,7 @@ def pos_to_loc(x: int | float, y: int | float, offset: Union[tuple[int | float, 
 
 
 pos_to_loc_partial: partial[str] = partial(pos_to_loc)
-pos_to_loc_wo_offset_partial: partial[str] = partial(pos_to_loc, offset=None)
+pos_to_loc_nooffset_partialfn: partial[str] = partial(pos_to_loc, offset=None)
 
 
 @dataclass
@@ -112,7 +118,7 @@ class Tilemap:
         self._autotile_map: Final = pre.AUTOTILE_MAP  # 9 cells
         self._autotile_types: Final = pre.AUTOTILE_TYPES
         self._autotile_horizontal_map: Final = pre.AUTOTILE_HORIZONTAL_MAP  # 3 cells
-        self._autotile_horizontal_types: Final = pre.AUTOTILE_TYPES
+        self._autotile_horizontal_types: Final = pre.AUTOTILE_HORIZONTAL_TYPES
         self._neighbour_offsets: Final = pre.NEIGHBOR_OFFSETS
         self._physics_tiles: Final = pre.PHYSICS_TILES
         self._loc_format = f"{{}};{{}}"  # Pre-calculate string format
@@ -208,55 +214,87 @@ class Tilemap:
         dimensions_r = self._pg_rect_p_fn(0, 0, self.dimensions.x, self.dimensions.y)
         return dimensions_r.collidepoint(*gridpos)
 
-    # note: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`
-    # perf: can use -shift in offset param
-    # perf: maybe use a priority queue instead of a set
-    # note: `loc` should be int not floats int string e.g. `3;10` not `3.0;10.0`
-    # perf: can use -shift in offset param
-    # perf: maybe use a priority queue instead of a set
-
     def autotile(self) -> None:
-        _directions: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
-        _directions_horizontal: Final = ((-1, 0), (1, 0))
-        neighbors: set[tuple[int, int]] = set()
+        directions_matrix: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
+        directions_horizontal: Final = ((-1, 0), (1, 0))
+        _directions_vertical: Final = ((0, -1), (0, 1))
 
-        for tile in self.tilemap.values():
-            if tile.kind in self._autotile_types:
-                for dir in _directions:
-                    loc = tile.pos + dir
-                    if (check_loc := pos_to_loc_wo_offset_partial(loc.x, loc.y)) in self.tilemap:
-                        if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
-                            neighbors.add(dir)
+        def sort_key(item: TileItem) -> str:
+            if item.kind in self._autotile_types:
+                return "matrix"
+            elif item.kind in self._autotile_horizontal_types:
+                return "horizontal"
+            else:
+                return "none"
 
-                sn = tuple(sorted(neighbors))
-                if sn in self._autotile_map:
-                    tile.variant = self._autotile_map[sn]
-                neighbors.clear()
-            elif tile.kind not in self._autotile_horizontal_types:
-                for dir in _directions_horizontal:
-                    loc = tile.pos + dir
-                    if (check_loc := pos_to_loc_wo_offset_partial(loc.x, loc.y)) in self.tilemap:
-                        if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
-                            neighbors.add(dir)
-                sorted_ngbrs = tuple(sorted(neighbors))
-                if sorted_ngbrs in self._autotile_horizontal_map:
-                    tile.variant = self._autotile_horizontal_map[sorted_ngbrs]
-                neighbors.clear()
+        tiles = self.tilemap.values()
+        sorted_tiles = sorted(tiles, key=lambda item: item.kind.value)
+        grouped_tiles = {kind: list(items) for kind, items in it.groupby(sorted_tiles, key=sort_key)}
 
-    def save(self, path: str) -> None:
-        # TODO: convert path type from str to use Path
-        with open(path, "w") as f:
-            json.dump(
-                dict(tile_size=self.tilesize, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()),
-                f,
+        none_tiles = grouped_tiles.get("none", None)
+        assert none_tiles is None, f"want no tiles to be grouped in none key. got {none_tiles}"
+
+        for tile in grouped_tiles["matrix"]:
+            neighbors = set(
+                (x, y)
+                for (x, y) in directions_matrix
+                if (
+                    ngbr_loc := f"{int(tile.pos.x+x)};{int(tile.pos.y+y)}",
+                    item := self.tilemap.get(ngbr_loc, None),
+                )
+                and item
+                and item.kind == tile.kind
             )
+            if (sorted_ngbrs := tuple(sorted(neighbors))) in self._autotile_map:
+                tile_loc = f"{int(tile.pos.x)};{int(tile.pos.y)}"
+                self.tilemap[tile_loc].variant = self._autotile_map[sorted_ngbrs]
 
-    def load(self, path: str) -> None:
-        # TODO: convert path type from str to use Path
-        map_data = None
+        for tile in grouped_tiles["horizontal"]:
+            neighbors = set(
+                (x, y)
+                for (x, y) in directions_horizontal
+                if (
+                    ngbr_loc := f"{int(tile.pos.x+x)};{int(tile.pos.y+y)}",
+                    item := self.tilemap.get(ngbr_loc, None),
+                )
+                and item
+                and item.kind == tile.kind
+            )
+            if (sorted_ngbrs := tuple(sorted(neighbors))) in self._autotile_horizontal_map:
+                tile_loc = f"{int(tile.pos.x)};{int(tile.pos.y)}"
+                self.tilemap[tile_loc].variant = self._autotile_horizontal_map[sorted_ngbrs]
+
+        if 0:  # old code works and is simple
+            neighbors: set[tuple[int, int]] = set()
+            for tile in self.tilemap.values():
+                if tile.kind in self._autotile_types:
+                    for dir in directions_matrix:
+                        loc = tile.pos + dir
+                        if (check_loc := pos_to_loc_nooffset_partialfn(loc.x, loc.y)) in self.tilemap:
+                            if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
+                                neighbors.add(dir)
+                    sn = tuple(sorted(neighbors))
+                    if sn in self._autotile_map:
+                        tile.variant = self._autotile_map[sn]
+                    neighbors.clear()
+                elif tile.kind in self._autotile_horizontal_types:
+                    for dir in directions_horizontal:
+                        loc = tile.pos + dir
+                        if (check_loc := pos_to_loc_nooffset_partialfn(loc.x, loc.y)) in self.tilemap:
+                            if self.tilemap[check_loc].kind == tile.kind:  # no worries if a different variant
+                                neighbors.add(dir)
+                    sorted_ngbrs = tuple(sorted(neighbors))
+                    if sorted_ngbrs in self._autotile_horizontal_map:
+                        tile.variant = self._autotile_horizontal_map[sorted_ngbrs]
+                    neighbors.clear()
+
+    def save(self, path: str) -> None:  # TODO: convert path type from str to use Path
+        with open(path, "w") as f:
+            json.dump(dict(tile_size=self.tilesize, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()), f)
+
+    def load(self, path: str) -> None:  # TODO: convert path type from str to use Path
         with open(path, "r") as f:
             map_data = json.load(f)
-        if map_data:
             self.tilesize = map_data["tile_size"]
             if pre.DEBUG_GAME_ASSERTS:
                 assert isinstance(self.tilesize, int), f"want int got. {type(self.tilesize)}"
@@ -289,33 +327,15 @@ class Tilemap:
 
     @staticmethod
     def offgrid_tiles_json_to_dataclass(data: Sequence[TileItemJSON]) -> Iterator[TileItem]:
-        return (
-            TileItem(
-                kind=pre.TileKind(tile["kind"]),
-                pos=pg.Vector2(tile["pos"]),
-                variant=tile["variant"],
-            )
-            for tile in data
-        )
+        return (TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"]) for tile in data)
 
     @staticmethod
     def vec2_jsonstr(vec2: pg.Vector2) -> str:
-        # return f"{vec2.x:.0f};{vec2.y:.0f}"  # Using f-string formatting for clarity
         return f"{int(vec2.x)};{int(vec2.y)}"
 
     @staticmethod
     def tilemap_json_to_dataclass(data: Mapping[str, TileItemJSON]) -> Iterator[tuple[str, TileItem]]:
-        return (
-            (
-                key,
-                TileItem(
-                    kind=pre.TileKind(tile["kind"]),
-                    pos=pg.Vector2(tile["pos"]),
-                    variant=tile["variant"],
-                ),
-            )
-            for key, tile in data.items()
-        )
+        return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
 
     @classmethod
     def spawn_spikes(cls, spikes: Sequence[TileItem]) -> Iterator[pg.Rect]:

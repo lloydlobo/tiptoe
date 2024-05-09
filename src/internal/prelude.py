@@ -138,35 +138,28 @@ class ParticleKind(Enum):
 
     FLAME = "flame"
     FLAMEGLOW = "flameglow"
-    PARTICLE = "particle"  # player particle
+    PARTICLE = "particle"  # player dash particle
 
 
 # @unique
 class EntityKind(Enum):
-    PLAYER = "player"
     ENEMY = "enemy"
-    # note: is portal an entity? if it can teleport and move then maybe consider it.
+    PLAYER = "player"
     PORTAL = "portal"
-    # PORTAL2 = "portal2"
 
 
 @unique  # """Class decorator for enumerations ensuring unique member values."""
 class TileKind(Enum):
+    BOUNCEPAD = "bouncepad"
+    DECOR = "decor"
     GRANITE = "granite"
     GRASS = "grass"
     GRASSPLATFORM = "grassplatform"
-    STONE = "stone"
-
-    # spawner tiles
-    SPIKE = "spike"
-    BOUNCEPAD = "bouncepad"
-    # special level spawner entry exit tile
-    PORTAL = "portal"
-
-    SPAWNERS = "spawners"
-
-    DECOR = "decor"
     LARGE_DECOR = "large_decor"
+    PORTAL = "portal"
+    SPAWNERS = "spawners"
+    SPIKE = "spike"
+    STONE = "stone"
 
 
 @unique  # """Class decorator for enumerations ensuring unique member values."""
@@ -182,9 +175,7 @@ class SpawnerKind(Enum):
     PLAYER = 0
     ENEMY = 1
     PORTAL = 2
-    # PORTAL2 = 3
 
-    # PERF: use cls classmethod instead?
     def as_entity(self, entity_kind: EntityKind):
         match entity_kind:
             case EntityKind.PLAYER:
@@ -193,15 +184,12 @@ class SpawnerKind(Enum):
                 return self.ENEMY
             case EntityKind.PORTAL:
                 return self.PORTAL
-            # case EntityKind.PORTAL2:
-            #     return self.PORTAL2
 
 
 @dataclass
 class Movement:
     """Movement is a dataclass of 4 booleans for each of the 4 cardinal
     directions where movement is possible.
-
     Note: False == 0 and True == 1
 
     Example::
@@ -219,7 +207,6 @@ class Movement:
 class Collisions:
     """Collisions is a dataclass of 4 booleans for each of the 4 cardinal
     directions where collisions are possible.
-
     Note: False == 0 and True == 1
 
     Example::
@@ -255,9 +242,6 @@ class Motion:
     @lru_cache
     @staticmethod
     def pan_smooth(value: int | float, target: int, smoothness: int | float = 1) -> int | float:
-        # def smooth_approach(val, target, slowness=1):
-        #     val += (target - val) / slowness * min(elems['Window'].dt, slowness)
-        #     return val
         value += (target - value) / smoothness * min(pg.time.get_ticks() * 0.001, smoothness)
         return value
 
@@ -532,8 +516,7 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
         case _:  # default
             r_prime, g_prime, b_prime = c, 0.0, x
 
-    # convert to 0-255 scale
-    #   note: round() instead of int() helps in precision. e.g. gray 127 -> 128
+    # convert to 0-255 scale, note: round() instead of int() helps in precision. e.g. gray 127 -> 128
     return ColorKind(round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
 
 
@@ -560,7 +543,6 @@ FPS_CAP = 60
 
 FPS of 60 == 16 milliseconds per frame
 1000ms / FPS = ms per frame.
-
 If it takes longer than 16 ms to render a frame, game slows down.
 """
 
@@ -568,7 +550,6 @@ CAMERA_SPEED = 2  # use with editor camera move fast around the world
 RENDER_SCALE = 2  # for editor
 SCALE = 0.5
 TILE_SIZE = 16
-
 
 SCREEN_RESOLUTION_MODE = 0
 SCREEN_WIDTH = (960, 640, 640, 320)[SCREEN_RESOLUTION_MODE]
@@ -602,19 +583,20 @@ SPRITESHEET_PATH = None
 
 # colors:
 BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
+BLUE = (0, 0, 255)
+BLUEGLOW = hsl_to_rgb(220, 0.618, 0.618) or (10, 10, 180)
 CHARCOAL = (10, 10, 10)
 GREEN = (0, 255, 0) or hsl_to_rgb(120, 1, 0.25)
 GREENBLURB = (20, 222, 20) or hsl_to_rgb(120, 1, 0.25)
 GREENGLOW = (20, 127, 20) or hsl_to_rgb(120, 1, 0.25)
-# PINK = hsl_to_rgb(300, 0.26, 0.18)
 PINK = hsl_to_rgb(300, 0.36, 0.38)
-RED = (255, 0, 0) or hsl_to_rgb(0, 0.618, 0.328)
 PURPLEBLURB = hsl_to_rgb(220, 0.6, 0.8) or (255, 0, 0)
 PURPLEGLOW = hsl_to_rgb(220, 0.75, 0.6) or (255, 0, 0)
-BLUE = (0, 0, 255)
-BLUEGLOW = hsl_to_rgb(220, 0.618, 0.618) or (10, 10, 180)
+RED = (255, 0, 0) or hsl_to_rgb(0, 0.618, 0.328)
+
 TRANSPARENT = (0, 0, 0, 0)
-WHITE = (255, 255, 255)
 
 
 @dataclass
@@ -810,24 +792,115 @@ SPIKE_CONFIGURATIONS = [
     {'position': (10, 0), 'size': (6, 16), 'orientation': 'right'},
 ]
 
-# import pygame as pg
-# from pygame import Rect
-# SPIKE_CONFIGS = {
-#     'bottom': (16, 6, lambda pos, size, grace: Rect(pos.x + grace / 2, pos.y + (size - 6), 16 - grace, 6)),
-#     'top': (16, 6, lambda pos, grace: Rect(pos.x + grace / 2, pos.y, 16 - grace, 6)),
-#     'left': (6, 16, lambda pos, grace: Rect(pos.x, pos.y + grace / 2, 6, 16 - grace)),
-#     'right': (6, 16, lambda pos, size, grace: Rect(pos.x + (size - 6), pos.y + grace / 2, 6, 16 - grace))
-# }
-# class MyClass:
-#     def __init__(self):
-#         self.spike_tiles_hitbox = []
-#         for spike in self.tilemap.extract([("spike", v) for v in range(4)], keep=True):
-#             cfg = SPIKE_CONFIGS.get(spike.orientation)
-#             if not cfg:
-#                 raise ValueError(f"Invalid spike orientation: {spike.orientation}")
-#             w, h, rect_func = cfg
-#             rect = rect_func(spike.pos, pre.TILE_SIZE, _spikegrace)
-#             self.spike_tiles_hitbox.append(rect)
+################################################################################
+### MATH
+################################################################################
+
+
+class Math:
+    """Collection of utility functions for mathematical operations."""
+
+    @staticmethod
+    def advance_vec2_ip(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
+        """Advances a 2D vector (pg.Vector2) by a given angle and amount in place.
+
+        Args:
+            vec2: The pg.Vector2 object representing the 2D vector to advance.
+            angle: The angle in radians to move the vector.
+            amount: The distance to move the vector along the specified angle.
+
+        This function modifies the `vec2` object in-place and returns None.
+        """
+        vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
+
+    # @dataclass
+    # class UnitState:
+    #     pos: Vec2Type  # pyright: ignore
+    #     max_distance: float
+    #
+    # @staticmethod
+    # def move_to_unitstate(unit: UnitState, next_pos: UnitState, max_dist: Number):
+    #     x1, y1 = unit.pos
+    #     x2, y2 = next_pos.pos
+    #     dx, dy = x2 - x1, y2 - y1
+    #     dist_squared = dx * dx + dy * dy
+    #     if dist_squared <= max_dist * max_dist:
+    #         unit.pos = next_pos.pos
+    #     else:
+    #         dist = float(math.sqrt(float(dist_squared)))
+    #         ratio = max_dist / dist
+    #         unit.pos = (x1 + dx * ratio, y1 + dy * ratio)
+    #
+    # @staticmethod
+    # def move_to_vec2(unit: pg.Vector2, next_pos: pg.Vector2, max_dist: Number):
+    #     x1, y1 = iter(unit)
+    #     x2, y2 = iter(next_pos)
+    #     dx, dy = x2 - x1, y2 - y1
+    #     dist_squared = dx * dx + dy * dy
+    #     if dist_squared <= max_dist * max_dist:
+    #         unit = next_pos
+    #     else:
+    #         dist = float(math.sqrt(float(dist_squared)))
+    #         ratio = max_dist / dist
+    #         unit = pg.Vector2(x1 + dx * ratio, y1 + dy * ratio)
+    #
+    # @staticmethod
+    # def move_to(unit: tuple[Number, Number], next_pos: tuple[Number, Number], max_dist: Number):
+    #     x1, y1 = iter(unit)
+    #     x2, y2 = iter(next_pos)
+    #     dx, dy = x2 - x1, y2 - y1
+    #     dist_squared = dx * dx + dy * dy
+    #     if dist_squared <= max_dist * max_dist:
+    #         unit = next_pos
+    #     else:
+    #         dist = float(math.sqrt(float(dist_squared)))
+    #         ratio = max_dist / dist
+    #         unit = (x1 + dx * ratio, y1 + dy * ratio)
+    #
+    #
+    # @staticmethod
+    # def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
+    #     """Advances a 2D point represented by a list of floats by a given angle and amount in place.
+    #
+    #     Args:
+    #         point2: A list of two floats representing the x and y coordinates of the 2D point.
+    #         angle: The angle in radians to move the point.
+    #         amount: The distance to move the point along the specified angle.
+    #
+    #     This function modifies the `point2` list in-place and returns None.
+    #
+    #     Raises:
+    #         AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
+    #     """
+    #     if DEBUG_GAME_ASSERTS:
+    #         assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+    #
+    #     point2[0] += math.cos(angle) * amount
+    #     point2[1] += math.sin(angle) * amount
+    #
+    # @staticmethod
+    # def advance_int2_ip(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
+    #     """Advances a 2D point represented by a list of integers by a given angle and amount.
+    #
+    #     **Important:** This function uses floor division (`//`) to convert potentially floating-point
+    #                   calculations to integers before assigning them to the list elements.
+    #
+    #     Args:
+    #         point2: A list of two integers representing the x and y coordinates of the 2D point.
+    #         angle: The angle in radians to move the point.
+    #         amount: The distance to move the point along the specified angle.
+    #
+    #     This function modifies the `point2` list in-place and returns None.
+    #
+    #     Raises:
+    #         AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
+    #     """
+    #     if DEBUG_GAME_ASSERTS:
+    #         assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
+    #
+    #     point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
+    #     point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
+
 
 ################################################################################
 ### SURFACE PYGAME
@@ -858,17 +931,11 @@ def surfaces_vfx_outline_offsets_animation_frames(
     """Returns a Generator for a sequence of surfaces snake chasing it's tail
     effect in clockwise motion.
     """
-    return (
-        surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst))
-        for _ in range(iterations)
-        for ofst in offsets
-        # if ofst != (0, 0)
-    )
+    return (surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst)) for _ in range(iterations) for ofst in offsets)
 
 
 def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):
     """Get a iterable generator of all surfaces that contain a point (x,y).
-
     Source: https://www.pygame.org/docs/tut/newbieguide.html
     """
     return (s for s in sprites if s.get_rect().collidepoint(pos))
@@ -876,17 +943,12 @@ def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):
 
 def rects_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.Rect]):
     """Get a iterable generator of all rects that contain a point (x,y).
-
     Source: https://www.pygame.org/docs/tut/newbieguide.html
     """
     return (s for s in sprites if s.collidepoint(pos))
 
 
-def create_surface(
-    size: tuple[int, int],
-    colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int] | ColorValue,
-) -> pg.SurfaceType:
+def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -914,12 +976,7 @@ Returns:
 """
 
 
-def create_surface_withalpha(
-    size: tuple[int, int],
-    colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int] | ColorValue,
-    alpha: int,
-) -> pg.SurfaceType:
+def create_surface_withalpha(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue, alpha: int) -> pg.SurfaceType:
     surf = pg.Surface(size).convert_alpha()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -938,10 +995,7 @@ New create_surface_withalpha function with partial application of colorkey argum
 
 
 def create_surfaces(
-    count: int,
-    fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK,
-    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
-    colorkey: ColorValue = BLACK,
+    count: int, fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK
 ) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
         return (create_surface(size, colorkey, fill_color) for _ in range(count))
@@ -953,132 +1007,17 @@ create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial
 
 
 def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
-    # FIXME:
     """Special case for flameglow particle and should not be used here for
     general circle creation.
     """
-
     surf = pg.Surface(size).convert()
     ca, cb = iter(size)
     center = ca * 0.5, cb * 0.5
     radius = center[0]
-    # rect = pg.draw.circle(surf, BLACK, center, radius * 2)
-    _rect = pg.draw.circle(surf, fill_color, center, radius)
-    # rect = pg.draw.ellipse(surf, fill_color, rect)
-    # rect = pg.draw.ellipse(surf, (127,20,20), rect)
-    # rect = pg.draw.circle(surf, (127,20,20), center, radius)
+    pg.draw.circle(surf, fill_color, center, radius)
     surf.set_colorkey(colorkey)
     return surf
 
 
 create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
 create_circle_surf_partialfn.__doc__ = """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
-
-
-################################################################################
-### MATH
-################################################################################
-
-
-class Math:
-    """Collection of utility functions for mathematical operations."""
-
-    @dataclass
-    class UnitState:
-        pos: Vec2Type  # pyright: ignore
-        max_distance: float
-
-    @staticmethod
-    def move_to_unitstate(unit: UnitState, next_pos: UnitState, max_dist: Number):
-        x1, y1 = unit.pos
-        x2, y2 = next_pos.pos
-        dx, dy = x2 - x1, y2 - y1
-        dist_squared = dx * dx + dy * dy
-        if dist_squared <= max_dist * max_dist:
-            unit.pos = next_pos.pos
-        else:
-            dist = float(math.sqrt(float(dist_squared)))
-            ratio = max_dist / dist
-            unit.pos = (x1 + dx * ratio, y1 + dy * ratio)
-
-    @staticmethod
-    def move_to_vec2(unit: pg.Vector2, next_pos: pg.Vector2, max_dist: Number):
-        x1, y1 = iter(unit)
-        x2, y2 = iter(next_pos)
-        dx, dy = x2 - x1, y2 - y1
-        dist_squared = dx * dx + dy * dy
-        if dist_squared <= max_dist * max_dist:
-            unit = next_pos
-        else:
-            dist = float(math.sqrt(float(dist_squared)))
-            ratio = max_dist / dist
-            unit = pg.Vector2(x1 + dx * ratio, y1 + dy * ratio)
-
-    @staticmethod
-    def move_to(unit: tuple[Number, Number], next_pos: tuple[Number, Number], max_dist: Number):
-        x1, y1 = iter(unit)
-        x2, y2 = iter(next_pos)
-        dx, dy = x2 - x1, y2 - y1
-        dist_squared = dx * dx + dy * dy
-        if dist_squared <= max_dist * max_dist:
-            unit = next_pos
-        else:
-            dist = float(math.sqrt(float(dist_squared)))
-            ratio = max_dist / dist
-            unit = (x1 + dx * ratio, y1 + dy * ratio)
-
-    @staticmethod
-    def advance_vec2_ip(vec2: pg.Vector2, angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """Advances a 2D vector (pg.Vector2) by a given angle and amount in place.
-
-        Args:
-            vec2: The pg.Vector2 object representing the 2D vector to advance.
-            angle: The angle in radians to move the vector.
-            amount: The distance to move the vector along the specified angle.
-
-        This function modifies the `vec2` object in-place and returns None.
-        """
-        vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
-
-    @staticmethod
-    def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """Advances a 2D point represented by a list of floats by a given angle and amount in place.
-
-        Args:
-            point2: A list of two floats representing the x and y coordinates of the 2D point.
-            angle: The angle in radians to move the point.
-            amount: The distance to move the point along the specified angle.
-
-        This function modifies the `point2` list in-place and returns None.
-
-        Raises:
-            AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
-        """
-        if DEBUG_GAME_ASSERTS:
-            assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-
-        point2[0] += math.cos(angle) * amount
-        point2[1] += math.sin(angle) * amount
-
-    @staticmethod
-    def advance_int2_ip(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
-        """Advances a 2D point represented by a list of integers by a given angle and amount.
-
-        **Important:** This function uses floor division (`//`) to convert potentially floating-point
-                      calculations to integers before assigning them to the list elements.
-
-        Args:
-            point2: A list of two integers representing the x and y coordinates of the 2D point.
-            angle: The angle in radians to move the point.
-            amount: The distance to move the point along the specified angle.
-
-        This function modifies the `point2` list in-place and returns None.
-
-        Raises:
-            AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
-        """
-        if DEBUG_GAME_ASSERTS:
-            assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-
-        point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
-        point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
