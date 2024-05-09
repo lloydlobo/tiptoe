@@ -164,8 +164,9 @@ class Enemy(PhysicalEntity):
 
         self.is_player_close_by = False
 
-        self._max_sleep_time = 60 * 1
+        self.max_sleep_time = 60 * 1
         self.sleep_timer = 0  # QUEST: draw colorful stars inside the sleeping enemy as it blends with background color
+        self.dashed_by_player = False
 
         # self.laser_ray = pre.create_surface((7, 2), pre.BLACK, pre.GREEN)
 
@@ -263,6 +264,7 @@ class Enemy(PhysicalEntity):
                 self.set_action(Action.IDLE)
 
         # Enemy: sleepy slumber like death!
+        self.dashed_by_player = False  # reset each loop
         player_invincible = abs(self.game.player.dash_timer) > self.game.player.dash_time_burst_2
         if player_invincible:
             if self.game.player.rect.colliderect(self.rect):
@@ -270,12 +272,22 @@ class Enemy(PhysicalEntity):
                     # todo: do sparky stuff
                     return True
                 self.set_action(Action.SLEEPING)
-                self.sleep_timer = self._max_sleep_time
+                self.sleep_timer = self.max_sleep_time
+                if 1:  # pushed by player
+                    if not self.dashed_by_player:
+                        player = self.game.player
+                        self.pos = player.pos.copy()
+                        self.flip = not self.flip
+                        self.velocity.y = player.velocity.y / 4
+                        self.velocity.x = 1.5 if self.flip else -1.5
                 return False
 
         #   todo: ....
         #   if _dead_condition:
         #       return True
+
+        # Normalize horizontal velocity(copied from player)
+        self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
 
         return False  # Enemy: alive
 
@@ -472,6 +484,7 @@ class Player(PhysicalEntity):
         if (self.collisions.left or self.collisions.right) and (self.air_timer > self._max_air_time - 1):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
+            self.air_timer = self._max_air_time  # FIX: trying to avoid player death while sliding for too long
             if 0:  # requires wall_slide animation, todo
                 self.flip = False if self.collisions.right else True
                 print("wall_slide_animation flipped")

@@ -205,12 +205,30 @@ class Game:
     def gts_rewind_checkpoint(self):
         if self.gcs_states:
             prev_gts = self.gcs_states.pop()
-            self.player.pos = pg.Vector2(prev_gts.player_pos)
+            self.gts_record_checkpoint()
+            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
+            for enemy in self.enemies:
+                if self.player.rect.colliderect(enemy.rect):
+                    enemy.pos = next_pos.copy()
+                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                    enemy.sleep_timer = enemy.max_sleep_time
+                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+
+            self.player.pos = next_pos.copy()
 
     def gts_rewind_recent_checkpoint(self):
         if self.gcs_states:
             prev_gts = self.gcs_states.popleft()
-            self.player.pos = pg.Vector2(prev_gts.player_pos)
+            self.gts_record_checkpoint()
+            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
+            for enemy in self.enemies:
+                if self.player.rect.colliderect(enemy.rect):
+                    enemy.pos = next_pos.copy()
+                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                    enemy.sleep_timer = enemy.max_sleep_time
+                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+
+            self.player.pos = next_pos.copy()
 
     def run(self) -> None:
         """This game loop runs continuously until the player opts out via inputs.
@@ -369,7 +387,6 @@ class Game:
         self.clock = pg.time.Clock()
         self.dt = 0
 
-
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
@@ -379,6 +396,7 @@ class Game:
 
         self.camera.reset()
         self.screenshake = 0
+
         try:
             assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
         except AssertionError as e:
@@ -408,8 +426,10 @@ class Game:
 
         self.level_map_size = self.tilemap.cur_level_map_dimension
         """self.level_map_size::
+
         This is used to update camera based on each level's tilemap's dimension limit"""
-        print(f"{self.level_map_size =}")
+        if pre.DEBUG_GAME_PRINTLOG:
+            print(f"{self.level_map_size =}")  # FIXME: dual loading at game over
 
         progress += 5
         if progressbar is not None:
@@ -471,6 +491,7 @@ class Game:
         self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
         self.touched_portal = False
         self.transition = self._transition_lo
+
         if self.level != 0:
             self.sfx.playerspawn.play()
 
@@ -600,6 +621,7 @@ class Game:
         for rect_spike in self.spike_spawners:
             if self.player.rect.colliderect(rect_spike):
                 self.dead += 1
+
         for rect_bp in self.bouncepad_spawners:
             if 0:
                 self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
@@ -608,6 +630,11 @@ class Game:
                 self.player.jump()
                 self.player.air_timer = 0  # HACK: to avoid simulating freefall death
                 self.player.velocity.y = -5
+            if 0:
+                for enemy in self.enemies:
+                    if enemy.rect.colliderect(rect_bp):
+                        enemy.velocity.y = -3.5
+                        enemy.pos.x += 3.5 if enemy.flip else -3.5
 
         for i, state in enumerate(self.gcs_states):
             _r = 2 * (1 + 1 / (1 + i))  # radius -> 2
