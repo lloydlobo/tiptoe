@@ -1,47 +1,15 @@
-"""
-DOD
-```cpp
-
-// Reference:
-// - CppCon 2014: Mike Acton "Data-Oriented Design and C++"
-
-// 12 bytes * count(32) -> 384 == 64 * 6
-struct FooUpdateIn {
-    float m_velocity[2];
-    float m_foo;
-}
-
-// 4 bytes * count(32) -> 128 == 64 * 2
-struct FooUpdateOut {
-    float m_foo;
-}
-
-// (6/32) == ~5.33 loop/cache line
-// Sqrt + math == ~40 * 5.33 == 213.33 cycles/cache line + streaming prefetch bonus
-void UpdateFoos(const FooUpdateIn* in, size_t count, FooUpdateOut* out, float f)
-{
-    for (size t i = 0; i < count; ++i) {
-        float mag = sqrtf(
-            in[i].m_velocity[0] * in[i].m_velocity[0] + 
-            in[i].m_velocity[1] * in[i].m_velocity[1]);
-        out[i].m_foo = in[i].m_foo + mag * f;
-    }
-}
-```
-"""
-
 from __future__ import annotations
 
 import itertools as it
 import json
-import sys
-from collections import defaultdict, deque, namedtuple
 from collections.abc import Iterator
 from copy import deepcopy
 from functools import partial
+from pathlib import Path
 from pprint import pprint
 from typing import (
     TYPE_CHECKING,
+    Any,
     Dict,
     Final,
     Iterable,
@@ -114,6 +82,8 @@ class Tilemap:
         self.dimensions: Final = pg.Vector2(_game_display_rect.w, _game_display_rect.h)
         # ^ hack: this can be an issue if screen is resized!!!!
 
+        self.cur_level_map_dimension = (pre.DIMENSIONS_HALF[0], pre.DIMENSIONS_HALF[1])
+
         # constants
         self._autotile_map: Final = pre.AUTOTILE_MAP  # 9 cells
         self._autotile_types: Final = pre.AUTOTILE_TYPES
@@ -136,8 +106,7 @@ class Tilemap:
         # - draw tiles only if its position is in camera range
         """
 
-        # PERF: fix input map data JSON to avoiud having physics tiles as
-        # offgrid tile. can reduce checks inside for loop.
+        # PERF: fix input map data JSON to avoiud having physics tiles as offgrid tile. can reduce checks inside for loop.
         # And USE SPIKES as non-physics tile!!!! as now they are used ongrid
 
         blit_partial = partial(surf.blit)
@@ -182,8 +151,9 @@ class Tilemap:
             if tile.kind in self._physics_tiles
         )
 
-    def extract(self, id_pairs: Sequence[tuple[str, int]], keep: bool = False) -> list[TileItem]:
-        matches: list[TileItem] = []
+    def extract(self, id_pairs: Sequence[Tuple[str, int]], keep: bool = False) -> List[TileItem]:
+        matches: List[TileItem] = []
+
         for tile in self.offgrid_tiles.copy():
             if (tile.kind.value, tile.variant) in id_pairs:
                 matches.append(deepcopy(tile))
@@ -192,10 +162,12 @@ class Tilemap:
 
         for loc, tile in self.tilemap.items():
             if (tile.kind.value, tile.variant) in id_pairs:
+
                 # make clean copy of tile data, to avoid modification to original reference
-                # deepcopy does the next 2 things
-                #   matches.append(tile.copy())
-                #   matches[-1].pos.update(matches[-1].pos.copy())  # convert to a copyable position obj if it is immutable
+                #   deepcopy does the next 2 things
+                #     matches.append(tile.copy())
+                #     # convert to a copyable position obj if it is immutable
+                #     matches[-1].pos.update(matches[-1].pos.copy())
                 matches.append(deepcopy(tile))
 
                 # convert to pixel coordinates
@@ -203,6 +175,7 @@ class Tilemap:
 
                 if not keep:
                     del self.tilemap[loc]
+
         return matches
 
     def in_tilemap(self, gridpos: tuple[int | float, int | float]) -> bool:
@@ -288,18 +261,63 @@ class Tilemap:
                         tile.variant = self._autotile_horizontal_map[sorted_ngbrs]
                     neighbors.clear()
 
-    def save(self, path: str) -> None:  # TODO: convert path type from str to use Path
-        with open(path, "w") as f:
-            json.dump(dict(tile_size=self.tilesize, tilemap=self.tilemap_to_json(), offgrid=self.offgrid_tiles_to_json()), f)
+    def save(self, path: str | Path) -> None:
+        """Save the current level data to the specified path."""
+        disp_w, disp_h = pre.DIMENSIONS_HALF
+        map_w, map_h = self._calculate_loaded_level_map_dimension()
+        map_dimension = {"w": max(disp_w, map_w), "h": max(disp_h, map_h)}
 
-    def load(self, path: str) -> None:  # TODO: convert path type from str to use Path
+        data = {
+            "tile_size": self.tilesize,
+            "map_dimension": map_dimension,
+            "tilemap": self.tilemap_to_json(),
+            "offgrid": self.offgrid_tiles_to_json(),
+        }
+
+        path = Path(path)
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+    def load(self, path: str | Path) -> None:
+        """Load the level data from the specified path."""
+        path = Path(path)
         with open(path, "r") as f:
             map_data = json.load(f)
-            self.tilesize = map_data["tile_size"]
-            if pre.DEBUG_GAME_ASSERTS:
-                assert isinstance(self.tilesize, int), f"want int got. {type(self.tilesize)}"
-            self.tilemap = dict(self.tilemap_json_to_dataclass(map_data["tilemap"]))
-            self.offgrid_tiles = set(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
+
+        self.tilesize = map_data["tile_size"]
+        if pre.DEBUG_GAME_ASSERTS:
+            assert isinstance(self.tilesize, int), f"want int got. {type(self.tilesize)}"
+
+        self.offgrid_tiles = set(self.offgrid_tiles_json_to_dataclass(map_data["offgrid"]))
+        self.tilemap = dict(self.tilemap_json_to_dataclass(map_data["tilemap"]))
+
+        disp_w, disp_h = pre.DIMENSIONS_HALF  # see if it is in multiples after adjusting.
+        if (map_dimension := map_data.get("map_dimension", None)) and isinstance(map_dimension, Dict):
+            map_w_, map_h_ = map_dimension.get("w"), map_dimension.get("h")  # pyright: ignore
+            if isinstance(map_w_, int) and isinstance(map_h_, int):
+                self.cur_level_map_dimension = max(disp_w, map_w_), max(disp_h, map_h_)
+                return
+
+        map_w, map_h = self._calculate_loaded_level_map_dimension()
+        self.cur_level_map_dimension = (max(disp_w, map_w), max(disp_h, map_h))  # NOTE: adjust map size based on preset screen resolution sizes defined in src/internal/prelude.py
+
+    def _calculate_loaded_level_map_dimension(self) -> Tuple[int, int]:
+        min_x = min_y = float("inf")
+        max_x = max_y = float("-inf")
+
+        for loc in self.tilemap:
+            x, y = map(int, loc.split(";", 1))
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+
+        seen_w = abs(min_x) + abs(max_x)
+        seen_h = abs(min_y) + abs(max_y)
+        map_w = int(seen_w * self.tilesize)
+        map_h = int(seen_h * self.tilesize)
+
+        return map_w, map_h
 
     def maybe_gridtile(self, pos: pg.Vector2) -> Optional[TileItem]:
         return self.tilemap.get(self.vec2_jsonstr(self.pos_as_grid_loc_vec2(pos)), None)
@@ -337,18 +355,16 @@ class Tilemap:
     def tilemap_json_to_dataclass(data: Mapping[str, TileItemJSON]) -> Iterator[tuple[str, TileItem]]:
         return ((key, TileItem(kind=pre.TileKind(tile["kind"]), pos=pg.Vector2(tile["pos"]), variant=tile["variant"])) for key, tile in data.items())
 
+    # FIXME: This is invalid for all except bottom spike orientation after
+    # using actual sprites and not generative pygame Surfaces
     @classmethod
     def spawn_spikes(cls, spikes: Sequence[TileItem]) -> Iterator[pg.Rect]:
-        """Return a generator iterator of spike rects hitboxes from a list of
-        spike tile items.
-
+        """Return a generator iterator of spike rects hitboxes from a list of spike tile items.
         Note: Hardcode hit box based on the location offset by 4 from top-left to each right and bottom
         """
-
         # xgrace: left and right. 12 width safe == 4 width danger on x-axis
         # ygrace: top and bottom. 12 height safe == 4 height danger on y-axis
         xgrace, _ = 4 + 4, 4 + 4
-
         # based on orientation of spike tile
         horzsize = (16, 6)  # w,h
         vertsize = (6, 16)  # w,h

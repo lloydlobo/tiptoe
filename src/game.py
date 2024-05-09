@@ -401,20 +401,13 @@ class Game:
         progress = 0
         if progressbar is not None:
             progressbar.put(progress)
-        self.level_map_size = (pre.DIMENSIONS_HALF[0] * 3, pre.DIMENSIONS_HALF[1])
-        """self.level_map_size::
-
-        This is used to update camera based on each level's tilemap's dimension limit... hardcoded for now"""
 
         self._lvl_load_level_map(map_id)
 
-        if 0:
-            try:
-                assert not self.gameover, f"want gameover flag to be false. got {self.gameover=}"
-            except AssertionError as e:
-                print(f"error while running game from load_level():\n\t{e}", file=sys.stderr)
-                quit_exit()
-            self.gameover = False
+        self.level_map_size = self.tilemap.cur_level_map_dimension
+        """self.level_map_size::
+        This is used to update camera based on each level's tilemap's dimension limit"""
+        print(f"{self.level_map_size =}")
 
         progress += 5
         if progressbar is not None:
@@ -429,24 +422,14 @@ class Game:
 
         # SPAWNERS
         self.ftorch_spawners = [
-            pg.Rect(
-                max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x,
-                max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y,
-                pre.SIZE.FLAMETORCH[0],
-                pre.SIZE.FLAMETORCH[1],
-            )
+            pg.Rect(max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x, max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1])
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
-        self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
         self.bouncepad_spawners = [
-            pg.Rect(
-                tileitem.pos.x,
-                tileitem.pos.y + 32 - 8,  # 8 thickness
-                pre.TILE_SIZE,  # actual w 16
-                pre.TILE_SIZE,  # actual h 64
-            )
+            pg.Rect(tileitem.pos.x, tileitem.pos.y + 32 - 8, pre.TILE_SIZE, pre.TILE_SIZE)  # 8 thickness  # actual w 16  # actual h 64
             for tileitem in self.tilemap.extract([("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True)
         ]
+        self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
 
         progress += 10
         if progressbar is not None:
@@ -470,7 +453,7 @@ class Game:
             progress += increment
             if progressbar is not None:
                 progressbar.put(progress)
-        # progress 78% for lvl1 on Fri May  3 10:57:31 AM IST 2024
+            # progress 78% for lvl1 on Fri May  3 10:57:31 AM IST 2024
 
         if pre.DEBUG_GAME_ASSERTS:
             assert self.player is not None, f"want a spawned player. got {self.player}"
@@ -504,10 +487,8 @@ class Game:
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
         else:
             _target = self.player.rect
-            # print(_target.bottom, _target.bottom // 2)
             self.camera.update((_target.centerx, _target.bottom // 2), map_size=self.level_map_size, dt=self.dt)
             render_scroll = self.camera.render_scroll
-
             if pre.DEBUG_GAME_HUD:
                 self.camera.debug(self.display_2, (int(_target.x), int(_target.y)))
 
@@ -515,8 +496,7 @@ class Game:
         raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
         mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
 
-        if 0:
-            # Render mouse blog
+        if 0:  # Render mouse blog
             mouse_surf = self.assets.misc_surf.get("mouse")
             if mouse_surf:
                 dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
@@ -578,8 +558,8 @@ class Game:
                 self.lvl_load_level(self.level)
 
         # Flametorch: particle animation
-        odds_of_flame: float = (6 * 0.001) * 49_999  # note: big number 49_999 controls spawn rate
         # fmt: off
+        odds_of_flame: float = (6 * 0.001) * 49_999  # note: big number 49_999 controls spawn rate
         self.particles.extend(
             Particle( game=self, p_kind=pre.ParticleKind.FLAME, pos=pg.Vector2((rect.x - random() * rect.w), (rect.y - random() * rect.h - 4)), velocity=pg.Vector2(uniform(-0.03, 0.03), uniform(0.0, -0.03)), frame=randint(0, 20),)
             for rect in self.ftorch_spawners.copy() if (random() * odds_of_flame) < (rect.w * rect.h)
@@ -602,58 +582,35 @@ class Game:
             for i, portal in enumerate(self.portal_spawners):
                 if self.player.rect.colliderect(portal.rect()):
                     self.touched_portal = True
-
                     if self.level != self._level_map_count:
                         self.sfx.portaltouch.play()
-
                 self.display.blit(portal.assets[i], portal.pos - render_scroll)
 
         # Enemy: update and render
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
             enemy.render(self.display, render_scroll)
-            if 0:  # no border for sleeping invisibility
-                match enemy.action:
-                    case Action.SLEEPING:  # avoid border shadow
-                        enemy.render(self.display_2, render_scroll)
-                    case _:
-                        enemy.render(self.display, render_scroll)
-                        pass
             if kill_animation:
                 self.enemies.remove(enemy)
 
+        # Spawners
         for rect_spike in self.spike_spawners:
             if self.player.rect.colliderect(rect_spike):
                 self.dead += 1
         for rect_bp in self.bouncepad_spawners:
-            self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1])) # for debugging
+            if 0:
+                self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
             if self.player.rect.colliderect(rect_bp):
                 # self.player.velocity.y = -(3.5) # default jump force + ..
                 self.player.jump()
                 self.player.air_timer = 0  # HACK: to avoid simulating freefall death
                 self.player.velocity.y = -5
 
-        _radius_ = 2
         for i, state in enumerate(self.gcs_states):
-            _r = _radius_ * (1 + 1 / (1 + i))
-            # _r *=  _radius_ * abs(math.sin(1.618 / (i + 1))) * 0.328
-            # _r *= _radius_ * 0.1618
-
-            pg.draw.circle(
-                self.display,
-                pre.GREENGLOW,
-                # pre.BLUEGLOW,
-                center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])),
-                radius=(_r + 1),
-            )
-            pg.draw.circle(
-                self.display,
-                pre.GREENBLURB,
-                center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])),
-                radius=_r,
-            )
-
-            if pre.DEBUG_GAME_STRESSTEST:
+            _r = 2 * (1 + 1 / (1 + i))  # radius -> 2
+            pg.draw.circle(self.display, pre.GREENGLOW, center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])), radius=(_r + 1))
+            pg.draw.circle(self.display, pre.GREENBLURB, center=(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1])), radius=_r)
+            if 0:  # for debugging
                 self.draw_text(int(state.player_pos[0] - render_scroll[0]), int(state.player_pos[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
 
         # Player: update and render
