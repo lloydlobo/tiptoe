@@ -441,7 +441,7 @@ class Game:
         self.bouncepad_spawners = [
             pg.Rect(
                 tileitem.pos.x,
-                tileitem.pos.y + 32 - 8,  # 4 thickness
+                tileitem.pos.y + 32 - 8,  # 8 thickness
                 pre.TILE_SIZE,  # actual w 16
                 pre.TILE_SIZE,  # actual h 64
             )

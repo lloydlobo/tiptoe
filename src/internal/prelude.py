@@ -312,7 +312,7 @@ class Animation:
 ################################################################################
 
 
-def load_img(path: str, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
+def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image.
 
     Note: Ported from DaFluffyPotato's pygpen lib

@@ -31,7 +31,7 @@ class Editor:
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
-        self.assets = Assets.initialize_editor_assets()
+        self.assets = Assets.initialize_assets().editor_view
 
         self.tilemap = Tilemap(self, pre.TILE_SIZE)
 
