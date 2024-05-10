@@ -65,6 +65,13 @@ class SFX:
     shootmiss: pg.mixer.Sound
 
 
+@dataclass
+class Background:
+    depth: Final[float]
+    pos: pg.Vector2  # topleft
+    speed: float
+
+
 class AppState(Enum):
     GAMESTATE = auto()
     MENUSTATE = auto()
@@ -185,58 +192,22 @@ class Game:
         self._transition_hi: Final = 30
 
         self._max_screenshake: Final = pre.TILE_SIZE
-        # load_level: declares and initializes level specific members
-        self.level = 0
+
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
 
-        # TODO: offload it to loading screen as it is going to call it?
-        # self.load_level(self.level)
-
+        self.level = 0
         self.running = True
-
-    def gts_record_checkpoint(self):
-        player_position = (self.player.pos.x, self.player.pos.y)
-        enemy_positions = [(e.pos.x, e.pos.y) for e in self.enemies]
-
-        self.gcs_states.appendleft(GameCheckpointState(player_position, enemy_positions))
-        if self.gcs_states.__len__() > 3:
-            self.gcs_states.pop()
-
-    def gts_rewind_checkpoint(self):
-        if self.gcs_states:
-            prev_gts = self.gcs_states.pop()
-            self.gts_record_checkpoint()
-            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
-            for enemy in self.enemies:
-                if self.player.rect.colliderect(enemy.rect):
-                    enemy.pos = next_pos.copy()
-                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
-                    enemy.sleep_timer = enemy.max_sleep_time
-                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
-
-            self.player.pos = next_pos.copy()
-
-    def gts_rewind_recent_checkpoint(self):
-        if self.gcs_states:
-            prev_gts = self.gcs_states.popleft()
-            self.gts_record_checkpoint()
-            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
-            for enemy in self.enemies:
-                if self.player.rect.colliderect(enemy.rect):
-                    enemy.pos = next_pos.copy()
-                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
-                    enemy.sleep_timer = enemy.max_sleep_time
-                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
-
-            self.player.pos = next_pos.copy()
 
     def run(self) -> None:
         """This game loop runs continuously until the player opts out via inputs.
 
         Each iteration, computes user input non-blocking events, updates state
         of the game, and renders the game.
-        future: Track delta time between each loop to control rate of gameplay.
         """
+        # note: Access unlimited checkpoint rewinds if you initialize this in Game.run(),
+        # else default to initializing this to Game.lvl_load_level(...)
+        self.gcs_states: deque[GameCheckpointState] = deque([])
+
         level_music_filename = "intro_loop.wav"
         match self.level:
             case 0:
@@ -244,8 +215,9 @@ class Game:
             case 1:
                 level_music_filename = "theme_2.wav"
             case _:
+                # note: use a prev variable to hold last level music played if
+                # we want to let it followthrough and avoid playing via pg.mixer.play()
                 pass
-
         pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / level_music_filename).__str__())
         pg.mixer.music.set_volume(0.2)
         pg.mixer.music.play(-1)
@@ -253,56 +225,9 @@ class Game:
         if self.level == 0:
             self.sfx.playerspawn.play()
 
-        surfw = pre.DIMENSIONS_HALF[0]
-        bg2_speed, bg3_speed = 0.1, 0.4
-        bg2_depth, bg3_depth = 0.1, 0.8
-        bg2_x = bg3_x = 0
-        bg2_y = bg3_y = 0
-
-        gcs_timer = 0
-
-        # NOTE: Access unlimited checkpoint rewinds if you initialize this in
-        # Game.run(), else default to initializing this to Game.lvl_load_level(...)
-        self.gcs_states: deque[GameCheckpointState] = deque([])
-
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
             self.display.fill((0, 0, 0, 0))
-            self.display_2.blit(self.bg1, (0, 0))
-            if (_tmpflag_parallax_enableed := 1) and _tmpflag_parallax_enableed:
-                bg2_x -= bg2_speed
-                if bg2_x < -surfw:
-                    bg2_x = 0
-                # bg3_x -= bg3_speed
-                # if bg3_x < -surfw: bg3_x = 0
-                # moveby_x = pre.Motion.lerp(24, 8, abs(1 - ((0.1328, 0.09)[randint(0, 1)] * 0.35 * math.sin((self.player.dash_time)))))  # always 0. use dash
-                # moveby_x = 0  # always 0. use dash
-                # moveafter_x = self.dimensions.x / 2  # or use 4
-                moveafter_x = self.level_map_size[0]  # this fixes, full range movement of bg3 mountains from start to end
-                moveafter_y = pre.Motion.lerp(32, 16, abs(self.player.pos.y - self.dimensions.y))
-                bg2_y = max(0, (moveafter_y - self.camera.render_scroll[1]) * bg2_depth)
-                bg3_x = max(0, (moveafter_x - self.camera.render_scroll[0]) * bg3_speed * bg3_depth)
-                bg3_y = max(0, moveafter_y - self.camera.render_scroll[1] // 2 * bg3_depth)
-            if 0:  # easy on performance
-                self.display_2.blit(self.bg2, (bg2_x, 0))
-                self.display_2.blit(self.bg2, ((bg2_x + surfw), 0))  # wrap around
-            else:
-                self.display_2.blit(self.bg2, (bg2_x, bg2_y))
-                self.display_2.blit(self.bg2, ((bg2_x + surfw), bg2_y))  # wrap around
-            if 0:  # easy on performance
-                self.display_2.blit(self.bg3, (0, bg3_y))
-                self.display_2.blit(self.bg3, (0 + surfw, bg3_y))  # wrap around
-            else:
-                self.display_2.blit(self.bg3, (bg3_x, bg3_y))
-                self.display_2.blit(self.bg3, ((bg3_x - surfw), bg3_y))  # wrap around
-            if (_tmpflag_rewind_glitch_enabled := 0) and _tmpflag_rewind_glitch_enabled:
-                # QUEST: introduce absurd rewinding checkpoints when in 'Delirium' in later levels ???
-                if gcs_timer > 0 and (2 * (gcs_timer + 1)) % pre.FPS_CAP == 0:
-                    self.gts_rewind_checkpoint()
-                    self.gts_record_checkpoint()
-                    gcs_timer = -10 * pre.FPS_CAP  # rewind timer for 10 secs 'wait-time'
-                gcs_timer += 1
-
             self.events()
             self.update()
             self.render()
@@ -347,163 +272,39 @@ class Game:
 
     def render(self) -> None:
         """Render display."""
+        self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
+        self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
+        self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # wrap around
+        self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
+        self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos - (self.bg_display_w, 0)))  # wrap around
+
+        # Create a transition surface with a circular cutout.
+        if self.transition:
+            # fmt:off
+            displaysize     = self.display.get_size()
+            transition_surf = pg.Surface(displaysize).convert()
+            t_speed         = 16 + 1 / self.transition
+            center          = self.player.pos if not self.dead else (displaysize[0] // 2, displaysize[1] // 2)
+            if not self.dead:
+                entering = self._transition_lo + 2 < self.transition < -16
+                if entering:    radius = 2 * self.tilemap.tilesize - 4
+                else:           radius = (self.tilemap.tilesize * 2 - abs(self.transition)) * t_speed * 0.8
+            else:               radius = (self.tilemap.tilesize - 1 - abs(self.transition)) * t_speed
+            # fmt:on
+            pg.draw.circle(transition_surf, pg.Color("white"), center, radius)
+            # Color blited on top of screen will be transparent, but outer area is opaque black.
+            transition_surf.set_colorkey(pg.Color("white"))
+            self.display.blit(transition_surf, (0, 0))
+
         self.display_2.blit(self.display, (0, 0))
-        _offset = (
-            (0, 0)
-            if not self.config_handler.screenshake
-            else (
-                (self.screenshake * random()) - (self.screenshake * 0.5),
-                (self.screenshake * random()) - (self.screenshake * 0.5),
-            )
-        )
-        self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), _offset)
+
+        halfshake = self.screenshake * 0.5
+        dest = (0, 0) if not self.config_handler.screenshake else ((self.screenshake * random()) - halfshake, (self.screenshake * random()) - halfshake)
+        self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), dest)
+
         pg.display.flip()
 
-    def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
-        surf = font.render(text, True, color)
-        rect = surf.get_rect()
-        rect.midtop = (x, y)
-        self.display.blit(surf, rect)
-
-    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | Game"]):
-        if self.mainscreen != None:
-            # delete existing screen (QUEST?: are we deleting game copy?)
-            del self.mainscreen
-            self.mainscreen = None
-
-        self.mainscreen = scr
-
-        # show new screen
-        if self.mainscreen != None:
-            self.mainscreen.run()
-
-        if self.gameover:
-            return AppState.MENUSTATE, GameState.EXIT
-        elif not self.running:
-            # note: we could just set gamestate form keyevent or update loop
-            return AppState.GAMESTATE, GameState.NEXTLEVEL
-
-    def reset_game(self) -> None:
-        self.clock = pg.time.Clock()
-        self.dt = 0
-
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-
-        self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
-        self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
-
-        self.tilemap = Tilemap(self, pre.TILE_SIZE)
-
-        self.camera.reset()
-        self.screenshake = 0
-
-        try:
-            assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
-        except AssertionError as e:
-            self.gameover = False  # -> this fixes: in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there
-            print(f"error while running game from reset_game():\n\t{e}", file=sys.stderr)
-
-        self.level = 0
-        self.lvl_load_level(self.level)
-
-    def _lvl_load_level_map(self, map_id: int):
-        self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
-
-    def lvl_have_more_levels(self) -> bool:
-        return self.level + 1 >= self._level_map_count
-
-    def lvl_increment_level(self):
-        prev = self.level
-        self.level = min(self.level + 1, self._level_map_count - 1)
-        return dict(prev=prev, next=self.level)
-
-    def lvl_load_level(self, map_id: int, progressbar: Optional[queue.Queue[int]] = None) -> None:
-        progress = 0
-        if progressbar is not None:
-            progressbar.put(progress)
-
-        self._lvl_load_level_map(map_id)
-
-        self.level_map_size = self.tilemap.cur_level_map_dimension
-        """self.level_map_size::
-
-        This is used to update camera based on each level's tilemap's dimension limit"""
-        if pre.DEBUG_GAME_PRINTLOG:
-            print(f"{self.level_map_size =}")  # FIXME: dual loading at game over
-
-        progress += 5
-        if progressbar is not None:
-            progressbar.put(progress)
-
-        self.projectiles: list[pre.Projectile] = []
-        self.sparks: list[Spark] = []
-
-        self.bg1 = self.assets.misc_surf["bg1"]
-        self.bg2 = self.assets.misc_surf["bg2"]
-        self.bg3 = self.assets.misc_surf["bg3"]
-
-        # SPAWNERS
-        self.ftorch_spawners = [
-            pg.Rect(max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x, max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1])
-            for torch in self.tilemap.extract([("decor", 2)], keep=True)
-        ]
-        self.bouncepad_spawners = [
-            pg.Rect(tileitem.pos.x, tileitem.pos.y + 32 - 8, pre.TILE_SIZE, pre.TILE_SIZE)  # 8 thickness  # actual w 16  # actual h 64
-            for tileitem in self.tilemap.extract([("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True)
-        ]
-        self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
-
-        progress += 10
-        if progressbar is not None:
-            progressbar.put(progress)
-
-        self.portal_spawners: list[Portal] = []
-        self.enemies: list[Enemy] = []
-
-        _spwn_kinds: Final = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
-
-        increment = math.floor((80 - progress) / len(_spwn_kinds))  # FIXME: can be wrong
-        for spawner in self.tilemap.extract(list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(_spwn_kinds)), _spwn_kinds)), False):
-            match pre.SpawnerKind(spawner.variant):
-                case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
-                    self.player.pos = spawner.pos.copy()
-                    self.player.air_timer = 0  # Reset time to avoid multiple spawns during fall
-                case pre.SpawnerKind.ENEMY:
-                    self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
-                case pre.SpawnerKind.PORTAL:
-                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
-            progress += increment
-            if progressbar is not None:
-                progressbar.put(progress)
-            # progress 78% for lvl1 on Fri May  3 10:57:31 AM IST 2024
-
-        if pre.DEBUG_GAME_ASSERTS:
-            assert self.player is not None, f"want a spawned player. got {self.player}"
-            assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
-            assert (val := len(self.portal_spawners)) > 0, f"want atleast 1 spawned portal. got {val}"
-
-        self.particles: list[Particle] = []
-
-        self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
-        self.camera.reset()
-
-        self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
-        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
-        self.touched_portal = False
-        self.transition = self._transition_lo
-
-        if self.level != 0:
-            self.sfx.playerspawn.play()
-
-        progress = 100
-        if progressbar is not None:
-            progressbar.put(progress)
-
-        if 1:  # HACK: emulate loading heavy resources
-            time.sleep(0.150)
-
     def update(self) -> None:
-
         # Camera: update and parallax
         if 0:
             self.scroll.x += (self.player.rect.centerx - (self.display.get_width() * 0.5) - self.scroll.x) * self.scroll_ease.x
@@ -511,10 +312,15 @@ class Game:
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
         else:
             _target = self.player.rect
-            self.camera.update((_target.centerx, _target.bottom // 2), map_size=self.level_map_size, dt=self.dt)
+            self.camera.update((_target.centerx, _target.bottom // 2), map_size=self.level_map_dimension, dt=self.dt)
             render_scroll = self.camera.render_scroll
             if pre.DEBUG_GAME_HUD:
                 self.camera.debug(self.display_2, (int(_target.x), int(_target.y)))
+
+        self.bg_cloud.pos.x -= self.bg_cloud.speed
+        if self.bg_cloud.pos.x < -self.bg_display_w:
+            self.bg_cloud.pos.x = 0.0
+        self.bg_mountain.pos.x = max(0, (self.level_map_dimension[0] - self.camera.render_scroll[0]) * self.bg_mountain.speed * self.bg_mountain.depth)
 
         # Mouse: cursor position with offset
         raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
@@ -742,6 +548,188 @@ class Game:
                     self.clock_dt_recent_values.pop()
             except Exception as e:
                 print(f"exception during rendering debugging HUD: {e}")
+
+    def gts_record_checkpoint(self):
+        player_position = (self.player.pos.x, self.player.pos.y)
+        enemy_positions = [(e.pos.x, e.pos.y) for e in self.enemies]
+
+        self.gcs_states.appendleft(GameCheckpointState(player_position, enemy_positions))
+        if self.gcs_states.__len__() > 3:
+            self.gcs_states.pop()
+
+    def gts_rewind_checkpoint(self):
+        if self.gcs_states:
+            prev_gts = self.gcs_states.pop()
+            self.gts_record_checkpoint()
+            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
+            for enemy in self.enemies:
+                if self.player.rect.colliderect(enemy.rect):
+                    enemy.pos = next_pos.copy()
+                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                    enemy.sleep_timer = enemy.max_sleep_time
+                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+
+            self.player.pos = next_pos.copy()
+
+    def gts_rewind_recent_checkpoint(self):
+        if self.gcs_states:
+            prev_gts = self.gcs_states.popleft()
+            self.gts_record_checkpoint()
+            next_pos: pg.Vector2 = pg.Vector2(prev_gts.player_pos)
+            for enemy in self.enemies:
+                if self.player.rect.colliderect(enemy.rect):
+                    enemy.pos = next_pos.copy()
+                    enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                    enemy.sleep_timer = enemy.max_sleep_time
+                    enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+
+            self.player.pos = next_pos.copy()
+
+    def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
+        surf = font.render(text, True, color)
+        rect = surf.get_rect()
+        rect.midtop = (x, y)
+        self.display.blit(surf, rect)
+
+    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | Game"]):
+        if self.mainscreen != None:
+            # delete existing screen (QUEST?: are we deleting game copy?)
+            del self.mainscreen
+            self.mainscreen = None
+
+        self.mainscreen = scr
+
+        # show new screen
+        if self.mainscreen != None:
+            self.mainscreen.run()
+
+        if self.gameover:
+            return AppState.MENUSTATE, GameState.EXIT
+        elif not self.running:
+            # note: we could just set gamestate form keyevent or update loop
+            return AppState.GAMESTATE, GameState.NEXTLEVEL
+
+    def reset_game(self) -> None:
+        self.clock = pg.time.Clock()
+        self.dt = 0
+
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+
+        self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
+        self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
+
+        self.tilemap = Tilemap(self, pre.TILE_SIZE)
+
+        self.camera.reset()
+        self.screenshake = 0
+
+        try:
+            assert not self.gameover, "failed to overide gameover flag while gameover_screen() loop exits. context: gameover->mainmenu->playing->pressed Escape(leads to gameover but want mainmenu[pause like])"
+        except AssertionError as e:
+            self.gameover = False  # -> this fixes: in Game.run() we reset_game() and then set self.gameover = True and then while running's running = False... so this is pointless. either do it here or there
+            print(f"error while running game from reset_game():\n\t{e}", file=sys.stderr)
+
+        self.level = 0
+        self.lvl_load_level(self.level)
+
+    def _lvl_load_level_map(self, map_id: int):
+        self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
+
+    def lvl_have_more_levels(self) -> bool:
+        return self.level + 1 >= self._level_map_count
+
+    def lvl_increment_level(self):
+        prev = self.level
+        self.level = min(self.level + 1, self._level_map_count - 1)
+        return dict(prev=prev, next=self.level)
+
+    def lvl_load_level(self, map_id: int, progressbar: Optional[queue.Queue[int]] = None) -> None:
+        progress = 0
+        if progressbar is not None:
+            progressbar.put(progress)
+
+        self._lvl_load_level_map(map_id)
+
+        self.level_map_dimension = self.tilemap.cur_level_map_dimension  # 1470 approx for level1, 480 for leve12
+        """self.level_map_size::
+
+        This is used to update camera based on each level's tilemap's dimension limit"""
+        if pre.DEBUG_GAME_PRINTLOG:
+            print(f"{self.level_map_dimension =}")  # FIXME: dual loading at game over
+
+        progress += 5
+        if progressbar is not None:
+            progressbar.put(progress)
+
+        self.projectiles: list[pre.Projectile] = []
+        self.sparks: list[Spark] = []
+
+        self.bg_blue_sky_surf = self.assets.misc_surf["bg1"]
+        self.bg_cloud_surf = self.assets.misc_surf["bg2"]
+        self.bg_mountain_surf = self.assets.misc_surf["bg3"]
+        self.bg_cloud = Background(depth=0.1, pos=pg.Vector2(0, 0), speed=0.08)
+        self.bg_mountain = Background(depth=0.6, pos=pg.Vector2(0, 0), speed=0.1)
+        self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
+
+        # SPAWNERS
+        self.ftorch_spawners = [
+            pg.Rect(max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x, max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1])
+            for torch in self.tilemap.extract([("decor", 2)], keep=True)
+        ]
+        self.bouncepad_spawners = [
+            pg.Rect(tileitem.pos.x, tileitem.pos.y + 32 - 8, pre.TILE_SIZE, pre.TILE_SIZE)  # 8 thickness  # actual w 16  # actual h 64
+            for tileitem in self.tilemap.extract([("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True)
+        ]
+        self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
+
+        progress += 10
+        if progressbar is not None:
+            progressbar.put(progress)
+
+        self.portal_spawners: list[Portal] = []
+        self.enemies: list[Enemy] = []
+
+        _spwn_kinds: Final = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
+
+        increment = math.floor((80 - progress) / len(_spwn_kinds))  # FIXME: can be wrong
+        for spawner in self.tilemap.extract(list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(_spwn_kinds)), _spwn_kinds)), False):
+            match pre.SpawnerKind(spawner.variant):
+                case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
+                    self.player.pos = spawner.pos.copy()
+                    self.player.air_timer = 0  # Reset time to avoid multiple spawns during fall
+                case pre.SpawnerKind.ENEMY:
+                    self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
+                case pre.SpawnerKind.PORTAL:
+                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
+            progress += increment
+            if progressbar is not None:
+                progressbar.put(progress)
+            # progress 78% for lvl1 on Fri May  3 10:57:31 AM IST 2024
+
+        if pre.DEBUG_GAME_ASSERTS:
+            assert self.player is not None, f"want a spawned player. got {self.player}"
+            assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
+            assert (val := len(self.portal_spawners)) > 0, f"want atleast 1 spawned portal. got {val}"
+
+        self.particles: list[Particle] = []
+
+        self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
+        self.camera.reset()
+
+        self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
+        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
+        self.touched_portal = False
+        self.transition = self._transition_lo
+
+        if self.level != 0:
+            self.sfx.playerspawn.play()
+
+        progress = 100
+        if progressbar is not None:
+            progressbar.put(progress)
+
+        if 1:  # HACK: emulate loading heavy resources
+            time.sleep(0.150)
 
 
 # def loading_screen(game: Game):

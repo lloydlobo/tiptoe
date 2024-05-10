@@ -438,11 +438,11 @@ class Player(PhysicalEntity):
         self._dash_force: Final = 8
         self._jump_force: Final = 3
         self._jumps: Final = 1
-        self._max_air_time: Final = 5
         self._max_dash_time: Final = 60  # directional velocity vector
         self._wallslide_velocity_cap_y = 0.5
         self.max_dead_hit_skipped_counter: Final = 3
 
+        self.max_air_time: Final = 5
         self.dash_time_burst_1: Final = self._max_dash_time
         self.dash_time_burst_2: Final = 50
         # self.dash_time_stream: Final = 10
@@ -472,7 +472,7 @@ class Player(PhysicalEntity):
 
         # Reset times when touch ground
         if self.collisions.down:
-            if self.air_timer > self._max_air_time:  # Credit: mrc
+            if self.air_timer > self.max_air_time:  # Credit: mrc
                 self.game.sfx.jumplanding.play()
             self.air_timer = 0
             self.coyote_timer = self._coyote_timer_hi
@@ -481,10 +481,10 @@ class Player(PhysicalEntity):
             self.coyote_timer -= 1 / pre.FPS_CAP
 
         self.wallslide = False
-        if (self.collisions.left or self.collisions.right) and (self.air_timer > self._max_air_time - 1):
+        if (self.collisions.left or self.collisions.right) and (self.air_timer > self.max_air_time - 1):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
-            self.air_timer = self._max_air_time  # FIX: trying to avoid player death while sliding for too long
+            self.air_timer = self.max_air_time  # FIX: trying to avoid player death while sliding for too long
             if 0:  # requires wall_slide animation, todo
                 self.flip = False if self.collisions.right else True
                 print("wall_slide_animation flipped")
@@ -492,7 +492,7 @@ class Player(PhysicalEntity):
 
         # Update action based on player state
         if not self.wallslide:
-            if self.air_timer > self._max_air_time - 1:
+            if self.air_timer > self.max_air_time - 1:
                 self.set_action(Action.JUMP)
             elif movement.x != 0:
                 self.set_action(Action.RUN)
@@ -521,19 +521,19 @@ class Player(PhysicalEntity):
             if self.flip and self.last_movement.x < 0:  # jump away from wall
                 self.velocity.x = 3.5
                 self.velocity.y = -2.5
-                self.air_timer = self._max_air_time
+                self.air_timer = self.max_air_time
                 self.jumps = max(0, self.jumps - 1)
                 return True
             elif (not self.flip) and self.last_movement.x > 0:
                 self.velocity.x = -3.5
                 self.velocity.y = -2.5
-                self.air_timer = self._max_air_time
+                self.air_timer = self.max_air_time
                 self.jumps = max(0, self.jumps - 1)
                 return True
         elif self.jumps and self.coyote_timer > self._coyote_timer_lo:
             self.velocity.y = -self._jump_force  # Go up in -y direction
             self.jumps -= 1
-            self.air_timer = self._max_air_time
+            self.air_timer = self.max_air_time
             self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
             return True  # hack: play jump sound at the caller
         return False
@@ -584,7 +584,7 @@ class Player(PhysicalEntity):
         """
         # The order of rendering matters. The starplayer should not be overwritten by the player during the initial dash burst.
         # But how does it affect performance?
-        near_freefall_death = self.air_timer + self._max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death  # ^ how to use this as walrus operator?
+        near_freefall_death = self.air_timer + self.max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death  # ^ how to use this as walrus operator?
         if (not (abs(self.dash_timer) <= self.dash_time_burst_2)) or near_freefall_death:
             self._drawcircle_starfn(
                 surface=surf,
