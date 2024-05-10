@@ -13,6 +13,7 @@ from internal.spritesheet import Spritesheet
 
 @dataclass
 class Assets:
+    # __slots__= "entity"
     entity: Dict[str, pg.SurfaceType]
     misc_surf: Dict[str, pg.SurfaceType]
 
@@ -76,6 +77,7 @@ class Assets:
                 # ongrid physics tiles
                 granite=spritesheet_tileset.load_sprites("tiles", "granite"),
                 grass=spritesheet_tileset_greenvalley.load_sprites("tiles", "grass"),
+                grasspillar=spritesheet_tileset_greenvalley.load_sprites("tiles", pre.TileKind.GRASSPILLAR.value),
                 grassplatform=spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform"),
                 stone=spritesheet_tileset.load_sprites("tiles", "stone"),
                 # offgrid interactive
@@ -83,10 +85,19 @@ class Assets:
                 portal=[pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1), pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2)],
                 spike=[pre.load_img(str(pre.IMGS_PATH / "tiles" / "spikes" / "0.png"), colorkey=pre.BLACK)],
                 # offgrid decoration
-                decor=list(
-                    it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))))
-                ),
-                large_decor=[sprite for group in ["tree", "bush", "pileofbricks"] for sprite in spritesheet_large_decor.load_sprites("large_decor", group)],
+                # decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))))),
+                decor=[
+                    # ===-----------=== #
+                    sprite
+                    for group in ["white_plant", "red_plant", "yellow_plant", "cyan_plant"]
+                    for sprite in spritesheet_tileset_greenvalley.load_sprites("decor", group)
+                ],
+                large_decor=[
+                    # ===-----------=== #
+                    sprite
+                    for group in ["bush_1", "bush_2", "bush_3", "bush_4", "bush_5", "bush_6", "bush_7"]
+                    for sprite in spritesheet_tileset_greenvalley.load_sprites("large_decor", group)
+                ],
             ),
             animations_entity=cls.AnimationEntity(
                 enemy=dict(

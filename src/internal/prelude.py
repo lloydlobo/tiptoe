@@ -38,7 +38,7 @@ game.
 __all__ = [
     # class
     "Animation",
-    "AutotileID",
+    "AutotileMatrixID",
     "COLOR",
     "COUNT",
     "COUNTRANDOMFRAMES",
@@ -155,6 +155,7 @@ class TileKind(Enum):
     GRANITE = "granite"
     GRASS = "grass"
     GRASSPLATFORM = "grassplatform"
+    GRASSPILLAR = "grasspillar"
     LARGE_DECOR = "large_decor"
     PORTAL = "portal"
     SPAWNERS = "spawners"
@@ -690,8 +691,9 @@ N_NEIGHBOR_OFFSETS = 9
 
 AUTOTILE_TYPES = {TileKind.STONE, TileKind.GRANITE, TileKind.GRASS}
 AUTOTILE_HORIZONTAL_TYPES = {TileKind.GRASSPLATFORM}
+AUTOTILE_VERTICAL_TYPES = {TileKind.GRASSPILLAR}
 
-PHYSICS_TILES = {TileKind.STONE, TileKind.GRANITE, TileKind.GRASS, TileKind.GRASSPLATFORM}
+PHYSICS_TILES = {TileKind.STONE, TileKind.GRANITE, TileKind.GRASS, TileKind.GRASSPLATFORM, TileKind.GRASSPILLAR}
 
 SPAWNERS_KINDS = {EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL}  # not used for now
 
@@ -702,7 +704,7 @@ SPAWNERS_KINDS = {EntityKind.PLAYER, EntityKind.ENEMY, TileKind.PORTAL}  # not u
 
 
 @unique
-class AutotileID(IntEnum):
+class AutotileMatrixID(IntEnum):
     """Key ID via `AutoTileVariant` for `AUTOTILE_MAP`
 
     For example::
@@ -736,15 +738,15 @@ class AutotileID(IntEnum):
 
 
 AUTOTILE_MAP = {
-    tuple(sorted([(1, 0), (0, 1)])): AutotileID.TOPLEFT or 0,  # ES
-    tuple(sorted([(1, 0), (0, 1), (-1, 0)])): AutotileID.TOPCENTER or 1,  # ESW
-    tuple(sorted([(-1, 0), (0, 1)])): AutotileID.TOPRIGHT or 2,  # WS
-    tuple(sorted([(-1, 0), (0, -1), (0, 1)])): AutotileID.MIDDLERIGHT or 3,  # WSN
-    tuple(sorted([(-1, 0), (0, -1)])): AutotileID.BOTTOMRIGHT or 4,  # WN
-    tuple(sorted([(-1, 0), (0, -1), (1, 0)])): AutotileID.BOTTOMCENTER or 5,  # WNE
-    tuple(sorted([(1, 0), (0, -1)])): AutotileID.BOTTOMLEFT or 6,  # EN
-    tuple(sorted([(1, 0), (0, -1), (0, 1)])): AutotileID.MIDDLELEFT or 7,  # ENS
-    tuple(sorted([(1, 0), (-1, 0), (0, 1), (0, -1)])): AutotileID.MIDDLECENTER or 8,  # EWSN
+    tuple(sorted([(1, 0), (0, 1)])): AutotileMatrixID.TOPLEFT or 0,  # ES
+    tuple(sorted([(1, 0), (0, 1), (-1, 0)])): AutotileMatrixID.TOPCENTER or 1,  # ESW
+    tuple(sorted([(-1, 0), (0, 1)])): AutotileMatrixID.TOPRIGHT or 2,  # WS
+    tuple(sorted([(-1, 0), (0, -1), (0, 1)])): AutotileMatrixID.MIDDLERIGHT or 3,  # WSN
+    tuple(sorted([(-1, 0), (0, -1)])): AutotileMatrixID.BOTTOMRIGHT or 4,  # WN
+    tuple(sorted([(-1, 0), (0, -1), (1, 0)])): AutotileMatrixID.BOTTOMCENTER or 5,  # WNE
+    tuple(sorted([(1, 0), (0, -1)])): AutotileMatrixID.BOTTOMLEFT or 6,  # EN
+    tuple(sorted([(1, 0), (0, -1), (0, 1)])): AutotileMatrixID.MIDDLELEFT or 7,  # ENS
+    tuple(sorted([(1, 0), (-1, 0), (0, 1), (0, -1)])): AutotileMatrixID.MIDDLECENTER or 8,  # EWSN
 }
 """Coordinates for a minimum 9 cell or 6 cell similar tiles in contact with each other.
 
@@ -763,14 +765,15 @@ tiles::
 """
 
 AUTOTILE_HORIZONTAL_MAP = {
-    tuple(sorted([(1, 0)])): AutotileID.TOPLEFT or 0,  # ES
-    tuple(sorted([(1, 0), (-1, 0)])): AutotileID.TOPCENTER or 1,  # ESW
-    tuple(sorted([(-1, 0)])): AutotileID.TOPRIGHT or 2,  # WS
+    tuple(sorted([(1, 0)])): AutotileMatrixID.TOPLEFT or 0,  # ES
+    tuple(sorted([(1, 0), (-1, 0)])): AutotileMatrixID.TOPCENTER or 1,  # ESW
+    tuple(sorted([(-1, 0)])): AutotileMatrixID.TOPRIGHT or 2,  # WS
 }
 """Coordinates for a platform with only tiles in sequence without any similar tile above or below them.
 
 Example::
 
+    Number is variant value
     ```txt
     #####
     00000
@@ -779,6 +782,12 @@ Example::
     01112
     ```
 """
+
+AUTOTILE_VERTICAL_MAP = {
+    tuple(sorted([(0, 1)])): 0,
+    tuple(sorted([(0, -1), (0, 1)])): 1,
+    tuple(sorted([(0, -1)])): 2,
+}
 
 ################################################################################
 ### SPIKE NON-PHYSICS TILE HITBOX TILING

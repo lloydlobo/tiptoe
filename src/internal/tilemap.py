@@ -86,9 +86,11 @@ class Tilemap:
 
         # constants
         self._autotile_map: Final = pre.AUTOTILE_MAP  # 9 cells
-        self._autotile_types: Final = pre.AUTOTILE_TYPES
         self._autotile_horizontal_map: Final = pre.AUTOTILE_HORIZONTAL_MAP  # 3 cells
+        self._autotile_vertical_map: Final = pre.AUTOTILE_VERTICAL_MAP  # 3 cells
+        self._autotile_types: Final = pre.AUTOTILE_TYPES
         self._autotile_horizontal_types: Final = pre.AUTOTILE_HORIZONTAL_TYPES
+        self._autotile_vertical_types: Final = pre.AUTOTILE_VERTICAL_TYPES
         self._neighbour_offsets: Final = pre.NEIGHBOR_OFFSETS
         self._physics_tiles: Final = pre.PHYSICS_TILES
         self._loc_format = f"{{}};{{}}"  # Pre-calculate string format
@@ -190,13 +192,15 @@ class Tilemap:
     def autotile(self) -> None:
         directions_matrix: Final = ((-1, 0), (1, 0), (0, -1), (0, 1))
         directions_horizontal: Final = ((-1, 0), (1, 0))
-        _directions_vertical: Final = ((0, -1), (0, 1))
+        directions_vertical: Final = ((0, -1), (0, 1))
 
         def sort_key(item: TileItem) -> str:
             if item.kind in self._autotile_types:
                 return "matrix"
             elif item.kind in self._autotile_horizontal_types:
                 return "horizontal"
+            elif item.kind in self._autotile_vertical_types:
+                return "vertical"
             else:
                 return "none"
 
@@ -236,6 +240,21 @@ class Tilemap:
             if (sorted_ngbrs := tuple(sorted(neighbors))) in self._autotile_horizontal_map:
                 tile_loc = f"{int(tile.pos.x)};{int(tile.pos.y)}"
                 self.tilemap[tile_loc].variant = self._autotile_horizontal_map[sorted_ngbrs]
+
+        for tile in grouped_tiles["vertical"]:
+            neighbors = set(
+                (x, y)
+                for (x, y) in directions_vertical
+                if (
+                    ngbr_loc := f"{int(tile.pos.x+x)};{int(tile.pos.y+y)}",
+                    item := self.tilemap.get(ngbr_loc, None),
+                )
+                and item
+                and item.kind == tile.kind
+            )
+            if (sorted_ngbrs := tuple(sorted(neighbors))) in self._autotile_vertical_map:
+                tile_loc = f"{int(tile.pos.x)};{int(tile.pos.y)}"
+                self.tilemap[tile_loc].variant = self._autotile_vertical_map[sorted_ngbrs]
 
         if 0:  # old code works and is simple
             neighbors: set[tuple[int, int]] = set()
