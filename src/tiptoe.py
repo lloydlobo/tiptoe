@@ -1,7 +1,8 @@
-import cProfile  # pyright: ignore
+import cProfile
+import pstats
 
-import internal.prelude as pre  # pyright: ignore
-from game import Game, StartScreen  # pyright: ignore
+import internal.prelude as pre
+from game import Game, StartScreen
 
 
 class Launcher(Game):
@@ -19,21 +20,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
 
+    if pre.DEBUG_GAME_CPROFILE:
+        cProfile.run("main()", "cProfile_main", sort="cumulative")
 
-# def main():
-#     if pre.DEBUG_GAME_PROFILER:
-#         cProfile.run("Game().load_level(0)", sort="cumulative")
-#         cProfile.run("Game().run()", sort="cumulative")
-#
-#     game = Game()
-#
-#     if 0:
-#         loading_screen(game)
-#     start_screen = StartScreen(game).run()
-#     # game.set_screen(start_screen)
-#
-#
-# if __name__ == "__main__":
-#     main()
+        p = pstats.Stats("cProfile_main")
+        p.strip_dirs().sort_stats("cumulative").print_stats()
+    else:
+        main()

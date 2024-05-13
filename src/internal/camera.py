@@ -5,6 +5,11 @@ import pygame as pg
 import internal.prelude as pre
 
 
+__all__ = [
+    "SimpleCamera",
+]
+
+
 vec2 = pg.Vector2
 
 
@@ -21,14 +26,17 @@ class SimpleCamera:
         self.camera = pg.Rect(0, 0, self.size.x, self.size.y)
         self.render_scroll = (0, 0)
         self.scroll = vec2(0, 0)
-        self.scroll_ease: Final = vec2(1 / 32, 1 / 16)
+
+        # Players can tolerate more horizontal camera offset than vertical.
+        _ease_x = 2**5 - 2**1  # ideal 28..40
+        _ease_y = round(_ease_x * 0.618)  # ideal 16..25
+        self.scroll_ease: Final = vec2((1 / _ease_x), 1 / _ease_y)
 
         self._tmp_target_xy = (0, 0)
         self._camera_font = pg.font.SysFont("monospace", 9, bold=True)
+        self.CONST = (self.size.x, self.size.y)
 
     def reset(self):
-        # NOTE: can just init on each level
-        self.camera = pg.Rect(0, 0, self.size.x, self.size.y)
         self.scroll = vec2(0, 0)
         self.render_scroll = (0, 0)
         self._tmp_target_xy = (0, 0)
@@ -47,20 +55,18 @@ class SimpleCamera:
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
         """
 
-        CONST = (self.size.x, self.size.y)
-
         # TODO: put player at 1/3 y offset
 
-        target_x = target_pos[0] - CONST[0] / 2
-        target_y = target_pos[1] - CONST[1] / 2
+        target_x = target_pos[0] - self.CONST[0] / 2
+        target_y = target_pos[1] - self.CONST[1] / 2
 
         if map_size:
             # target_x = pan_smooth(self.scroll.x, target_pos[0], dt, 0.5)
             # target_y = pan_smooth(self.scroll.y, target_pos[1], dt, 0.5)
             target_x = max(target_x, 0)
-            target_x = min(target_x, (map_size[0] - CONST[0]))
+            target_x = min(target_x, (map_size[0] - self.CONST[0]))
             target_y = max(target_y, 0)
-            target_y = min(target_y, (map_size[1] - CONST[1]))
+            target_y = min(target_y, (map_size[1] - self.CONST[1]))
         self._tmp_target_xy = (target_x, target_y)
 
         self.scroll.x += (target_x - self.scroll.x) * self.scroll_ease.x
@@ -86,6 +92,9 @@ class SimpleCamera:
         self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 3, self._camera_font, pre.RED, f"{self.render_scroll=}")
         self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 2, self._camera_font, pre.GREEN, f"{rect}")
         self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 1, self._camera_font, pre.BLUE, f"{tx,ty=}")
+
+        # draw target focus point
+        pg.draw.circle(surf, pre.GREEN, (tx, ty), 4)
 
     def _draw_text(self, surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
         surface = font.render(text, True, color)

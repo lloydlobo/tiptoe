@@ -138,7 +138,8 @@ class ParticleKind(Enum):
 
     FLAME = "flame"
     FLAMEGLOW = "flameglow"
-    PARTICLE = "particle"  # player dash particle
+    PARTICLE = "particle"
+    """Player dash particle"""
 
 
 # @unique
@@ -526,17 +527,20 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
 
 # flags: debugging, etc
-DEBUG_EDITOR_ASSERTS = False
+DEBUG_EDITOR_ASSERTS = True
 DEBUG_EDITOR_HUD = True
 
-DEBUG_GAME_ASSERTS = False
-DEBUG_GAME_PRINTLOG = False
-DEBUG_GAME_LOGGING = False
+DEBUG_GAME_ASSERTS = True
 DEBUG_GAME_CACHEINFO = False
+DEBUG_GAME_CAMERA = False
+DEBUG_GAME_CPROFILE = False
 DEBUG_GAME_HUD = False
-DEBUG_GAME_PROFILER = False
-DEBUG_GAME_UNITTEST = False
+DEBUG_GAME_LOGGING = False
+DEBUG_GAME_PRINTLOG = False
 DEBUG_GAME_STRESSTEST = False
+DEBUG_GAME_TRACEMALLOC = False
+DEBUG_GAME_TRANSITION = False
+DEBUG_GAME_UNITTEST = False
 
 
 FPS_CAP = 60
@@ -552,9 +556,35 @@ RENDER_SCALE = 2  # for editor
 SCALE = 0.5
 TILE_SIZE = 16
 
+SCREEN_RESOLUTIONS = (
+    # ===---32/21---=== #
+    (960, 630),
+    # ===----4/3----=== #
+    (640, 480),
+    (1280, 960),
+    (960, 720),
+    (320, 240),
+    # ===---16/9----=== #
+    (640, 360),
+    (384, 216),
+    (320, 180),
+)  # (width, height)
+
 SCREEN_RESOLUTION_MODE = 0
-SCREEN_WIDTH = (960, 640, 640, 320)[SCREEN_RESOLUTION_MODE]
-SCREEN_HEIGHT = (630, 480, 360, 180)[SCREEN_RESOLUTION_MODE]
+SCREEN_WIDTH, SCREEN_HEIGHT = SCREEN_RESOLUTIONS[SCREEN_RESOLUTION_MODE]
+
+
+# 32/21, 4/3, 16/9, 16/9
+def _test__screen__dimensions():
+    from fractions import Fraction as _F
+
+    f0 = _F(960, 630)
+    assert (f0.numerator, f0.denominator) == (32, 21)
+
+
+if DEBUG_GAME_ASSERTS:
+    _test__screen__dimensions()
+
 
 DIMENSIONS = (SCREEN_WIDTH, SCREEN_HEIGHT)  # ratio: (4/3) or (1.3333333333333333)
 DIMENSIONS_HALF = (int(SCREEN_WIDTH * SCALE), int(SCREEN_HEIGHT * SCALE))

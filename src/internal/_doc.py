@@ -23,4 +23,5 @@ space to world space backwards. Note that halving dimensions of image gets its c
 
 ```
 
+# Primer: https://www.pygame.org/docs/tut/newbieguide.html
 """

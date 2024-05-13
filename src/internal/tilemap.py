@@ -6,19 +6,19 @@ from collections.abc import Iterator
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-from pprint import pprint
+from pprint import pprint  # pyright: ignore
+from typing import Any  # pyright: ignore
+from typing import MutableSequence  # pyright: ignore
+from typing import Set  # pyright: ignore
 from typing import (
     TYPE_CHECKING,
-    Any,
     Dict,
     Final,
     Iterable,
     List,
     Mapping,
-    MutableSequence,
     Optional,
     Sequence,
-    Set,
     Tuple,
     TypedDict,
     Union,
@@ -47,11 +47,11 @@ pos_to_loc_partial: partial[str] = partial(pos_to_loc)
 pos_to_loc_nooffset_partialfn: partial[str] = partial(pos_to_loc, offset=None)
 
 
-@dataclass
+@dataclass(slots=True)
 class TileItem:
-    kind: pre.TileKind  # use an enum or verify with field()
-    variant: int
     pos: pg.Vector2
+    kind: pre.TileKind
+    variant: int
 
     def __hash__(self) -> int:
         return hash((self.kind, self.variant, self.pos.x, self.pos.y))
@@ -123,7 +123,9 @@ class Tilemap:
 
         for x in range(xlo, xhi + 1):
             for y in range(ylo, yhi + 1):
-                if (loc := self._loc_format.format(int(x), int(y))) in self.tilemap:
+                # 2292140    2.055    0.000    2.055    0.000 {method 'format' of 'str' objects}
+                #   if (loc := self._loc_format.format(int(x), int(y))) in self.tilemap:
+                if (loc := f"{int(x)};{int(y)}") in self.tilemap:
                     tile = self.tilemap[loc]
                     surfaces = self.game_assets_tiles[tile.kind.value]
                     if surfaces and tile.variant < len(surfaces):
