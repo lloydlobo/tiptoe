@@ -55,7 +55,7 @@ class Assets:
         spritesheet_bouncepad = Spritesheet(sheets_path / "bouncepad.png", sheets_path / "bouncepad.json")
         spritesheet_enemy = Spritesheet(sheets_path / "enemy.png", sheets_path / "enemy.json")
         spritesheet_large_decor = Spritesheet(sheets_path / "large_decor.png", sheets_path / "large_decor.json")
-        spritesheet_player = Spritesheet(sheets_path / "player1.png", sheets_path / "player1.json")
+        spritesheet_player = Spritesheet(sheets_path / "player.png", sheets_path / "player.json")
         spritesheet_tileset = Spritesheet(sheets_path / "tileset.png", sheets_path / "tileset.json")
         spritesheet_tileset_greenvalley = Spritesheet(sheets_path / "tilesetmapdecorations.png", sheets_path / "tilesetmapdecorations.json")
 
@@ -106,14 +106,14 @@ class Assets:
             ),
             animations_entity=cls.AnimationEntity(
                 enemy=dict(
-                    idle=pre.Animation(spritesheet_enemy.load_sprites("enemy", "idle"), img_dur=6),
-                    run=pre.Animation(spritesheet_enemy.load_sprites("enemy", "idle"), img_dur=4),
-                    sleeping=pre.Animation(spritesheet_enemy.load_sprites("enemy", "idle"), img_dur=12),
+                    idle=pre.Animation(spritesheet_enemy.load_sprites("enemy", "idle"), img_dur=12),
+                    run=pre.Animation(spritesheet_enemy.load_sprites("enemy", "run"), img_dur=4),
+                    sleeping=pre.Animation(spritesheet_enemy.load_sprites("enemy", "sleeping"), img_dur=12),
                 ),
                 player=dict(
-                    idle=pre.Animation(spritesheet_player.load_sprites("player", "idle"), img_dur=6),
-                    jump=pre.Animation(spritesheet_player.load_sprites("player", "idle"), img_dur=6, loop=False),
-                    run=pre.Animation(spritesheet_player.load_sprites("player", "idle"), img_dur=4),
+                    idle=pre.Animation(spritesheet_player.load_sprites("player", "idle"), img_dur=15),
+                    run=pre.Animation(spritesheet_player.load_sprites("player", "run"), img_dur=4),
+                    jump=pre.Animation(spritesheet_player.load_sprites("player", "jump"), img_dur=6, loop=False),
                 ),
             ),
             animations_misc=cls.AnimationMisc(

@@ -1,11 +1,16 @@
 {
 	"meta": {
-		"app": "manual",
-		"version": "0.1",
+		"app": "gimp",
+		"version": "0.2",
+		"metadata": {
+			"name": "Farmer Story",
+			"author": "todo",
+			"other": "itch.io"
+		},
 		"image": "enemy.png",
 		"size": {
 			"w": 48,
-			"h": 16
+			"h": 48
 		},
 		"scale": "1"
 	},
@@ -27,6 +32,46 @@
 				{
 					"x": 32,
 					"y": 0
+				}
+			]
+		},
+		"run": {
+			"size": {
+				"w": 16,
+				"h": 16
+			},
+			"frames": [
+				{
+					"x": 0,
+					"y": 16
+				},
+				{
+					"x": 16,
+					"y": 16
+				},
+				{
+					"x": 32,
+					"y": 16
+				}
+			]
+		},
+		"sleeping": {
+			"size": {
+				"w": 16,
+				"h": 16
+			},
+			"frames": [
+				{
+					"x": 0,
+					"y": 32
+				},
+				{
+					"x": 16,
+					"y": 32
+				},
+				{
+					"x": 32,
+					"y": 32
 				}
 			]
 		}
