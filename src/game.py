@@ -128,8 +128,8 @@ class Game:
         self.mainscreen = None  # menu | loading | game
 
         display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # SCLAED | FULLSCREEN
-        # ^ hwsurface flag does nothing in pygameg ver2.0+, doublebuf has some use, but not a magic speed up flag.
-        # | see https://www.pygame.org/docs/tut/newbieguide.html
+        # HWSURFACE flag does nothing in pygameg ver2.0+, DOUBLEBUF has some use, but not a magic speed up flag.
+        # See https://www.pygame.org/docs/tut/newbieguide.html
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, display_flag)
 
@@ -219,7 +219,31 @@ class Game:
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
 
         self.level = 0
+
+        # seedling: Mon May 13 08:20:31 PM IST 2024
+        self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
+
         self.running = True
+
+    # @profile
+    def reset_state_on_gameover(self) -> None:
+        if pre.DEBUG_GAME_PRINTLOG:
+            print(f"resetting after gameover...")
+        self.camera.reset()
+        if 0:
+            self.clock = pg.time.Clock()
+            self.dt = 0
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        if 0:
+            self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
+            self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
+            # self.tilemap = Tilemap(self, pre.TILE_SIZE)
+        self.screenshake = 0
+        self.gcs_deque.clear()
+        self.level = 0
+        self.player_dash_enemy_collision_count = 0
+        if pre.DEBUG_GAME_PRINTLOG:
+            print(f"resetting completed")
 
     # @profile
     def run(self) -> None:
@@ -443,7 +467,8 @@ class Game:
                 self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
             if self.player.rect.colliderect(rect_bp):
                 self.player.jump()
-                self.player.air_timer = 0  # HACK: to avoid simulating freefall death
+                # Note: avoids triggering freefall death
+                self.player.air_timer = 0
                 self.player.velocity.y = -5
 
         for i, state in enumerate(self.gcs_deque):
@@ -551,6 +576,39 @@ class Game:
                     # TODO: implement dash and checkpoint teleport particles!!!!!!
                     pass
 
+        # ===--------HUD Stats--------=== #
+
+        hud_size = (96, 48)
+        hud_pad = pg.Vector2(self.font_xs.size("0")[0] / 2, self.font_xs.size("0")[1] / 2)
+        hud_dest = pg.Vector2(0, 0)
+
+        hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+        hud_bg_surf.set_colorkey(pg.Color("black"))
+        hud_bg_surf.fill(pre.CHARCOAL)
+        hud_bg_surf.set_alpha(10)
+
+        def hud_draw_text(surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
+            surf_ = font.render(text, True, color)
+            rect = surf_.get_rect()
+            rect.midtop = (x, y)
+            return surf.blit(surf_, rect)
+
+        hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+
+        hud_surf.blit(hud_bg_surf, (0, 0))
+
+        hud_rect_0_icon = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (0, hud_pad.y))
+        hud_rect_0_value = hud_draw_text(hud_surf, int(hud_rect_0_icon.width + 2 * hud_pad.x), int(3 * hud_pad.y), self.font_xs, pre.WHITE, f"{self.player_dash_enemy_collision_count}")
+
+        hud_rect = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
+
+        # self.draw_text(
+        #     24 + hud_txt_dashed.width + 8,
+        #     12,
+        #     self.font_xs,
+        #     pre.WHITE,
+        #     f"j {self.player.double_jumps}",
+        # )
         if pre.DEBUG_GAME_HUD:
             try:
                 mousepos = [math.floor(mouse_pos.x), math.floor(mouse_pos.y)]
@@ -578,25 +636,6 @@ class Game:
         elif not self.running:
             # note: we could just set gamestate form keyevent or update loop
             return AppState.GAMESTATE, GameState.NEXTLEVEL
-
-    # @profile
-    def reset_state_on_gameover(self) -> None:
-        if pre.DEBUG_GAME_PRINTLOG:
-            print(f"resetting after gameover...")
-        self.camera.reset()
-        if 0:
-            self.clock = pg.time.Clock()
-            self.dt = 0
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-        if 0:
-            self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
-            self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
-            # self.tilemap = Tilemap(self, pre.TILE_SIZE)
-        self.screenshake = 0
-        self.gcs_deque.clear()
-        self.level = 0
-        if pre.DEBUG_GAME_PRINTLOG:
-            print(f"resetting completed")
 
     def lvl_no_more_levels_left(self) -> bool:
         return self.level + 1 >= self._level_map_count
@@ -690,6 +729,7 @@ class Game:
 
         self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
         self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
+
         self.touched_portal = False
         self.transition = self._transition_lo
 
@@ -758,7 +798,7 @@ class Game:
         surf = font.render(text, True, color)
         rect = surf.get_rect()
         rect.midtop = (x, y)
-        self.display.blit(surf, rect)
+        return self.display.blit(surf, rect)
 
 
 class LoadingScreen:

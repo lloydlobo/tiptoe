@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from collections import deque
 from enum import Enum
 from functools import partial
@@ -56,7 +57,7 @@ class PhysicalEntity:
         # else use min for easy floaty feel
         self._terminal_limiter_air_friction: Final = max(0.1, ((pre.TILE_SIZE * 0.5) / (pre.FPS_CAP)))
 
-        self.anim_offset = pg.Vector2(-1, -1)  # | Workaround for padding used in animated sprites states like run jump
+        self.anim_offset = pg.Vector2(-3, 0)  # | Workaround for padding used in animated sprites states like run jump
         # Note: should be an int                 | to avoid collisions or rendering overflows outside of hit-box for entity
 
         self.action: Optional[Action] = None
@@ -92,6 +93,8 @@ class PhysicalEntity:
         # Compute players input based movement with entity velocity
         frame_movement: pg.Vector2 = movement + self.velocity
 
+        # ===--------Simulate Collisions-------=== #
+
         # Reset collision state at start of each frame
         self.collisions = pre.Collisions(up=False, down=False, left=False, right=False)
 
@@ -121,6 +124,8 @@ class PhysicalEntity:
                     self.collisions.up = True
                 self.pos.y = entity_rect.y
 
+        # ===--------Movement Quirks-------=== #
+
         if movement.x < 0:
             self.flip = True
         if movement.x > 0:
@@ -131,11 +136,12 @@ class PhysicalEntity:
         # Update velocity
         self.velocity.y = min(self._terminal_velocity_y, self.velocity.y + self._terminal_limiter_air_friction)
 
-        # Handle collisions
+        # Handle velocity based on collisions
         if self.collisions.down or self.collisions.up:
             self.velocity.y = 0
 
         self.animation.update()
+
         return True
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
@@ -173,6 +179,7 @@ class Enemy(PhysicalEntity):
         self.max_sleep_time = 60 * 1
         self.sleep_timer = 0
         self.dashed_by_player = False
+        self.dashed_by_player_counter = 0
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         # Pre-calculations before inheriting PhysicalEntity update
@@ -262,6 +269,9 @@ class Enemy(PhysicalEntity):
                     return True  # enemy death
                 self.set_action(Action.SLEEPING)
                 self.sleep_timer = self.max_sleep_time
+                if not self.dashed_by_player_counter:
+                    self.dashed_by_player_counter += 1
+                    self.game.player_dash_enemy_collision_count += 1
                 if 1:  # pushed by player
                     if not self.dashed_by_player:
                         player = self.game.player
@@ -271,6 +281,9 @@ class Enemy(PhysicalEntity):
                         self.velocity.y = player.velocity.y / 4
                         self.velocity.x = 1.5 if self.flip else -1.5
                 return False
+
+        # if self.action == Action.SLEEPING and self.dashed_by_player_counter < 2:
+        #     self.dashed_by_player_counter = max(0,  self.dashed_by_player_counter-1)
         #   if _dead_condition:
         #       return True
 
@@ -280,6 +293,24 @@ class Enemy(PhysicalEntity):
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
         super().render(surf, offset)
+        if self.dashed_by_player_counter:
+
+            center = (self.rect.centerx - offset[0], self.rect.top - 4 - offset[1])
+            radius = 1
+
+            pg.draw.circle(
+                surf,
+                pg.Color("gold"),
+                center=center,
+                radius=radius,
+            )
+            pg.draw.circle(
+                surf,
+                pg.Color("yellow"),
+                center=center,
+                radius=radius + 2,
+                width=1,
+            )
 
     def get_flip_dir(self) -> Literal[-1, 1]:
         return -1 if self.flip else 1
@@ -335,7 +366,9 @@ class Player(PhysicalEntity):
         self._coyote_timer_lo = 0.0
         self._dash_force: Final = 8
         self._jump_force: Final = 3
+        # self._double_jump_force: Final = 4.5
         self._jumps: Final = 1
+        # self._double_jumps: Final = 1
         self._max_dash_time: Final = 60  # directional velocity vector
         self._wallslide_velocity_cap_y = 0.5
         self.max_dead_hit_skipped_counter: Final = 3
@@ -352,10 +385,15 @@ class Player(PhysicalEntity):
         self.air_timer = 0
         self.dash_timer = 0
         self.coyote_timer = self._coyote_timer_lo
+        self.jump_buffer_interval = 0.1
+        self.time_last_pressed_jump: Optional[float] = None
 
         # Flags
+        # self.double_jumps = 0
         self.jumps = self._jumps
         self.wallslide = False
+
+        self.player_dash_enemy_collision_count = 0
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         super().update(tilemap, movement)
@@ -392,6 +430,16 @@ class Player(PhysicalEntity):
                 self.flip = False if self.collisions.right else True
                 print("wall_slide_animation flipped")
                 self.set_action(Action.WALLSLIDE)
+
+        if not self.wallslide:
+            if self.time_last_pressed_jump:
+                if self.jumps in {0, 1} and self.collisions.down and (tmp_dt_jump := time.time() - self.time_last_pressed_jump) <= self.jump_buffer_interval:
+                    print(tmp_dt_jump)
+                    self.velocity.y = -self._jump_force
+                    self.jumps -= 1
+                    self.air_timer = self.max_air_time
+                    self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
+                    print(f"{self.time_last_pressed_jump} buffered jump")
 
         # Update action based on player state
         if not self.wallslide:
@@ -444,32 +492,55 @@ class Player(PhysicalEntity):
                 )
                 for i in range(1, 4)
             )
+
+        # if not self.double_jumps:
+        #     if self.game.player_dash_enemy_collision_count:
+        #         # self.player_dash_enemy_collision_count += 1  # allocate during init?
+        #         self.double_jumps = self._double_jumps
+        #     pass
+        # if self.jumps < 3:
+        #     self.jumps += 1
+        #     self.coyote_timer = self._coyote_timer_hi
+        #     self.game.player_dash_enemy_collision_count -= 1
+        #     print(self.jumps)
+        # self.game.player_dash_enemy_collision_count -= 1
+
         # Normalize horizontal velocity
         self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
         return True
 
     def jump(self) -> bool:
         """Returns True if player jumps successfully"""
+        self.time_last_pressed_jump = time.time()
+
+        did_jump = True
+
         if self.wallslide:
             if self.flip and self.last_movement.x < 0:  # jump away from wall
                 self.velocity.x = 3.5
                 self.velocity.y = -2.5
                 self.air_timer = self.max_air_time
                 self.jumps = max(0, self.jumps - 1)
-                return True
             elif (not self.flip) and self.last_movement.x > 0:
                 self.velocity.x = -3.5
                 self.velocity.y = -2.5
                 self.air_timer = self.max_air_time
                 self.jumps = max(0, self.jumps - 1)
-                return True
-        elif self.jumps and self.coyote_timer > self._coyote_timer_lo:
-            self.velocity.y = -self._jump_force  # Go up in -y direction
-            self.jumps -= 1
-            self.air_timer = self.max_air_time
-            self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
-            return True  # hack: play jump sound at the caller
-        return False
+        elif self.jumps:
+            if self.coyote_timer > self._coyote_timer_lo:
+                self.velocity.y = -self._jump_force  # Go up in -y direction
+                self.jumps -= 1
+                self.air_timer = self.max_air_time
+                self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
+            elif self.jumps != self._jumps and not (self.collisions.up or self.collisions.down):  # double jump
+                self.velocity.y = -self._jump_force
+                self.jumps -= 1
+                self.air_timer = self.max_air_time
+                self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
+                print(f"double jump")
+        else:
+            did_jump = False
+        return did_jump  # hack: play jump sound at the caller
 
     def dash(self) -> bool:
         """Initiate a dash action
@@ -517,6 +588,12 @@ class Player(PhysicalEntity):
         """
         # The order of rendering matters. The starplayer should not be overwritten by the player during the initial dash burst.
         # But how does it affect performance?
+
+        # DEBUGGING
+        # self.game.draw_text(int(self.pos.x) - offset[0], int(self.pos.y - offset[1]) - 96, self.game.font_xs, pre.GREEN, f"{self.jump_buffer_interval, self.time_last_pressed_jump}")
+        # self.game.draw_text(int(self.pos.x) - offset[0], int(self.pos.y - offset[1]) - 64, self.game.font_xs, pre.GREEN, f"{self.coyote_timer=:0.2f}")
+        # self.game.draw_text(int(self.pos.x) - offset[0], int(self.pos.y - offset[1]) - 32, self.game.font_xs, pre.GREEN, f"{self.jumps=}")
+
         near_freefall_death = self.air_timer + self.max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death  # ^ how to use this as walrus operator?
         if (not (abs(self.dash_timer) <= self.dash_burst_2)) or near_freefall_death:
             self._drawcircle_starfn(

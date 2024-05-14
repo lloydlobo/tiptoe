@@ -11,9 +11,8 @@ import internal.prelude as pre
 from internal.spritesheet import Spritesheet
 
 
-@dataclass
+@dataclass(slots=True)
 class Assets:
-    # __slots__= "entity"
     entity: Dict[str, pg.SurfaceType]
     misc_surf: Dict[str, pg.SurfaceType]
 
@@ -61,7 +60,8 @@ class Assets:
 
         return cls(
             entity=dict(
-                enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
+                # enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
+                enemy=spritesheet_enemy.load_sprites("enemy", "sleeping")[0],
                 player=pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER),
             ),
             misc_surf=dict(

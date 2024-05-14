@@ -309,7 +309,7 @@ def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorVa
     return img
 
 
-def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
+def load_imgs(path: str | Path, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
     """Lists all image filenames in path directory and loads_img over each and
     returns list of pg.Surfaces.
 
@@ -623,7 +623,7 @@ GREEN = (0, 255, 0) or hsl_to_rgb(120, 1, 0.25)
 GREENBLURB = (20, 222, 20) or hsl_to_rgb(120, 1, 0.25)
 GREENGLOW = (20, 127, 20) or hsl_to_rgb(120, 1, 0.25)
 PINK = hsl_to_rgb(300, 0.36, 0.38)
-PURPLEBLURB = hsl_to_rgb(220, 0.6, 0.8) or (255, 0, 0)
+PURPLEBLURB = hsl_to_rgb(220, 0.6, 0.6) or (255, 0, 0)
 PURPLEGLOW = hsl_to_rgb(220, 0.75, 0.6) or (255, 0, 0)
 RED = (255, 0, 0) or hsl_to_rgb(0, 0.618, 0.328)
 
