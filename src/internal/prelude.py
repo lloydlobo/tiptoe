@@ -309,7 +309,7 @@ def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorVa
     return img
 
 
-def load_imgs(path: str | Path, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
+def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
     """Lists all image filenames in path directory and loads_img over each and
     returns list of pg.Surfaces.
 
@@ -319,7 +319,7 @@ def load_imgs(path: str | Path, with_alpha: bool = False, colorkey: Union[tuple[
         load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
         ```
     """
-    return [load_img(f"{Path(path) / img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path))]
+    return [load_img(f"{path}/{img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path)) if img_name.endswith(".png")]
 
 
 @dataclass

@@ -376,12 +376,13 @@ class Game:
         if pre.DEBUG_GAME_CAMERA:
             self.camera.debug(surf=self.display, target_pos=(int(_target.x), int(_target.y)))
 
-        self.bg_cloud.pos.x = (self.bg_cloud.pos.x - self.camera.render_scroll[0]) * self.bg_cloud.depth * self.bg_cloud.speed
-        if self.bg_cloud.pos.x < -self.bg_display_w:
-            self.bg_cloud.pos.x = 0.0
-        self.bg_mountain.pos.x = (self.bg_mountain.pos.x - self.camera.render_scroll[0]) * self.bg_mountain.depth * self.bg_mountain.speed
+        self.bg_cloud.pos.x -= math.floor(math.floor(uniform(2, 3) * 100 * self.bg_cloud.speed * self.bg_cloud.depth) / 10) / 10
+        if self.bg_cloud.pos.x < -self.bg_display_w:  # <-480
+            self.bg_cloud.pos.x = 0
+
+        self.bg_mountain.pos.x = math.floor(math.floor(self.bg_mountain.pos.x - self.camera.render_scroll[0]) * self.bg_mountain.depth * self.bg_mountain.speed)  # works
         if self.bg_mountain.pos.x < -self.bg_display_w:
-            self.bg_mountain.pos.x = 0.0
+            self.bg_mountain.pos.x = 0
 
         # Mouse: cursor position with offset
         raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
@@ -679,7 +680,7 @@ class Game:
 
         self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
         self.bg_cloud = Background(depth=0.1 or 0.2, pos=pg.Vector2(0, 0), speed=0.5)
-        self.bg_mountain = Background(depth=0.6, pos=pg.Vector2(0, 0), speed=0.2)
+        self.bg_mountain = Background(depth=0.6, pos=pg.Vector2(0, 0), speed=0.4)  # note: higher speed causes janky wrapping of bg due to render scroll ease by 1 or 2 tilesize
 
         progress += 10
         if progressbar:

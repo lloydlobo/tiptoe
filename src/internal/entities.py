@@ -401,6 +401,11 @@ class Player(PhysicalEntity):
         self.air_timer += 1
 
         if self.game.dead:
+            # HACK: Tue May 14 08:06:12 PM IST 2024 avoid dashing into spikes if auto rewind checkpoint after death
+            self.velocity.x *= 0.1
+            self.velocity.y *= 0.1
+            self.dash_timer = 0
+
             if (not self.player_gcs_pos_before_death) and self.game.gcs_deque:
                 self.player_gcs_pos_before_death = pg.Vector2(self.game.gcs_deque.popleft().player_position)
 
@@ -426,20 +431,27 @@ class Player(PhysicalEntity):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
             self.air_timer = self.max_air_time  # FIX: trying to avoid player death while sliding for too long
+
             if 0:  # requires wall_slide animation, todo
                 self.flip = False if self.collisions.right else True
                 print("wall_slide_animation flipped")
                 self.set_action(Action.WALLSLIDE)
 
-        if not self.wallslide:
-            if self.time_last_pressed_jump:
-                if self.jumps in {0, 1} and self.collisions.down and (tmp_dt_jump := time.time() - self.time_last_pressed_jump) <= self.jump_buffer_interval:
-                    print(tmp_dt_jump)
+        if self.time_last_pressed_jump:
+            if self.jumps in {0, 1} and self.collisions.down and (tmp_dt_jump := time.time() - self.time_last_pressed_jump) <= self.jump_buffer_interval:
+                if not self.wallslide:
+                    # print(tmp_dt_jump)
                     self.velocity.y = -self._jump_force
                     self.jumps -= 1
                     self.air_timer = self.max_air_time
                     self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
-                    print(f"{self.time_last_pressed_jump} buffered jump")
+                    # print(f"{self.time_last_pressed_jump} buffered jump")
+                else:
+                    try:
+                        assert 0, f"unreachable logic. jump should not have buffered input if wall sliding is active"
+                    except AssertionError as e:
+                        print(f"AssertionError while updating player's buffered jumping: {e}")
+                        pass
 
         # Update action based on player state
         if not self.wallslide:
@@ -471,6 +483,7 @@ class Player(PhysicalEntity):
                     decay_y := (0.618 - math.cos(self.velocity.y)) if is_burst1 else 1,
                 )
             )
+
         if self.dash_timer > 0:  # 0..60
             self.dash_timer = max(0, self.dash_timer - 1)
         if self.dash_timer < 0:  # -60..0
@@ -532,12 +545,12 @@ class Player(PhysicalEntity):
                 self.jumps -= 1
                 self.air_timer = self.max_air_time
                 self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
-            elif self.jumps != self._jumps and not (self.collisions.up or self.collisions.down):  # double jump
-                self.velocity.y = -self._jump_force
-                self.jumps -= 1
-                self.air_timer = self.max_air_time
-                self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
-                print(f"double jump")
+            # elif self.jumps != self._jumps and not (self.collisions.up or self.collisions.down):  # double jump
+            #     self.velocity.y = -self._jump_force
+            #     self.jumps -= 1
+            #     self.air_timer = self.max_air_time
+            #     self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
+            #   # print(f"double jump")
         else:
             did_jump = False
         return did_jump  # hack: play jump sound at the caller

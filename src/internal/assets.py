@@ -88,7 +88,7 @@ class Assets:
                     pre.load_img(pre.IMGS_PATH / "tiles" / "spawners" / "flag.png", colorkey=pre.BLACK),
                     pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2),
                 ],
-                spike=[pre.load_img(str(pre.IMGS_PATH / "tiles" / "spikes" / "0.png"), colorkey=pre.BLACK)],
+                spike=pre.load_imgs(str(pre.IMGS_PATH / "tiles" / "spikes"), colorkey=pre.BLACK),
                 # offgrid decoration
                 # decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))))),
                 decor=[
