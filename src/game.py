@@ -301,6 +301,10 @@ class Game:
                 if event.key == pg.K_RIGHT:
                     self.movement.right = True
                 if event.key in (pg.K_SPACE, pg.K_c):
+                    if self.player.time_jump_keyup:
+                        self.player.time_jump_keyup = None
+                    self.player.time_jump_keydown = time.time()
+                    # print(f"{self.player.time_jump_keydown}")
                     if self.player.jump():
                         self.sfx.jump.play()
                 if event.key in (pg.K_x, pg.K_v):
@@ -311,11 +315,22 @@ class Game:
                     self.gcs_rewind_recent_checkpoint()
                 if event.key == pg.K_d:
                     self.gcs_rewind_checkpoint()
+
             if event.type == pg.KEYUP:
                 if event.key == pg.K_LEFT:
                     self.movement.left = False
                 if event.key == pg.K_RIGHT:
                     self.movement.right = False
+                if event.key in (pg.K_SPACE, pg.K_c):
+                    if self.player.time_jump_keydown and not self.player.time_jump_keyup:
+                        self.player.time_jump_keyup = time.time()
+                        self.player.delta_time_jump_keydown_keyup = self.player.time_jump_keyup - self.player.time_jump_keydown
+                        if self.player.delta_time_jump_keydown_keyup < 0.085 and not self.player.wallslide and not self.player.collisions.down:
+                            self.player.velocity.y += 1.0
+                            print("short jump", self.player.delta_time_jump_keydown_keyup)
+                        print(self.player.time_jump_keyup)
+                        # print(f"{self.player.time_jump_keyup}")
+                        # print("short jump")
 
     def render(self) -> None:
         """Render display."""

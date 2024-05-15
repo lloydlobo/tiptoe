@@ -58,6 +58,14 @@ class Assets:
         spritesheet_tileset = Spritesheet(sheets_path / "tileset.png", sheets_path / "tileset.json")
         spritesheet_tileset_greenvalley = Spritesheet(sheets_path / "tilesetmapdecorations.png", sheets_path / "tilesetmapdecorations.json")
 
+        large_decor = [
+            # ===-----------=== #
+            sprite
+            for group in ["bush_1", "bush_2", "bush_3", "bush_4", "bush_5", "bush_6", "bush_7"]
+            for sprite in spritesheet_tileset_greenvalley.load_sprites("large_decor", group)
+        ]
+        large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
+
         return cls(
             entity=dict(
                 # enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
@@ -97,12 +105,7 @@ class Assets:
                     for group in ["white_plant", "red_plant", "yellow_plant", "cyan_plant"]
                     for sprite in spritesheet_tileset_greenvalley.load_sprites("decor", group)
                 ],
-                large_decor=[
-                    # ===-----------=== #
-                    sprite
-                    for group in ["bush_1", "bush_2", "bush_3", "bush_4", "bush_5", "bush_6", "bush_7"]
-                    for sprite in spritesheet_tileset_greenvalley.load_sprites("large_decor", group)
-                ],
+                large_decor=large_decor,
             ),
             animations_entity=cls.AnimationEntity(
                 enemy=dict(
