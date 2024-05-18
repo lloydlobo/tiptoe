@@ -211,7 +211,7 @@ class Game:
         self._max_screenshake: Final = pre.TILE_SIZE
 
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
-        self.level = 2
+        self.level = 0
 
         # seedling: Mon May 13 08:20:31 PM IST 2024
         self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
@@ -275,30 +275,24 @@ class Game:
     def events(self) -> None:
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                quit_exit()
+                quit_exit("Exiting...")
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
-                quit_exit()
-            # exit game loop while self.running and continue on from the caller
+                quit_exit("Exiting...")
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                try:
-                    assert not self.gameover, "failed to overide gameover flag after reset"
-                except AssertionError as e:
-                    self.gameover = False
-                    print(f"ignoring AssertionError: [tempfix] overiding gameover as falsy: {e}")
                 self.running = False
+
             if event.type == pg.VIDEORESIZE:
                 self.screen = pg.display.get_surface()
+
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_LEFT:
                     self.movement.left = True
                 if event.key == pg.K_RIGHT:
                     self.movement.right = True
-                if event.key in (pg.K_SPACE, pg.K_c):
-                    if self.player.time_jump_keyup:
+                if event.key in (pg.K_SPACE, pg.K_c):  # check jump keydown
+                    if self.player.time_jump_keyup:  # reset manually
                         self.player.time_jump_keyup = None
-
                     self.player.time_jump_keydown = time.time()
-                    # print(f"{self.player.time_jump_keydown}")
                     if self.player.jump():
                         self.sfx.jump.play()
                 if event.key in (pg.K_x, pg.K_v):
@@ -315,26 +309,31 @@ class Game:
                     self.movement.left = False
                 if event.key == pg.K_RIGHT:
                     self.movement.right = False
-                if event.key in (pg.K_SPACE, pg.K_c):
+                if event.key in (pg.K_SPACE, pg.K_c):  # check jump keyup
                     if self.player.time_jump_keydown and not self.player.time_jump_keyup:
                         self.player.time_jump_keyup = time.time()
                         self.player.delta_time_jump_keydown_keyup = self.player.time_jump_keyup - self.player.time_jump_keydown
-                        if self.player.delta_time_jump_keydown_keyup < 0.1 and not self.player.wallslide and not self.player.collisions.down:
-
-                            if not self.player.wallslide and not self.player.collisions.left and not self.player.collisions.right and abs(self.player.velocity.x) <= 0.1:  # stops spamming jump for speed boost
-                                if self.player.dash_timer:
-                                    self.player.velocity.y = -3.0
-                                    if self.player.last_movement.x:
-                                        self.player.velocity.x = -2.00 if self.player.flip else 2.00
-                                else:
-                                    self.player.velocity.y += 1.5
-                                    if self.player.last_movement.x:
-                                        self.player.velocity.x = -2.50 if self.player.flip else 2.50
-
-                            # print("short jump", self.player.delta_time_jump_keydown_keyup)
-                        # print(self.player.time_jump_keyup)
-                        # print(f"{self.player.time_jump_keyup}")
-                        # print("short jump")
+                        if (
+                            self.player.delta_time_jump_keydown_keyup < self.player.jump_buffer_interval
+                            and self.player.air_timer <= self.player.max_air_time * 5
+                            and not self.player.wallslide
+                            and not self.player.collisions.left
+                            and not self.player.collisions.right
+                            and -self.player.jump_force <= self.player.velocity.y < 0
+                            and abs(self.player.velocity.x) <= 0.1
+                        ):
+                            if self.player.dash_timer and self.player.velocity.y <= 0.1:
+                                self.player.velocity.y = -3.0
+                                if self.player.last_movement.x:
+                                    self.player.velocity.x = -2.00 if self.player.flip else 2.00
+                            elif self.player.coyote_timer and self.player.air_timer <= self.player.max_air_time * 3:  # 3 -> jump force
+                                self.player.velocity.y += 1.35
+                                if self.player.last_movement.x:
+                                    self.player.velocity.x = -2.25 if self.player.flip else 2.25
+                                    if 1 < abs(self.player.velocity.x) < 2:
+                                        self.player.velocity.x *= 1.618
+                                    elif 0 < abs(self.player.velocity.x) <= 1:
+                                        self.player.velocity.x *= 0.5
 
     def render(self) -> None:
         """Render display."""
