@@ -111,12 +111,6 @@ def get_user_config(filepath: Path) -> pre.UserConfig:
     return pre.UserConfig.from_dict(config)
 
 
-# from /nix/store/w8cbya4df76i8k4qv12r4saj8hnjrc0k-python3.11-pygame-2.5.1/lib/python3.11/site-packages/pygame
-#
-# @unittest.skipIf(
-#     os.environ.get("SDL_VIDEODRIVER") == "dummy",
-#     'OpenGL requires a non-"dummy" SDL_VIDEODRIVER',
-# )
 class Game:
     @profile
     def __init__(self) -> None:
@@ -217,8 +211,7 @@ class Game:
         self._max_screenshake: Final = pre.TILE_SIZE
 
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
-
-        self.level = 0
+        self.level = 2
 
         # seedling: Mon May 13 08:20:31 PM IST 2024
         self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
@@ -303,6 +296,7 @@ class Game:
                 if event.key in (pg.K_SPACE, pg.K_c):
                     if self.player.time_jump_keyup:
                         self.player.time_jump_keyup = None
+
                     self.player.time_jump_keydown = time.time()
                     # print(f"{self.player.time_jump_keydown}")
                     if self.player.jump():
@@ -325,22 +319,39 @@ class Game:
                     if self.player.time_jump_keydown and not self.player.time_jump_keyup:
                         self.player.time_jump_keyup = time.time()
                         self.player.delta_time_jump_keydown_keyup = self.player.time_jump_keyup - self.player.time_jump_keydown
-                        if self.player.delta_time_jump_keydown_keyup < 0.085 and not self.player.wallslide and not self.player.collisions.down:
-                            self.player.velocity.y += 1.0
-                            print("short jump", self.player.delta_time_jump_keydown_keyup)
-                        print(self.player.time_jump_keyup)
+                        if self.player.delta_time_jump_keydown_keyup < 0.1 and not self.player.wallslide and not self.player.collisions.down:
+
+                            if not self.player.wallslide and not self.player.collisions.left and not self.player.collisions.right and abs(self.player.velocity.x) <= 0.1:  # stops spamming jump for speed boost
+                                if self.player.dash_timer:
+                                    self.player.velocity.y = -3.0
+                                    if self.player.last_movement.x:
+                                        self.player.velocity.x = -2.00 if self.player.flip else 2.00
+                                else:
+                                    self.player.velocity.y += 1.5
+                                    if self.player.last_movement.x:
+                                        self.player.velocity.x = -2.50 if self.player.flip else 2.50
+
+                            # print("short jump", self.player.delta_time_jump_keydown_keyup)
+                        # print(self.player.time_jump_keyup)
                         # print(f"{self.player.time_jump_keyup}")
                         # print("short jump")
 
     def render(self) -> None:
         """Render display."""
-        self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
-        self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
-        self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # wrap around
-        # self.display_2.blit(self.bg_4_surf, self.bg_4.pos)
-        # self.display_2.blit(self.bg_4_surf, (self.bg_4.pos - (self.bg_display_w, 0)))  # wrap around
-        self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
-        self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))  # wrap around
+        if self.level in {2}:
+            # if (50 <= abs(self.player.dash_timer) <= 60) and (not self.player.collisions.down and not self.player.collisions.up):
+            #    self.display_2.fill((0, 0, 10))
+            # elif random() < 0.01:
+            #    self.display_2.fill((0, 0, 0, 0))
+            self.display_2.fill((0, 0, 0, 0))
+            self.display_2.fill((0, 0, 0))
+            # self.display_2.blit(self.grid_surf, (0, 0))
+        else:
+            self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
+            self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
+            self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # wrap around
+            self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
+            self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))  # wrap around
 
         # Create a transition surface with a circular cutout.
         if self.transition:
@@ -386,7 +397,12 @@ class Game:
     def update(self) -> None:
         # Camera: update and parallax
         _target = self.player.rect  # using bottom//2 over centery, to avoid y offset due to higher mapsize by 1 or 2 grid cells
-        self.camera.update((_target.centerx, _target.bottom // 4), map_size=self.level_map_dimension, dt=self.dt)
+        if self.level in {2}:
+            # self.camera.update((_target.centerx, _target.bottom), map_size=None, dt=self.dt)
+            deadzone = self.camerasize[1] // 4
+            self.camera.update((_target.centerx, _target.bottom - deadzone), map_size=None, dt=self.dt)
+        else:
+            self.camera.update((_target.centerx, _target.bottom // 4), map_size=self.level_map_dimension, dt=self.dt)
         render_scroll = self.camera.render_scroll
         if pre.DEBUG_GAME_CAMERA:
             self.camera.debug(surf=self.display, target_pos=(int(_target.x), int(_target.y)))
@@ -451,8 +467,9 @@ class Game:
             # fmt: on
 
         # Stars: backdrop update and render
-        self.stars.update()  # stars drawn behind everything else
-        self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
+        if 0:
+            self.stars.update()  # stars drawn behind everything else
+            self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
 
         # Tilemap: render
         self.tilemap.render(self.display, render_scroll)
@@ -552,45 +569,25 @@ class Game:
 
         # Particles
         for particle in self.particles.copy():
-            match particle.kind:
-                case pre.ParticleKind.FLAME:
-                    kill_animation = particle.update()
-                    particle.render(self.display, render_scroll)
-                    amplitude = uniform(-1.0, 1.0) * 0.3 * 0.5
-                    if amplitude == 0:
-                        amplitude = 1
-                    size = pre.SIZE.FLAMEPARTICLE  # JUICE: if player gets near, let the flames change!!!!
-                    particle_rect = pg.Rect(particle.pos.x, particle.pos.y, size[0], size[1])
-                    if self.player.rect.colliderect(particle_rect):
-                        if self.player.pos.x < particle.pos.x and not self.player.flip:
-                            particle.velocity.x += -abs(amplitude) * 0.2
-                        if self.player.pos.x > particle.pos.x and self.player.flip:
-                            particle.velocity.x += abs(amplitude) * 0.2
-                    particle.pos.x += math.sin(particle.animation.frame * 0.035) * amplitude
-                    if kill_animation:
+            kill_animation = particle.update()
+            particle.render(self.display, render_scroll)
+
+            if kill_animation:
+                match particle.kind:
+                    case pre.ParticleKind.PARTICLE:
+                        if self.level in {2}:  # note: frame count is static after kill_animation
+                            decay_initial_value, decay_factor, decay_iterations = (1, 0.95, particle.animation.frame)
+                            decay = decay_initial_value * (decay_factor**decay_iterations)
+                            amplitude_clamp = 0.328
+                            chaos = amplitude_clamp * math.sin(particle.animation.frame * 0.035)
+                            particle.velocity.x -= math.copysign(1, particle.velocity.x) * chaos * decay * uniform(8, 16)
+                            particle.velocity.y -= math.copysign(1, particle.velocity.y) * chaos * decay * uniform(8, 16)
+                            if random() < uniform(0.01, 0.025):
+                                self.particles.remove(particle)
+                        else:
+                            self.particles.remove(particle)
+                    case _:
                         self.particles.remove(particle)
-                case pre.ParticleKind.FLAMEGLOW:
-                    kill_animation = particle.update()
-                    img = particle.animation.img().copy()
-                    amplitude = uniform(-1.0, 1.0) * 0.3 * 0.5
-                    if amplitude == 0:
-                        amplitude = 1
-                    dest = (particle.pos.x - render_scroll[0] - img.get_width() // 2, particle.pos.y - render_scroll[1] - img.get_height() // 2)  # ideal is display, but display_2 looks cool for flameglow
-                    self.display_2.blit(img, dest, special_flags=pg.BLEND_RGB_ADD)  # ^ use center of the image as origin
-                    particle.pos.x += math.sin(particle.animation.frame * 0.035) * (amplitude, 0.3)[randint(0, 1)]
-                    if kill_animation:
-                        self.particles.remove(particle)
-                case pre.ParticleKind.PARTICLE:
-                    kill_animation = particle.update()
-                    # img = particle.animation.img().copy()
-                    # dest = particle.pos - render_scroll - pg.Vector2(img.get_width() // 2, img.get_height() // 2)
-                    particle.render(self.display, render_scroll)
-                    # self.display_2.blit(img, dest, special_flags=pg.BLEND_RGB_ADD)
-                    if kill_animation:
-                        self.particles.remove(particle)
-                case _:  # pyright: ignore
-                    # TODO: implement dash and checkpoint teleport particles!!!!!!
-                    pass
 
         # ===--------HUD Stats--------=== #
 
@@ -692,6 +689,17 @@ class Game:
 
         bg_mountain_surf = self.assets.misc_surf["bg3"]
         self.bg_mountain_surf = bg_mountain_surf
+
+        if self.level in {2}:
+            # self.grid_surf = pre.create_surface(self.display.get_size(), colorkey=(0, 0, 0), fill_color=(20, 20, 20)).convert()
+            self.grid_surf = pre.create_surface(self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)).convert()
+            grid_surf_pixels = pg.surfarray.pixels3d(self.grid_surf)  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+            for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
+                grid_surf_pixels[x, :] = (26, 27, 26)
+            for y in range(0, pre.DIMENSIONS_HALF[1], self.tilemap.tilesize):
+                grid_surf_pixels[:, y] = (26, 27, 26)
+            # Convert the pixel array back to a surface
+            del grid_surf_pixels  # Unlock the pixel array
 
         self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
         self.bg_cloud = Background(depth=0.1 or 0.2, pos=pg.Vector2(0, 0), speed=0.5)

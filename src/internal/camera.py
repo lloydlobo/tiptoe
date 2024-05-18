@@ -28,7 +28,7 @@ class SimpleCamera:
         self.scroll = vec2(0, 0)
 
         # Players can tolerate more horizontal camera offset than vertical.
-        _ease_x = 2**5 - 2**1  # ideal 28..40
+        _ease_x = 2**5 - 2**3  # ideal 28..40
         _ease_y = round(_ease_x * 0.618)  # ideal 16..25
         self.scroll_ease: Final = vec2((1 / _ease_x), 1 / _ease_y)
 

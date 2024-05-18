@@ -65,6 +65,9 @@ class Assets:
             for sprite in spritesheet_tileset_greenvalley.load_sprites("large_decor", group)
         ]
         large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
+        granites = spritesheet_tileset.load_sprites("tiles", "granite")
+        for i, granite in enumerate(granites.copy()):
+            granites[i].fill((19, 20, 23))
 
         return cls(
             entity=dict(
@@ -85,7 +88,7 @@ class Assets:
             ),
             tiles=dict(
                 # ongrid physics tiles
-                granite=spritesheet_tileset.load_sprites("tiles", "granite"),
+                granite=granites,
                 grass=spritesheet_tileset_greenvalley.load_sprites("tiles", "grass"),
                 grasspillar=spritesheet_tileset_greenvalley.load_sprites("tiles", pre.TileKind.GRASSPILLAR.value),
                 grassplatform=spritesheet_tileset_greenvalley.load_sprites("tiles", "grassplatform"),
