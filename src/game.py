@@ -211,7 +211,7 @@ class Game:
         self._max_screenshake: Final = pre.TILE_SIZE
 
         self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
-        self.level = 0
+        self.level = 2
 
         # seedling: Mon May 13 08:20:31 PM IST 2024
         self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
@@ -227,7 +227,7 @@ class Game:
             self.clock = pg.time.Clock()
             self.dt = 0
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-        if 0:
+        if self.level in {2}:
             self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
             self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
             # self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -252,6 +252,8 @@ class Game:
                 level_music_filename = "level_0.wav"
             case 1:
                 level_music_filename = "theme_2.wav"
+            case 2:
+                level_music_filename = "level_2.wav"
             case _:
                 # note: use a prev variable to hold last level music played if
                 # we want to let it followthrough and avoid playing via pg.mixer.play()
@@ -267,6 +269,8 @@ class Game:
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
             self.display.fill((0, 0, 0, 0))
+            if self.level in {2}:
+                self.display_2.fill((30, 30, 30))
             self.events()
             self.update()
             self.render()
@@ -338,12 +342,13 @@ class Game:
     def render(self) -> None:
         """Render display."""
         if self.level in {2}:
+            # self.display_2.fill((10, 10, 10))
             # if (50 <= abs(self.player.dash_timer) <= 60) and (not self.player.collisions.down and not self.player.collisions.up):
             #    self.display_2.fill((0, 0, 10))
             # elif random() < 0.01:
             #    self.display_2.fill((0, 0, 0, 0))
-            self.display_2.fill((0, 0, 0, 0))
-            self.display_2.fill((0, 0, 0))
+            pass
+            # self.display_2.fill((0, 0, 0, 0))
             # self.display_2.blit(self.grid_surf, (0, 0))
         else:
             self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
@@ -395,13 +400,15 @@ class Game:
 
     def update(self) -> None:
         # Camera: update and parallax
-        _target = self.player.rect  # using bottom//2 over centery, to avoid y offset due to higher mapsize by 1 or 2 grid cells
-        if self.level in {2}:
-            # self.camera.update((_target.centerx, _target.bottom), map_size=None, dt=self.dt)
-            deadzone = self.camerasize[1] // 4
-            self.camera.update((_target.centerx, _target.bottom - deadzone), map_size=None, dt=self.dt)
-        else:
-            self.camera.update((_target.centerx, _target.bottom // 4), map_size=self.level_map_dimension, dt=self.dt)
+        _target = self.player.rect
+        snapy = _target.centery % self.level_map_dimension[1]
+        if snapy < self.camerasize[1]:
+            # snap camera to top floor of map area
+            snapy = _target.centery // 4
+        elif snapy > (self.level_map_dimension[1] - self.camerasize[1]) + (self.player.size.y * 2):
+            # snap camera to ground floor of map area
+            snapy = _target.centery + self.camerasize[1] // 2
+        self.camera.update((_target.centerx, snapy), map_size=self.level_map_dimension, dt=self.dt)
         render_scroll = self.camera.render_scroll
         if pre.DEBUG_GAME_CAMERA:
             self.camera.debug(surf=self.display, target_pos=(int(_target.x), int(_target.y)))
@@ -466,7 +473,7 @@ class Game:
             # fmt: on
 
         # Stars: backdrop update and render
-        if 0:
+        if self.level in {2}:
             self.stars.update()  # stars drawn behind everything else
             self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
 
@@ -575,9 +582,9 @@ class Game:
                 match particle.kind:
                     case pre.ParticleKind.PARTICLE:
                         if self.level in {2}:  # note: frame count is static after kill_animation
+                            amplitude_clamp = 0.328
                             decay_initial_value, decay_factor, decay_iterations = (1, 0.95, particle.animation.frame)
                             decay = decay_initial_value * (decay_factor**decay_iterations)
-                            amplitude_clamp = 0.328
                             chaos = amplitude_clamp * math.sin(particle.animation.frame * 0.035)
                             particle.velocity.x -= math.copysign(1, particle.velocity.x) * chaos * decay * uniform(8, 16)
                             particle.velocity.y -= math.copysign(1, particle.velocity.y) * chaos * decay * uniform(8, 16)
@@ -610,17 +617,9 @@ class Game:
         hud_surf.blit(hud_bg_surf, (0, 0))
 
         hud_rect_0_icon = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (0, hud_pad.y))
-        hud_rect_0_value = hud_draw_text(hud_surf, int(hud_rect_0_icon.width + 2 * hud_pad.x), int(3 * hud_pad.y), self.font_xs, pre.WHITE, f"{self.player_dash_enemy_collision_count}")
-
-        hud_rect = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
-
-        # self.draw_text(
-        #     24 + hud_txt_dashed.width + 8,
-        #     12,
-        #     self.font_xs,
-        #     pre.WHITE,
-        #     f"j {self.player.double_jumps}",
-        # )
+        label_0 = f"{self.player_dash_enemy_collision_count}"
+        _ = hud_draw_text(hud_surf, int(hud_rect_0_icon.width + 2 * hud_pad.x), int(3 * hud_pad.y), self.font_xs, pre.WHITE, label_0)
+        _ = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
         if pre.DEBUG_GAME_HUD:
             try:
                 mousepos = [math.floor(mouse_pos.x), math.floor(mouse_pos.y)]
@@ -750,8 +749,12 @@ class Game:
 
         self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
 
-        self.dead = 0  # tracks if the player died -> 'reloads level' - which than resets this counter to zero
-        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on...
+        # tracks if the player died -> 'reloads level'
+        self.dead = 0
+
+        # if player is invincible while idle and hit, count amout of shield
+        # that is being hit on...
+        self.dead_hit_skipped_counter = 0
 
         self.touched_portal = False
         self.transition = self._transition_lo
@@ -791,9 +794,10 @@ class Game:
         for enemy in self.enemies:
             if player_rect.colliderect(enemy.rect):
                 enemy.pos = next_pos.copy()
-                enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                enemy.flip = not enemy.flip
                 enemy.sleep_timer = enemy.max_sleep_time
-                enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+                # Note: if enemy was sleeping already, won't work
+                enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
 
@@ -811,9 +815,10 @@ class Game:
         for enemy in self.enemies:
             if player_rect.colliderect(enemy.rect):
                 enemy.pos = next_pos.copy()
-                enemy.flip = not enemy.flip  # flip for some leeway/grace for player
+                enemy.flip = not enemy.flip
                 enemy.sleep_timer = enemy.max_sleep_time
-                enemy.set_action(Action.SLEEPING)  # if enemy was sleeping already, won't work
+                # Note: if enemy was sleeping already, won't work
+                enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
 

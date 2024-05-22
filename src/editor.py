@@ -183,8 +183,8 @@ class Editor:
                 antialias = True
                 key_w = 11  # TILEVARMODE key
                 val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
-                key_fillchar = ":"
-                val_fillchar = ":"  # non monospace fonts look uneven vertically in tables
+                key_fillchar = " "
+                val_fillchar = " "  # non monospace fonts look uneven vertically in tables
                 hud_elements = [
                     (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
                     for text in [

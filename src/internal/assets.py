@@ -67,7 +67,10 @@ class Assets:
         large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
         granites = spritesheet_tileset.load_sprites("tiles", "granite")
         for i, granite in enumerate(granites.copy()):
-            granites[i].fill((19, 20, 23))
+            granites[i].fill(pre.hex_to_rgb("616161"))
+            rect_16_0 = granite.get_rect()
+            rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
+            granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9)  # helix starlight green or bright2
 
         return cls(
             entity=dict(

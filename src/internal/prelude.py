@@ -703,7 +703,8 @@ class SIZE:
     FLAMEPARTICLE = (5, 5)
     FLAMETORCH = (4, 12)
     GUN = (7, 4)
-    STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
+    # STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
+    STAR = (2,2)
 
     # Constants derived from above
     ENEMYJUMP = (ENEMY[0], ENEMY[1] - 1)

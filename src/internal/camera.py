@@ -61,8 +61,14 @@ class SimpleCamera:
         target_y = target_pos[1] - self.CONST[1] / 2
 
         if map_size:
-            # target_x = pan_smooth(self.scroll.x, target_pos[0], dt, 0.5)
-            # target_y = pan_smooth(self.scroll.y, target_pos[1], dt, 0.5)
+            # print(map_size,target_pos)
+            # This fixes the camera to move to target position, if camera size is buggy or not set based on map/level size
+            # smoothness_manual_factor = 2 or pre.FPS_CAP
+            # if not dt:
+            #     dt = 0.016
+            # target_x = pan_smooth(self.scroll.x, target_pos[0], (1000 * dt), 0.5 * smoothness_manual_factor)
+            # target_y = pan_smooth(self.scroll.y, target_pos[1], (1000 * dt), 0.5 * smoothness_manual_factor)
+
             target_x = max(target_x, 0)
             target_x = min(target_x, (map_size[0] - self.CONST[0]))
             target_y = max(target_y, 0)
