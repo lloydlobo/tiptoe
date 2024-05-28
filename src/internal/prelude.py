@@ -68,31 +68,27 @@ __all__ = [
 ]
 
 
-try:
-    import math
-    import os
-    from dataclasses import dataclass
-    from enum import Enum, IntEnum, auto, unique
-    from functools import lru_cache, partial
-    from pathlib import Path
-    from random import randint
-    from typing import (
-        Final,
-        Generator,
-        NamedTuple,
-        Optional,
-        Sequence,
-        SupportsFloat,
-        SupportsIndex,
-        Tuple,
-        TypeAlias,
-        Union,
-    )
+import math
+import os
+from dataclasses import dataclass
+from enum import Enum, IntEnum, auto, unique
+from functools import lru_cache, partial
+from pathlib import Path
+from random import randint
+from typing import (
+    Final,
+    Generator,
+    NamedTuple,
+    Optional,
+    Sequence,
+    SupportsFloat,
+    SupportsIndex,
+    Tuple,
+    TypeAlias,
+    Union,
+)
 
-    import pygame as pg
-except ImportError as e:
-    print(f"failed to import packages:\n\t{e}")
-    exit(2)
+import pygame as pg
 
 
 # import toml

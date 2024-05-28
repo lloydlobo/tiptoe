@@ -7,16 +7,14 @@ import sys
 import threading
 import time
 import tracemalloc
-import unittest
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum, auto
-from fractions import Fraction
 from os import listdir, path
 from pathlib import Path
-from pprint import pprint  # pyright: ignore
 from random import randint, random, uniform
-from typing import Final, NoReturn, Optional
+from typing import List  # pyright:ignore
+from typing import Final, NoReturn, Optional, Set  # pyright: ignore
 
 import pygame as pg
 
@@ -101,6 +99,7 @@ class SFX:
     portaltouch: pg.mixer.Sound
     shoot: pg.mixer.Sound
     shootmiss: pg.mixer.Sound
+    teleport: pg.mixer.Sound
 
 
 def get_user_config(filepath: Path) -> pre.UserConfig:
@@ -155,7 +154,7 @@ class Game:
         self.sfx = SFX(
             ambienceheartbeatloop=_sound(_sfxpath / "ambienceheartbeatloop.wav"),
             dash=_sound(_sfxpath / "dash.wav"),
-            dashbassy=_sound(_sfxpath / "dashbassy.wav"),
+            dashbassy=_sound(_sfxpath / "dash.wav"),
             hit=_sound(_sfxpath / "hit.wav"),
             hitmisc=_sound(_sfxpath / "hitmisc.wav"),
             hitwall=_sound(_sfxpath / "hitwall.wav"),
@@ -165,6 +164,7 @@ class Game:
             portaltouch=_sound(_sfxpath / "portaltouch.wav"),
             shoot=_sound(_sfxpath / "shoot.wav"),
             shootmiss=_sound(_sfxpath / "shootmiss.wav"),
+            teleport=_sound(_sfxpath / "teleport.wav"),
         )
 
         self.sfx.ambienceheartbeatloop.set_volume(0.1)
@@ -173,15 +173,17 @@ class Game:
         self.sfx.hit.set_volume(0.2)
         self.sfx.hitmisc.set_volume(0.2)
         self.sfx.hitwall.set_volume(0.2)
-        self.sfx.jump.set_volume(0.15)
-        self.sfx.jumplanding.set_volume(0.02)
+        self.sfx.jump.set_volume(0.4)
+        self.sfx.jumplanding.set_volume(0.3)
         self.sfx.playerspawn.set_volume(0.2)
         self.sfx.portaltouch.set_volume(0.2)
         self.sfx.shoot.set_volume(0.1)
         self.sfx.shootmiss.set_volume(0.2)
+        self.sfx.teleport.set_volume(0.2)
 
         self._player_starting_pos: Final = pg.Vector2(50, 50)
         self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
+        self.player_spawner_pos: Optional[pg.Vector2] = None
 
         self.gcs_deque: deque[GameCheckpointState] = deque([])
         # self.player_gcs_pos_before_death: Optional[pg.Vector2] = None
@@ -227,7 +229,7 @@ class Game:
             self.clock = pg.time.Clock()
             self.dt = 0
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-        if self.level in {2}:
+        if self.level in {2, 3}:
             self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
             self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
             # self.tilemap = Tilemap(self, pre.TILE_SIZE)
@@ -254,6 +256,8 @@ class Game:
                 level_music_filename = "theme_2.wav"
             case 2:
                 level_music_filename = "level_2.wav"
+            case 3:
+                level_music_filename = "level_2.wav"
             case _:
                 # note: use a prev variable to hold last level music played if
                 # we want to let it followthrough and avoid playing via pg.mixer.play()
@@ -268,9 +272,11 @@ class Game:
         # gc.freeze()
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
+
             self.display.fill((0, 0, 0, 0))
-            if self.level in {2}:
+            if self.level in {2, 3}:
                 self.display_2.fill((30, 30, 30))
+
             self.events()
             self.update()
             self.render()
@@ -301,7 +307,7 @@ class Game:
                         self.sfx.jump.play()
                 if event.key in (pg.K_x, pg.K_v):
                     self.player.dash()
-                if event.key == pg.K_s:  # set checkpoint
+                if event.key == pg.K_s:
                     self.gcs_record_checkpoint()
                 if event.key == pg.K_z:
                     self.gcs_rewind_recent_checkpoint()
@@ -341,7 +347,7 @@ class Game:
 
     def render(self) -> None:
         """Render display."""
-        if self.level in {2}:
+        if self.level in {2, 3}:
             # self.display_2.fill((10, 10, 10))
             # if (50 <= abs(self.player.dash_timer) <= 60) and (not self.player.collisions.down and not self.player.collisions.up):
             #    self.display_2.fill((0, 0, 10))
@@ -408,8 +414,11 @@ class Game:
         elif snapy > (self.level_map_dimension[1] - self.camerasize[1]) + (self.player.size.y * 2):
             # snap camera to ground floor of map area
             snapy = _target.centery + self.camerasize[1] // 2
+
         self.camera.update((_target.centerx, snapy), map_size=self.level_map_dimension, dt=self.dt)
+
         render_scroll = self.camera.render_scroll
+
         if pre.DEBUG_GAME_CAMERA:
             self.camera.debug(surf=self.display, target_pos=(int(_target.x), int(_target.y)))
 
@@ -436,14 +445,14 @@ class Game:
         self.screenshake = max(0, self.screenshake - 1)
 
         # Check for game level transitions
-        if self.touched_portal or not self.enemies:  # win condition
+        # Win condition
+        if self.collected_enemies and self.touched_portal:
             self.transition += 1
 
             # Check if transition to the next level is required
             if self.transition > self._transition_hi:
                 if self.lvl_no_more_levels_left():
-                    # LoadingScreen will reset this later
-                    self.gameover = True
+                    self.gameover = True  # LoadingScreen will reset this later
                     self.reset_state_on_gameover()
                 else:
                     self.lvl_increment_level()
@@ -457,10 +466,19 @@ class Game:
         if self.dead:
             self._increment_player_dead_timer()  # self.dead += 1
 
-            if self.dead >= self._dead_mid:  # ease into incrementing for level change till _hi
+            # ease into incrementing for level change till _hi
+            if self.dead >= self._dead_mid:
                 self.transition = min(self._transition_hi, self.transition + 1)
             if self.dead >= self._dead_hi:
                 self.lvl_load_level(self.level)
+
+        # replenish health and revert to last checkpoint instead of "death"
+        if self.dead_hit_skipped_counter == 0 and self.respawn_death_last_checkpoint:
+            if 0:
+                self.gcs_rewind_checkpoint(record_current=False)
+            else:
+                self.gcs_rewind_recent_checkpoint(record_current=False)
+            self.respawn_death_last_checkpoint = False
 
         # Flametorch: particle animation
         if 0:
@@ -473,61 +491,119 @@ class Game:
             # fmt: on
 
         # Stars: backdrop update and render
-        if self.level in {2}:
+        if self.level in {2, 3}:
             self.stars.update()  # stars drawn behind everything else
             self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
 
         # Tilemap: render
         self.tilemap.render(self.display, render_scroll)
 
-        # Portal: detect and render
+        # ===---------------------------------------------------------------===
+        # ===-Update and Draw drop-point location zones---------------------===
+        if not self.dead and (spawner_position := self.player_spawner_pos) and spawner_position:
+            success_width, success_height = 48, 6
+            rect_value = (spawner_position.x - success_width / 2 - render_scroll[0], (spawner_position.y - render_scroll[1]) + 16 - success_height, success_width, success_height)
+            pg.draw.rect(self.display, pre.hex_to_rgb("13c299"), rect_value)
+
+            enemy_count = len(self.enemies)
+
+            for enemy in self.enemies:
+                if abs(enemy.pos.y - self.player_spawner_pos.y) < 32:
+                    enemy_count -= 1
+                    if enemy not in self.collected_enemies_seen:
+                        self.collected_enemies_counter += 1
+                        self.collected_enemies_seen.add(enemy)
+
+            if enemy_count == 0:
+                rect_value = (spawner_position.x - success_width / 2 - render_scroll[0], (spawner_position.y - render_scroll[1]) + success_height, success_width, success_height)
+                pg.draw.rect(self.display, pre.hex_to_rgb("cc1299"), rect_value)
+                self.collected_enemies = True
+        # ===---------------------------------------------------------------===
+
+        # ===---------------------------------------------------------------===
+        # ===-Portal: detect and render-------------------------------------===
         if not self.touched_portal:  # <- note: this disappears very fast
             for i, portal in enumerate(self.portal_spawners):
-                if self.player.rect.colliderect(portal.rect()):
+
+                if self.collected_enemies and self.player.rect.colliderect(portal.rect()):
                     self.touched_portal = True
+
                     if self.level != self._level_map_count:
                         self.sfx.portaltouch.play()
-                self.display.blit(portal.assets[i], portal.pos - render_scroll)
 
-        # Enemy: update and render
+                self.display.blit(portal.assets[i], portal.pos - render_scroll)
+        # ===---------------------------------------------------------------===
+
+        # ===---------------------------------------------------------------===
+        # ===Enemy: update and render0--------------------------------------===
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
             enemy.render(self.display, render_scroll)
             if kill_animation:
                 self.enemies.remove(enemy)
+        # ===---------------------------------------------------------------===
 
-        # Spawners
+        # ===---------------------------------------------------------------===
+        # ===-Update Interactive Spawners-----------------------------------===
         for rect_spike in self.spike_spawners:
             if self.player.rect.colliderect(rect_spike):
                 self._increment_player_dead_timer()  # self.dead += 1
 
         for rect_bp in self.bouncepad_spawners:
-            if 0:
-                self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
             if self.player.rect.colliderect(rect_bp):
-                self.player.jump()
-                # Note: avoids triggering freefall death
-                self.player.air_timer = 0
-                self.player.velocity.y = -5
+                did_jump = self.player.jump()
+                # HACK: Avoid triggering freefall death and allow infinite jumps
+                if did_jump:
+                    self.player.air_timer = 0
+                    self.player.velocity.y = -5
 
+                    self.sfx.jump.play()
+
+            for enemy in self.enemies:
+                if enemy.rect.colliderect(rect_bp):
+                    enemy.velocity.y -= 3
+                    # HACK: Avoid infinite jump at the same spot
+                    if enemy.rect.left < rect_bp.left:
+                        enemy.velocity.x -= 2.0
+                    elif enemy.rect.right > rect_bp.right:
+                        enemy.velocity.x += 2.0
+                    else:
+                        enemy.velocity.x += randint(-3, 3)
+
+                    self.sfx.jump.play()
+
+            if 0:  # debug
+                self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
+        # ===---------------------------------------------------------------===
+
+        # ===---------------------------------------------------------------===
+        # ===-Update and Draw GameCheckpoints ------------------------------===
         for i, state in enumerate(self.gcs_deque):
             _r = 2 * (1 + 1 / (1 + i))  # radius -> 2
-            pg.draw.circle(self.display, pre.GREENGLOW, center=(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1])), radius=(_r + 1))
-            pg.draw.circle(self.display, pre.GREENBLURB, center=(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1])), radius=_r)
-            if 0:  # for debugging
-                self.draw_text(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
+            center = (int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]))
 
-        # Player: update and render
+            pg.draw.circle(self.display, pre.GREENGLOW, center, radius=(_r + 1))
+            pg.draw.circle(self.display, pre.GREENBLURB, center, radius=_r)
+            if 0:  # debugging
+                self.draw_text(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
+        # ===---------------------------------------------------------------===
+
+        # ===---------------------------------------------------------------===
+        # ===-Player: update and render-------------------------------------===
         if not self.dead:
             self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
             self.player.render(self.display, render_scroll)
+        # ===---------------------------------------------------------------===
 
-        # Gun: projectiles and sparks
+        # ===---------------------------------------------------------------===
+        # ===-Gun: projectiles and sparks-----------------------------------===
         for projectile in self.projectiles:
             projectile.pos[0] += projectile.velocity
             projectile.timer += 1
+
             img = self.assets.misc_surf["projectile"]
-            dest = (projectile.pos[0] - (img.get_width() * 0.5) - render_scroll[0], projectile.pos[1] - (img.get_height() * 0.5) - render_scroll[1])
+            dest = (projectile.pos[0] - (img.get_width() // 2) - render_scroll[0], projectile.pos[1] - (img.get_height() // 2) - render_scroll[1])
+
             self.display.blit(img, dest)
 
             # Projectile post render: update
@@ -535,45 +611,74 @@ class Game:
 
             if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
                 self.projectiles.remove(projectile)
+
                 # Wall sparks bounce opposite to projectile's direction
                 spark_speed, spark_direction = 0.5, math.pi if (projectile.velocity > 0) else 0  # note: unit circle direction (0 left, right math.pi)
                 self.sparks.extend(Spark(projectile.pos, angle=(random() - spark_speed + spark_direction), speed=(2 + random())) for _ in range(4))
+
                 self.sfx.hitwall.play()
             elif projectile.timer > 360:
                 self.projectiles.remove(projectile)
             elif abs(self.player.dash_timer) < self.player.dash_burst_2:  # vulnerable player
                 if self.player.rect.collidepoint(projectile_x, projectile_y):
-                    # Player looses health but still alive
-                    if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):
-                        self.projectiles.remove(projectile)
-                        self.dead_hit_skipped_counter += 1  # Todo: should reset this if players action state changes from idle to something else
-                        self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
-                        self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect.center), angle=(random() * math.pi * 2), speed=(2 + random()), color=pre.COLOR.PLAYER) for _ in range(30))
-                        self.sfx.hitmisc.play()  # invincible player when idle for 3 lifes
-                    else:  # Player dies
-                        self.projectiles.remove(projectile)
-                        self._increment_player_dead_timer()  # self.dead += 1
-                        self.dead_hit_skipped_counter = 0  # Todo: should reset this if players action state changes from idle to something else
-                        self.screenshake = max(self._max_screenshake, self.screenshake - 1)
-                        # fmt: off
-                        self.sparks.extend(Spark(pos=pg.Vector2(self.player.rect.center), angle=random() * math.pi * 2, speed=((2 * uniform(0.618, 1.618)) + random())) for _ in range(30))
-                        self.particles.extend(Particle(self, pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), (pg.Vector2((math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5, math.cos((random() * math.pi * 2) + math.pi) * (random() * 5) * 0.5))), frame=randint(0, 7)) for _ in range(30))
-                        self.sfx.hit.play()
-                        # fmt: on
 
+                    # Player looses health but still alive if idle/still
+                    if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):
+                        self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
+
+                        self.projectiles.remove(projectile)
+                        self.sparks.extend(Spark(pg.Vector2(self.player.rect.center), angle, speed) for _ in range(30) if (angle := random() * math.pi * 2, speed := 2 + random()))
+
+                        self.sfx.hitmisc.play()
+
+                        self.dead_hit_skipped_counter += 1  # Todo: should reset this if players action state changes from idle to something else
+                    else:
+                        # Player death OR send back in time(checkpoint)
+                        self.screenshake = max(self._max_screenshake, self.screenshake - 1)
+
+                        self.projectiles.remove(projectile)
+                        self.sparks.extend(
+                            Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan"))
+                            for _ in range(30)
+                            if (angle := random() * math.pi * 2, speed := 2 + random())
+                        )
+                        self.particles.extend(
+                            Particle(self, pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), velocity, frame)
+                            for _ in range(30)
+                            if (angle := (random() * math.pi * 2), speed := (random() * 5), velocity := pg.Vector2(math.cos(angle + math.pi) * speed / 2), frame := randint(0, 7))
+                        )
+
+                        self.sfx.hit.play()
+
+                        # Note: Next iteration, when counter is 0 player pos is reverted to last checkpoint instead of death.
+                        if (_death_by_projectile_enabled := 0) and _death_by_projectile_enabled:
+                            self._increment_player_dead_timer()
+                        else:
+                            self.dead_hit_skipped_counter = 0  # replenish health
+                            self.respawn_death_last_checkpoint = True
+        # ===---------------------------------------------------------------===
+
+        # ===---------------------------------------------------------------===
+        # ===-Update Sparks-------------------------------------------------===
         for spark in self.sparks.copy():
             kill_animation = spark.update()
             spark.render(self.display, offset=render_scroll)
+
             if kill_animation:
                 self.sparks.remove(spark)
+        # ===---------------------------------------------------------------===
 
-        # Display Mask: before particles
+        # ===---------------------------------------------------------------===
+        # ===-Display Mask: Drop Shadow Trick-------------------------------===
         display_mask = pg.mask.from_surface(self.display)
         display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             self.display_2.blit(display_silhouette, offset)
+        # ===---------------------------------------------------------------===
 
-        # Particles
+        # ===---------------------------------------------------------------===
+        # ===-Update particles----------------------------------------------===
         for particle in self.particles.copy():
             kill_animation = particle.update()
             particle.render(self.display, render_scroll)
@@ -581,7 +686,7 @@ class Game:
             if kill_animation:
                 match particle.kind:
                     case pre.ParticleKind.PARTICLE:
-                        if self.level in {2}:  # note: frame count is static after kill_animation
+                        if self.level in {2, 3}:  # note: frame count is static after kill_animation
                             amplitude_clamp = 0.328
                             decay_initial_value, decay_factor, decay_iterations = (1, 0.95, particle.animation.frame)
                             decay = decay_initial_value * (decay_factor**decay_iterations)
@@ -594,41 +699,53 @@ class Game:
                             self.particles.remove(particle)
                     case _:
                         self.particles.remove(particle)
+        # ===---------------------------------------------------------------===
 
-        # ===--------HUD Stats--------=== #
+        # ===---------------------------------------------------------------===
+        # ===-Update HUD----------------------------------------------------===
+        if (_flag_show_hud := 0) and _flag_show_hud:
+            hud_size = (200, 48)
+            hud_pad = pg.Vector2(self.font_xs.size("0")[0] / 2, self.font_xs.size("0")[1] / 2)
+            hud_dest = pg.Vector2(0, 0)
 
-        hud_size = (96, 48)
-        hud_pad = pg.Vector2(self.font_xs.size("0")[0] / 2, self.font_xs.size("0")[1] / 2)
-        hud_dest = pg.Vector2(0, 0)
+            hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+            hud_bg_surf.set_colorkey(pg.Color("black"))
+            hud_bg_surf.fill(pre.CHARCOAL)
+            hud_bg_surf.set_alpha(10)
 
-        hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
-        hud_bg_surf.set_colorkey(pg.Color("black"))
-        hud_bg_surf.fill(pre.CHARCOAL)
-        hud_bg_surf.set_alpha(10)
+            def hud_draw_text(surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str) -> pg.Rect:
+                surf_ = font.render(text, True, color)
+                rect = surf_.get_rect()
+                rect.midtop = (x, y)
+                return surf.blit(surf_, rect)
 
-        def hud_draw_text(surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
-            surf_ = font.render(text, True, color)
-            rect = surf_.get_rect()
-            rect.midtop = (x, y)
-            return surf.blit(surf_, rect)
+            hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+            hud_surf.blit(hud_bg_surf, (0, 0))
 
-        hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+            _ = hud_surf.blit(self.assets.entity["player"], hud_dest + (0, hud_pad.y))
+            label = f"{math.ceil(100*(self.player.max_dead_hit_skipped_counter -  self.dead_hit_skipped_counter)/self.player.max_dead_hit_skipped_counter)}"
+            hud_rect = hud_draw_text(hud_surf, 40, int(hud_pad.y), self.font_xs, pg.Color("purple"), label)
 
-        hud_surf.blit(hud_bg_surf, (0, 0))
+            _ = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (50 + hud_rect.x + hud_rect.w + hud_pad.x, hud_pad.y))
+            # label = f"{len(self.enemies) - self.collected_enemies_counter}"
+            label = f"{self.player_dash_enemy_collision_count}"
+            hud_rect = hud_draw_text(hud_surf, 80, int(hud_pad.y), self.font_xs, pg.Color("yellow"), label)
 
-        hud_rect_0_icon = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (0, hud_pad.y))
-        label_0 = f"{self.player_dash_enemy_collision_count}"
-        _ = hud_draw_text(hud_surf, int(hud_rect_0_icon.width + 2 * hud_pad.x), int(3 * hud_pad.y), self.font_xs, pre.WHITE, label_0)
-        _ = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
-        if pre.DEBUG_GAME_HUD:
-            try:
-                mousepos = [math.floor(mouse_pos.x), math.floor(mouse_pos.y)]
-                render_debug_hud(self, self.display_2, render_scroll, (mousepos[0], mousepos[1]))
-                self.clock_dt_recent_values.appendleft(self.dt)
-                if len(self.clock_dt_recent_values) is pre.FPS_CAP:
-                    self.clock_dt_recent_values.pop()
-            except Exception as e:
-                print(f"exception during rendering debugging HUD: {e}")
+            _ = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (100 + hud_rect.x + hud_rect.w + hud_pad.x, hud_pad.y))
+            label = f"{len(self.enemies) - self.collected_enemies_counter}"
+            hud_rect = hud_draw_text(hud_surf, 150, int(hud_pad.y), self.font_xs, pg.Color("cyan"), label)
+
+            _ = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
+            if pre.DEBUG_GAME_HUD:
+                try:
+                    mousepos = [math.floor(mouse_pos.x), math.floor(mouse_pos.y)]
+                    render_debug_hud(self, self.display_2, render_scroll, (mousepos[0], mousepos[1]))
+                    self.clock_dt_recent_values.appendleft(self.dt)
+                    if len(self.clock_dt_recent_values) is pre.FPS_CAP:
+                        self.clock_dt_recent_values.pop()
+                except Exception as e:
+                    print(f"exception during rendering debugging HUD: {e}")
+        # ===---------------------------------------------------------------===
 
     # @profile
     def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | Game"]):
@@ -688,8 +805,7 @@ class Game:
         bg_mountain_surf = self.assets.misc_surf["bg3"]
         self.bg_mountain_surf = bg_mountain_surf
 
-        if self.level in {2}:
-            # self.grid_surf = pre.create_surface(self.display.get_size(), colorkey=(0, 0, 0), fill_color=(20, 20, 20)).convert()
+        if self.level in {2, 3}:
             self.grid_surf = pre.create_surface(self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)).convert()
             grid_surf_pixels = pg.surfarray.pixels3d(self.grid_surf)  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
             for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
@@ -708,7 +824,12 @@ class Game:
             progressbar.put(progress)
 
         self.ftorch_spawners = [
-            pg.Rect(max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x, max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y, pre.SIZE.FLAMETORCH[0], pre.SIZE.FLAMETORCH[1])
+            pg.Rect(
+                max(4, pre.SIZE.FLAMETORCH[0] // 2) + torch.pos.x,
+                max(4, pre.SIZE.FLAMETORCH[1] // 2) + torch.pos.y,
+                pre.SIZE.FLAMETORCH[0],
+                pre.SIZE.FLAMETORCH[1],
+            )
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
         self.bouncepad_spawners = [
@@ -722,12 +843,15 @@ class Game:
 
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
+
         spawner_kinds: Final = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
         increment = math.floor((70 - progress) / len(spawner_kinds))
 
         for spawner in self.tilemap.extract(list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), spawner_kinds)), False):
             match pre.SpawnerKind(spawner.variant):
                 case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
+                    self.player_spawner_pos = spawner.pos.copy()
+
                     if self.gcs_deque:
                         self.gcs_rewind_recent_checkpoint(record_current=False)
                     else:
@@ -737,9 +861,11 @@ class Game:
                     self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
                 case pre.SpawnerKind.PORTAL:
                     self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
+
             progress += increment
             if progressbar:
                 progressbar.put(progress)
+
         if pre.DEBUG_GAME_ASSERTS:
             assert self.player is not None, f"want a spawned player. got {self.player}"
             assert (val := len(self.enemies)) > 0, f"want atleast 1 spawned enemy. got {val}"
@@ -749,14 +875,16 @@ class Game:
 
         self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
 
-        # tracks if the player died -> 'reloads level'
-        self.dead = 0
-
-        # if player is invincible while idle and hit, count amout of shield
-        # that is being hit on...
-        self.dead_hit_skipped_counter = 0
+        self.dead = 0  # tracks if the player died -> 'reloads level'
+        self.respawn_death_last_checkpoint = False
+        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on
 
         self.touched_portal = False
+        self.collected_enemies = False
+        # self.collected_enemies_seen: List[Enemy] = []
+        self.collected_enemies_seen: Set[Enemy] = set()
+        self.collected_enemies_counter = 0
+
         self.transition = self._transition_lo
 
         if self.level != 0:
@@ -777,10 +905,23 @@ class Game:
             )
         )
 
-        if self.gcs_deque.__len__() > max_checkpoints:
-            self.gcs_deque.pop()
+        match self.level:
+            case 2 | 3:
+                if self.gcs_deque.__len__() > 5:
+                    self.gcs_deque.pop()
+            case _:
+                if self.gcs_deque.__len__() > max_checkpoints:
+                    self.gcs_deque.pop()
 
     def gcs_rewind_checkpoint(self, record_current: bool = True) -> None:
+        if not self.gcs_deque and self.player_spawner_pos:
+            self.gcs_deque.appendleft(
+                GameCheckpointState(
+                    player_position=(self.player_spawner_pos.x, self.player_spawner_pos.y),
+                    enemy_positions=list((e.pos.x, e.pos.y) for e in self.enemies),
+                )
+            )
+
         if not self.gcs_deque:
             return
 
@@ -800,8 +941,17 @@ class Game:
                 enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
+        self.sfx.teleport.play()
 
     def gcs_rewind_recent_checkpoint(self, record_current: bool = True) -> None:
+        if not self.gcs_deque and self.player_spawner_pos:
+            self.gcs_deque.appendleft(
+                GameCheckpointState(
+                    player_position=(self.player_spawner_pos.x, self.player_spawner_pos.y),
+                    enemy_positions=list((e.pos.x, e.pos.y) for e in self.enemies),
+                )
+            )
+
         if not self.gcs_deque:
             return
 
@@ -821,6 +971,7 @@ class Game:
                 enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
+        self.sfx.teleport.play()
 
     def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
         surf = font.render(text, True, color)
@@ -857,7 +1008,7 @@ class LoadingScreen:
             loading_thread: Optional[threading.Thread] = None
 
             match self.level:
-                case 0 | 1 | 2:
+                case 0 | 1 | 2 | 3:
                     loading_thread = threading.Thread(target=self.game.lvl_load_level, args=(self.level, self.queue))
                     loading_thread.start()
                 case _:

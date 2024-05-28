@@ -2,7 +2,7 @@
 typeCheckingMode = "strict"
 
 [tool.black]
-line-length = 209                # 79 | 88 | 99
+line-length = 180                # 79 | 88 | 99
 skip-string-normalization = true
 # target-version = ["py38"] # seems to fail on match statements
 include = '\.pyi?$'

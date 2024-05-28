@@ -76,7 +76,8 @@ class Assets:
             entity=dict(
                 # enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
                 enemy=spritesheet_enemy.load_sprites("enemy", "sleeping")[0],
-                player=pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER),
+                player=spritesheet_player.load_sprites("player", "idle")[0],
+                # player=pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER),
             ),
             misc_surf=dict(
                 background=pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK),
@@ -140,8 +141,8 @@ class Assets:
         self.tiles["spawners"] = [
             self.entity["player"],
             self.entity["enemy"],
-            pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL1),
-            pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2),
+            self.tiles["portal"][0],
+            self.tiles["portal"][1],
         ]
         return self
 

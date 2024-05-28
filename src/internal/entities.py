@@ -133,7 +133,6 @@ class PhysicalEntity:
                 self.pos.y = entity_rect.y
 
         # ===--------Movement Quirks-------=== #
-
         if movement.x < 0:
             self.flip = True
         if movement.x > 0:
@@ -159,15 +158,18 @@ class PhysicalEntity:
 class Enemy(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
         super().__init__(game, pre.EntityKind.ENEMY, pos, size)
-
         self.gun_surf = self.game.assets.misc_surf["gun"]
 
-        # Aiming for alert for 5 seconds as if the enemy stops moving the agitation isn't shown for that time period?
-        self._max_alert_time: Final = (60 * 2.5) * 2
+        self._can_die: Final = False
 
-        self.walking_timer = 0
-        self.alert_timer = 0
+        # Aiming for alert for 5 seconds as if the enemy stops moving the agitation isn't shown for that time period?
+        self._max_alert_time: Final = (pre.FPS_CAP * 2.5) * (0.5 or 2)  # 20240528053139UTC
         self.alert_boost_factor: Final = 2 * 10  # Sun Apr 28 04:02:12 PM IST 2024
+        self._alertness_enabled: Final = True
+
+        self.alert_timer = 0
+        self.walking_timer = 0
+        self.walking_timer_reset_probability = 0.05  # or  0.01
 
         self._lookahead_x: Final = 7  # (-7px west or 7px east) from center
         self._lookahead_y: Final = 23  # 23px south
@@ -179,12 +181,9 @@ class Enemy(PhysicalEntity):
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.history_contact_with_player: _TDeque = deque(maxlen=pre.FPS_CAP * 2)
 
-        self._alertness_enabled: Final = False
-        self._can_die: Final = False
-
         self.is_player_close_by = False
 
-        self.max_sleep_time = 60 * 1
+        self.max_sleep_time = pre.FPS_CAP * 1
         self.sleep_timer = 0
         self.dashed_by_player = False
         self.dashed_by_player_counter = 0
@@ -196,6 +195,7 @@ class Enemy(PhysicalEntity):
         if self.walking_timer > 0:
             lookahead_x = (-1) * self._lookahead_x if self.flip else self._lookahead_x
             lookahead = pg.Vector2(self.rect.centerx + lookahead_x, self.pos.y + self._lookahead_y)
+
             solid_ahead = tilemap.maybe_solid_gridtile_bool(lookahead)
 
             match solid_ahead, self.collisions.left, self.collisions.right:
@@ -203,31 +203,41 @@ class Enemy(PhysicalEntity):
                     self.flip = not self.flip
                 case (True, False, False):  # turn
                     dx = (-1) * self._moveby_x if self.flip else self._moveby_x
+
                     movement.x = movement.x + dx
                     movement.y = movement.y
 
-                    if self._alertness_enabled and self.alert_timer:  # Calculate moving average for smooth/erratic movement
-                        if (_tmp_disabling_as_they_may_shoot_opposite_side := 0) and _tmp_disabling_as_they_may_shoot_opposite_side:
+                    # Calculate moving average for smooth/erratic movement
+                    if self._alertness_enabled and self.alert_timer:
+                        if (_tmp_disabling_as_they_may_shoot_opposite_side := 1) and _tmp_disabling_as_they_may_shoot_opposite_side:
                             boost_x = 3.28 + 2  # 3.28
-                            avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)  # perf: hard code the length of movement history ^^^^^
+                            avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)
+                            # perf: hard code the length of movement history ^^^^^
                             movement.x += 0.1 * round(avg_mvmt_x * boost_x)
-                        extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops
+
+                        extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops -_-
                         movement.y -= extra_crazy  # todo: remove extra_crazy after demo
+
                     if self._alertness_enabled:
                         self.movement_history_x.append(dx)
                 case _:
                     self.flip = not self.flip
 
             self.walking_timer = max(0, self.walking_timer - 1)
+
             self.sleep_timer = max(0, self.sleep_timer - 1)
+
             if self._alertness_enabled:
                 self.alert_timer = max(0, self.alert_timer - 1)
 
             if not self.walking_timer:
-                dist_pe = pg.Vector2(self.game.player.pos.x - self.pos.x, self.game.player.pos.y - self.pos.y)  # Calculate distance between player and enemy
-                if abs(dist_pe.y) < pre.TILE_SIZE:
+                # Calculate distance between player and enemy
+                dist_pe = pg.Vector2(self.game.player.pos.x - self.pos.x, self.game.player.pos.y - self.pos.y)
+
+                if abs(dist_pe.y) < 2 * pre.TILE_SIZE:
                     player_left_of_enemy, player_right_of_enemy = (dist_pe.x < 0, dist_pe.x > 0)
                     enemy_is_facing_left, enemy_is_facing_right = self.flip, not self.flip
+
                     if self.action != Action.SLEEPING:
                         if (enemy_is_facing_left and player_left_of_enemy) or (enemy_is_facing_right and player_right_of_enemy):
                             self.spawn_projectile_with_sparks()
@@ -246,7 +256,7 @@ class Enemy(PhysicalEntity):
                                 err_context = f"{prev_timer,next_timer,self.alert_timer,self._max_alert_time = }"
                                 if next_timer > prev_timer:
                                     assert self.alert_timer >= prev_timer, err_context
-        elif random() < 0.01:  # refill timer one in every 0.67 seconds
+        elif random() < self.walking_timer_reset_probability:  # refill timer one in every 0.67 seconds
             self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking
         else:
             if (_tmp_feature_sleeping := 1) and _tmp_feature_sleeping:
@@ -271,73 +281,85 @@ class Enemy(PhysicalEntity):
         # Enemy: sleepy slumber like death!
         self.dashed_by_player = False  # reset each loop
         player_invincible = abs(self.game.player.dash_timer) > self.game.player.dash_burst_2
-        if player_invincible:
-            if self.game.player.rect.colliderect(self.rect):
-                if self._can_die:  # todo: do sparky stuff
-                    return True  # enemy death
-                self.set_action(Action.SLEEPING)
-                self.sleep_timer = self.max_sleep_time
-                if not self.dashed_by_player_counter:
-                    self.dashed_by_player_counter += 1
-                    self.game.player_dash_enemy_collision_count += 1
-                if 1:  # pushed by player
-                    if not self.dashed_by_player:
-                        player = self.game.player
-                        # avoid sticking to player -_-
-                        self.pos = player.pos.copy()
-                        self.flip = not self.flip
-                        self.velocity.y = player.velocity.y / 4
-                        self.velocity.x = 1.5 if self.flip else -1.5
-                return False
+
+        if player_invincible and self.game.player.rect.colliderect(self.rect):
+            if self._can_die:  # todo: do sparky stuff
+                return True  # enemy death
+
+            # Dash makes enemies sleep
+            self.set_action(Action.SLEEPING)
+            self.sleep_timer = self.max_sleep_time
+
+            # Update HUD stats
+            if not self.dashed_by_player_counter:
+                self.dashed_by_player_counter += 1
+                self.game.player_dash_enemy_collision_count += 1
+
+            # Pushed by player
+            if not self.dashed_by_player:
+                player = self.game.player
+                self.pos = player.pos.copy()  # avoid sticking to player -_-
+                self.flip = not self.flip
+                self.velocity.y = player.velocity.y / 4
+                self.velocity.x = 1.5 if self.flip else -1.5
+
+            return False
 
         # if self.action == Action.SLEEPING and self.dashed_by_player_counter < 2:
         #     self.dashed_by_player_counter = max(0,  self.dashed_by_player_counter-1)
         #   if _dead_condition:
         #       return True
 
-        # Normalize horizontal velocity(copied from player)
+        # Normalize horizontal velocity (copied from Player.update())
         self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
+
         return False  # Enemy: alive
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
         super().render(surf, offset)
-        if self.dashed_by_player_counter:
 
+        if self.dashed_by_player_counter:
             center = (self.rect.centerx - offset[0], self.rect.top - 4 - offset[1])
             radius = 1
-
-            pg.draw.circle(
-                surf,
-                pg.Color("gold"),
-                center=center,
-                radius=radius,
-            )
-            pg.draw.circle(
-                surf,
-                pg.Color("yellow"),
-                center=center,
-                radius=radius + 2,
-                width=1,
-            )
+            pg.draw.circle(surf, pg.Color("gold"), center=center, radius=radius)
+            pg.draw.circle(surf, pg.Color("yellow"), center=center, radius=radius + 2, width=1)
 
     def get_flip_dir(self) -> Literal[-1, 1]:
         return -1 if self.flip else 1
 
     def spawn_projectile_with_sparks(self):
-        SIZE_GUN = self.gun_surf.get_size()
-        SPEED_BULLET = uniform(1, 1.5)
-        COUNT_BULLET_SPARK = 4
         ANGLE_SPARK = 0.5
-        SPEED_SPARK = uniform(1.0, 2.0)
+        COUNT_BULLET_SPARK = 4
+        SIZE_GUN = (7, 4)  # self.gun_surf.get_size()
+        SPEED_BULLET = uniform(1.618, 2.00)
+        SPEED_SPARK = uniform(1.328, 1.618)
 
-        self.game.projectiles.append(pre.Projectile(pos=pg.Vector2(self.rect.centerx + self.get_flip_dir() * SIZE_GUN[0], self.rect.centery), velocity=self.get_flip_dir() * SPEED_BULLET, timer=0))
-        self.game.sparks.extend(
-            Spark(self.game.projectiles[-1].pos, angle=(random() - ANGLE_SPARK + (math.pi if self.get_flip_dir() == -1 else 0)), speed=(SPEED_SPARK + random())) for _ in range(COUNT_BULLET_SPARK)
+        direction = -1 if self.flip else 1
+
+        self.game.projectiles.append(
+            pre.Projectile(
+                pos=pg.Vector2(
+                    (self.rect.centerx + direction * SIZE_GUN[0]),
+                    (self.rect.centery + SIZE_GUN[1] // 2),  # use y gun offset???
+                ),
+                velocity=(direction * SPEED_BULLET),
+                timer=0,
+            ),
         )
 
-        self.game.sfx.shoot.play()
+        self.game.sparks.extend(
+            Spark(
+                self.game.projectiles[-1].pos.copy(),
+                angle=(random() - ANGLE_SPARK + (math.pi if direction == -1 else 0)),
+                speed=(SPEED_SPARK + random()),
+            )
+            for _ in range(COUNT_BULLET_SPARK)
+        )
+
         if self._alertness_enabled:
             self.alert_timer = self._max_alert_time
+
+        self.game.sfx.shoot.play()
 
     def make_enemy_go_after_player(self, movement: pg.Vector2) -> pg.Vector2:
         max_distance = self._lookahead_x * 2
@@ -370,44 +392,40 @@ class Player(PhysicalEntity):
 
         # Constants
         self._air_time_freefall_death: Final = 2.5 * pre.FPS_CAP  # 120 or 2 seconds
-        self._coyote_timer_hi = 0.2  # 0.2 sec
-        self._coyote_timer_lo = 0.0
+        self._coyote_timer_hi: Final = 0.2  # 0.2 sec
+        self._coyote_timer_lo: Final = 0.0
         self._dash_force: Final = 8
-        # self._double_jump_force: Final = 4.5
+        self._jump_force: Final = 3
         self._jumps: Final = 1
-        # self._double_jumps: Final = 1
         self._max_dash_time: Final = 60  # directional velocity vector
-        self._wallslide_velocity_cap_y = 0.5
-        self.max_dead_hit_skipped_counter: Final = 3
+        self._wallslide_velocity_cap_y: Final = 0.5
 
-        self.max_air_time: Final = 5
         self.dash_burst_1: Final = self._max_dash_time
         self.dash_burst_2: Final = 50
-        # self.dash_time_stream: Final = 10
-        self._jump_force: Final = 3
         self.jump_force = self._jump_force
-
-        # Partial functions
-        self._drawcircle_starfn = partial(pg.draw.circle, color=pre.COLOR.PLAYERSTAR)
+        self.max_air_time: Final = 5
+        self.max_dead_hit_skipped_counter: Final = 1  # extra lives before last checkpoint respawn
 
         # Timers
         self.air_timer = 0
-        self.dash_timer = 0
         self.coyote_timer = self._coyote_timer_lo
+        self.dash_timer = 0
+        self.delta_time_jump_keydown_keyup: Optional[float] = None
         self.jump_buffer_interval = 0.1
+        self.jumps = self._jumps
         self.time_jump_keydown: Optional[float] = None
         self.time_jump_keyup: Optional[float] = None
-        self.delta_time_jump_keydown_keyup: Optional[float] = None
 
         # Flags
-        # self.double_jumps = 0
-        self.jumps = self._jumps
-        self.wallslide = False
-        self.did_land = False
         self.did_jump = False
-        self.keyup_history: List[Dict[str, Tuple[float, float]]] = []
+        self.did_land = False
+        self.wallslide = False
 
+        self.keyup_history: List[Dict[str, Tuple[float, float]]] = []
         self.player_dash_enemy_collision_count = 0
+
+        # Partial functions
+        self._drawcircle_starfn = partial(pg.draw.circle, color=pre.COLOR.PLAYERSTAR)
 
     def update(self, tilemap: Tilemap, movement: pg.Vector2 = pg.Vector2(0, 0)) -> bool:
         super().update(tilemap, movement)
@@ -415,7 +433,7 @@ class Player(PhysicalEntity):
         self.air_timer += 1
 
         if self.game.dead:
-            # HACK: Tue May 14 08:06:12 PM IST 2024 avoid dashing into spikes if auto rewind checkpoint after death
+            # HACK: Avoid dashing into spikes if auto rewind checkpoint after death
             self.velocity.x *= 0.1
             self.velocity.y *= 0.1
             self.dash_timer = 0
@@ -427,7 +445,6 @@ class Player(PhysicalEntity):
         if self.air_timer > self._air_time_freefall_death:
             if not self.game.dead:
                 self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 1)
-            # self.player_gcs_pos_before_death = pg.Vector2(self.game.gcs_deque.popleft().player_pos)
             self.game.dead += 1  # Increment dead timer
 
         # Reset times when touch ground
@@ -439,15 +456,15 @@ class Player(PhysicalEntity):
             self.air_timer = 0
             self.coyote_timer = self._coyote_timer_hi
             self.jumps = self._jumps
-        else:  # self.air_time += self.game.clock_dt
+        else:
             self.coyote_timer -= 1 / pre.FPS_CAP
+            # self.air_time += self.game.clock_dt
 
         self.wallslide = False
         if (self.collisions.left or self.collisions.right) and (self.air_timer > self.max_air_time - 1):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
             self.air_timer = self.max_air_time  # FIX: trying to avoid player death while sliding for too long
-
             if 0:  # requires wall_slide animation, todo
                 self.flip = False if self.collisions.right else True
                 print("wall_slide_animation flipped")
@@ -456,12 +473,10 @@ class Player(PhysicalEntity):
         if self.time_jump_keydown:  # JUMP BUFFERING
             if self.jumps in {0, 1} and self.collisions.down and (time.time() - self.time_jump_keydown <= self.jump_buffer_interval):
                 if not self.wallslide:
-                    # print(tmp_dt_jump)
                     self.velocity.y = -self.jump_force
                     self.jumps -= 1
                     self.air_timer = self.max_air_time
                     self.coyote_timer = self._coyote_timer_lo  # ensure no multiple jumps
-                    # print(f"{self.time_last_pressed_jump} buffered jump")
                 else:
                     try:
                         assert 0, f"unreachable logic. jump should not have buffered input if wall sliding is active"
@@ -475,20 +490,15 @@ class Player(PhysicalEntity):
                 self.set_action(Action.JUMP)
             elif movement.x != 0:
                 self.set_action(Action.RUN)
-            else:  # Player IDLE state blends into the nearby color and can't be seen by enemies
+            else:
                 self.set_action(Action.IDLE)
 
         # Handle dash
         if (abs_dash_t := abs(self.dash_timer)) in (self.dash_burst_1, self.dash_burst_2):
             is_burst1 = abs_dash_t == self.dash_burst_1
+
             self.game.particles.extend(
-                Particle(
-                    self.game,
-                    pre.ParticleKind.PARTICLE,
-                    pg.Vector2(self.rect.center),
-                    pg.Vector2(velocity * dir_x, velocity * decay_y),
-                    frame=randint(0, 7),
-                )
+                Particle(self.game, pre.ParticleKind.PARTICLE, pg.Vector2(self.rect.center), pg.Vector2(velocity * dir_x, velocity * decay_y), frame=randint(0, 7))
                 for i in range(1, 17)
                 if (
                     angle := (random() * (math.pi * 2)),
@@ -505,8 +515,10 @@ class Player(PhysicalEntity):
             self.dash_timer = min(0, self.dash_timer + 1)
         if abs(self.dash_timer) > 50:  # at first ten frames of dash abs(60 -> 50)
             self.velocity.x = self._dash_force * (abs(self.dash_timer) / self.dash_timer)
+
             if abs(self.dash_timer) == 51:
                 self.velocity.x *= 0.1  # Deceleration also acts as a cooldown for next trigger
+
             self.game.particles.extend(  # spawn dash streeam particles
                 Particle(
                     self.game,
@@ -520,6 +532,7 @@ class Player(PhysicalEntity):
 
         # Normalize horizontal velocity
         self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
+
         return True
 
     def jump(self) -> bool:
