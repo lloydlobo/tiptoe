@@ -615,6 +615,7 @@ WHITE = (255, 255, 255)
 BLUE = (0, 0, 255)
 BLUEGLOW = hsl_to_rgb(220, 0.618, 0.618) or (10, 10, 180)
 CHARCOAL = (10, 10, 10)
+DARKCHARCOAL = (5, 5, 5)
 GREEN = (0, 255, 0) or hsl_to_rgb(120, 1, 0.25)
 GREENBLURB = (20, 222, 20) or hsl_to_rgb(120, 1, 0.25)
 GREENGLOW = (20, 127, 20) or hsl_to_rgb(120, 1, 0.25)
@@ -700,7 +701,7 @@ class SIZE:
     FLAMETORCH = (4, 12)
     GUN = (7, 4)
     # STAR = int((69 / 1.618) ** 0.328), int((69 / 1.618) ** 0.328)  # 3.425, 3.425 -> 3, 3
-    STAR = (2,2)
+    STAR = (2, 2)
 
     # Constants derived from above
     ENEMYJUMP = (ENEMY[0], ENEMY[1] - 1)
