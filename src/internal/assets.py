@@ -124,12 +124,17 @@ class Assets:
                     idle=pre.Animation(spritesheet_player.load_sprites("player", "idle"), img_dur=15),
                     run=pre.Animation(spritesheet_player.load_sprites("player", "run"), img_dur=4),
                     jump=pre.Animation(spritesheet_player.load_sprites("player", "jump"), img_dur=6, loop=False),
+                    wallslide=pre.Animation(spritesheet_player.load_sprites("player", "jump"), img_dur=6, loop=False),
                 ),
             ),
             animations_misc=cls.AnimationMisc(
                 particle=dict(
-                    flame=pre.Animation([pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)], img_dur=12, loop=False),
-                    flameglow=pre.Animation([pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)], img_dur=24, loop=False),
+                    flame=pre.Animation(
+                        [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)], img_dur=12, loop=False
+                    ),
+                    flameglow=pre.Animation(
+                        [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)], img_dur=24, loop=False
+                    ),
                     # particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))), img_dur=6, loop=False),
                     particle=pre.Animation(pre.load_imgs(pre.IMGS_PATH / "particles" / "particle", colorkey=pre.BLACK), img_dur=6, loop=False),
                 ),
@@ -143,6 +148,8 @@ class Assets:
             self.entity["enemy"],
             self.tiles["portal"][0],
             self.tiles["portal"][1],
+            # TODO: asf
+            #TODO(lloyd): create collection zone spawner
         ]
         return self
 

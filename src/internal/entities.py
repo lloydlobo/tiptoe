@@ -40,6 +40,7 @@ class Action(Enum):
     RUN = "run"
     SLEEPING = "sleeping"
     WALLSLIDE = "wallslide"
+    WALLJUMP = "walljump"
 
 
 def manhattan_dist(x1: pre.Number, y1: pre.Number, x2: pre.Number, y2: pre.Number) -> pre.Number:
@@ -183,7 +184,7 @@ class Enemy(PhysicalEntity):
 
         self.is_player_close_by = False
 
-        self.max_sleep_time = pre.FPS_CAP * 1
+        self.max_sleep_time = pre.FPS_CAP * 5
         self.sleep_timer = 0
         self.dashed_by_player = False
         self.dashed_by_player_counter = 0
@@ -299,7 +300,10 @@ class Enemy(PhysicalEntity):
             if not self.dashed_by_player:
                 player = self.game.player
                 self.pos = player.pos.copy()  # avoid sticking to player -_-
-                self.flip = not self.flip
+
+                if 0:
+                    self.flip = not self.flip
+
                 self.velocity.y = player.velocity.y / 4
                 self.velocity.x = 1.5 if self.flip else -1.5
 
@@ -465,9 +469,10 @@ class Player(PhysicalEntity):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
             self.air_timer = self.max_air_time  # FIX: trying to avoid player death while sliding for too long
-            if 0:  # requires wall_slide animation, todo
-                self.flip = False if self.collisions.right else True
-                print("wall_slide_animation flipped")
+            if 1:  # requires wall_slide animation, todo
+                if (flip_enabled := 1) and flip_enabled:
+                    self.flip = False if self.collisions.right else True
+                # print("wall_slide_animation flipped")
                 self.set_action(Action.WALLSLIDE)
 
         if self.time_jump_keydown:  # JUMP BUFFERING
