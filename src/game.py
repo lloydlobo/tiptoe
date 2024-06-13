@@ -851,7 +851,7 @@ class Game:
         # ===---------------------------------------------------------------===
 
     # @profile
-    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | Game"]):
+    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | CreditsScreen | Game"]):
         # delete existing screen
         if self.mainscreen != None:
             del self.mainscreen
@@ -1232,8 +1232,192 @@ class LoadingScreen:
         # *flip* the display
         pg.display.flip()
 
-# class CreditsScreen:
-#     def __init__(self, game: Game, level: int) -> None:
+
+class CreditsScreen:
+    def __init__(self, game: Game, level: int) -> None:
+        # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
+        # Game | ...') requires each args passed to __init__ to have game and
+        # level. doing this via manual inheritance. sigh OOP -_-
+        self.game = game
+        self.level = level
+
+        self.w, self.h = pre.DIMENSIONS_HALF
+
+        self.start_font = self.game.font_sm
+        self.title_font = self.game.font
+
+        self.bgcolor = pre.DARKCHARCOAL
+
+        self.clock = pg.time.Clock()  # or use game's clock?
+        self.running = True
+
+        self.fps = self.clock.get_fps()
+
+        self.creditroll_y = self.h  # start credit roll from bottom
+        _offset_x = 32
+        self.creditroll_x = (self.w // 2) - _offset_x  # start credit roll from bottom
+
+        self.previous_credit = -1
+        self.current_credit = 0
+        self.can_switch_to_next_credit = False
+
+        self.credit_item_offset_y = 20  # temp
+        self.prev_daw_timer = 970
+
+        # (endtime, content)
+        # using non-floats value for index to emulate DAWs
+        self.credits = [
+            (1000, "TIP", pg.Color("maroon")),  # 50
+            (1019, "TOE", pg.Color("maroon")),  # 69
+            (1050, "2024", pg.Color("white")),  # 100
+            (1080, "DESIGN * CODE * ETC * BY LLOYD LOBO", pg.Color("cyan")),  # 130
+            (1110, "MUSIC * SOUNDS * SFX * BY LLOYD LOBO", pg.Color("cyan")),  # 160
+            (1140, "GAME LIBRARY * BY PYGAME", pg.Color("cyan")),  # 190
+        ]
+
+        self.MAX_CREDITS_COUNT = len(self.credits)
+
+        self.daw_timer = self.credits[0][0]
+        #
+        # Observed logs when 4 credits with time intervals ( 1000, 1060, 1120, 1200,  ) -> 60, 80
+        #
+        self.daw_timer_markers_offset = self.daw_timer - self.prev_daw_timer  # e.g. (1060 - 1000).
+        assert self.daw_timer_markers_offset > 0
+
+    def run(self) -> None:
+        self.bgcolor = pre.COLOR.BACKGROUND
+
+        loop_counter = 0
+        MAX_LOOP_COUNTER = pre.FPS_CAP * 60  # 60 seconds
+
+        # play background music
+        if 0:
+            pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "intro_loop.wav")
+            pg.mixer.music.set_volume(0.3)
+            pg.mixer.music.play(loops=-1)
+
+        while self.running:
+            loop_counter += 1
+
+            if loop_counter >= MAX_LOOP_COUNTER:
+                self.running = False
+                break
+
+            self.clock.tick(pre.FPS_CAP // 2)  # play at half-speed
+
+            self.events()
+            self.update()
+            self.render()
+
+    def events(self):
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                self.running = False
+                quit_exit()
+
+            if event.type == pg.QUIT:
+                self.running = False
+                quit_exit()
+
+    def update(self):
+        # clear screen and render background
+        self.game.display.fill(self.bgcolor)
+
+        self.fps = self.clock.get_fps()
+
+        if self.previous_credit == self.current_credit:
+            self.prev_daw_timer = self.daw_timer
+
+        self.creditroll_y -= 1
+        self.daw_timer += 1
+
+        if self.current_credit == (self.MAX_CREDITS_COUNT - 1):
+            last_item_has_reached_top = self.creditroll_y + (self.current_credit * self.credit_item_offset_y) <= (-(self.h // 4) + self.credit_item_offset_y)
+            if last_item_has_reached_top:  # NOTE: should use modulus?
+                self.running = False
+
+        cur_time_marker = 0
+        next_time_marker = 10
+
+        if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+            cur_time_marker = self.credits[self.current_credit][0]
+            next_time_marker = self.credits[self.current_credit + 1][0]
+
+            assert next_time_marker > cur_time_marker
+
+            if self.daw_timer > cur_time_marker:
+                self.daw_timer_markers_offset = next_time_marker - cur_time_marker
+        if 0:
+            if self.creditroll_y <= self.h // 2:
+                if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+                    self.current_credit += 1
+        elif 1 and self.current_credit > 0:
+
+            if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+                if cur_time_marker < self.daw_timer <= next_time_marker:
+
+                    if self.daw_timer >= cur_time_marker:
+
+                        if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+
+                            if self.previous_credit != self.current_credit:
+                                self.previous_credit = self.current_credit
+                                self.current_credit += 1
+                                # print(f" self.can_switch_to_next_credit = True ")
+                                self.can_switch_to_next_credit = True
+                else:
+                    self.can_switch_to_next_credit = False
+        else:  # simplest version
+            if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+
+                if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+                    self.previous_credit = self.current_credit
+                    self.current_credit += 1
+                    self.can_switch_to_next_credit = True
+
+    def render(self):
+        pos_y = self.creditroll_y
+        offset_y = self.credit_item_offset_y  # default offset_y
+        for i, credit in enumerate(self.credits):
+            text: str = credit[1]
+            if i <= self.current_credit:
+                if i != 0:
+                    offset_y = self.credits[i][0] - self.credits[i - 1][0]
+                self.game.draw_text(
+                    x=(self.w // 2),
+                    #
+                    # either change offset_y or add to it or lerp it also consider creditroll_y
+                    #
+                    # y=pos_y + (i * (offset_y * 1 + self.daw_timer_markers_offset)),
+                    # y=pos_y + (i * (self.daw_timer_markers_offset)),
+                    y=pos_y + (i * offset_y),
+                    font=self.start_font,
+                    # color=(pg.Color("maroon") if (i == self.current_credit) else self.credits[i][2]),
+                    color=(self.credits[i][2]),
+                    text=text,
+                    #
+                    # DEBUG:
+                    #
+                    # text=f"{text} {round(self.daw_timer)} {credit[0]} {self.daw_timer_markers_offset} {round(self.creditroll_y)}",
+                )
+
+        # draw mask outline for all
+        # ---------------------------------------------------------------------
+        dispmask = pg.mask.from_surface(self.game.display)
+        dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            self.game.display_2.blit(dispsilhouette, offset)
+        # ---------------------------------------------------------------------
+
+        # render display
+        # ---------------------------------------------------------------------
+        self.game.display_2.blit(self.game.display, (0, 0))
+        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
+
+        pg.display.flip()
+        # ---------------------------------------------------------------------
+
 
 class StartScreen:
     """Main Menu Screen."""
@@ -1279,8 +1463,8 @@ class StartScreen:
     def events(self):
         # RESET
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-        for event in pg.event.get():
 
+        for event in pg.event.get():
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
                 self.running = False
                 quit_exit()
@@ -1301,14 +1485,14 @@ class StartScreen:
                         pass  # TODO:
 
                     case MenuItemType.CREDITS:
-                        # self.game.set_mainscreen(CreditsScreen(game=self.game, level=self.game.level))
-                        pass  # TODO:
+                        self.game.set_mainscreen(CreditsScreen(game=self.game, level=self.game.level))
+                        pass  # TODO: [ DOING ] 20240613104012UTC
 
                     case MenuItemType.EXIT:
                         self.running = False
                         quit_exit()
 
-                    case _:
+                    case _:  # pyright: ignore [reportUnnecessaryComparison]
                         quit_exit("invalid MenuItemType selected to StartScreen events procedure")
 
             if event.type == pg.KEYDOWN:
@@ -1366,7 +1550,7 @@ class StartScreen:
                 self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.todo_selected_menu_item}")
                 pass
 
-            case _:
+            case _:  # pyright: ignore [reportUnnecessaryComparison]
                 quit_exit("invalid MenuItemType passed to StartScreen update procedure")
         # ---------------------------------------------------------------------
 
