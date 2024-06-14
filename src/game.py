@@ -80,10 +80,16 @@ class GameState(Enum):
     NEXTLEVEL = auto()
 
 
+class FontType(IntEnum):
+    XS = auto(0)
+    SM = auto()
+    BASE = auto()
+
+
 # NOTE(lloyd): Use In StartScreen
 class MenuItemType(IntEnum):
     PLAY = auto(0)
-    OPTIONS = auto()
+    SETTINGS = auto()
     CREDITS = auto()
     EXIT = auto()
 
@@ -91,18 +97,31 @@ class MenuItemType(IntEnum):
 # PERF: Can just use an array initialized
 MENU_ITEMS: List[str] = [
     "PLAY",
-    "OPTIONS",
+    "SETTINGS",
     "CREDITS",
     "EXIT",
 ]
-# MENU_ITEMS: Dict[MenuItemType] = {
-#     MenuItemType.PLAY: "PLAY",
-#     MenuItemType.OPTIONS: "OPTIONS",
-#     MenuItemType.CREDITS: "CREDITS",
-#     MenuItemType.EXIT: "EXIT",
-# }
 
 MAX_MENU_ITEMS = len(MENU_ITEMS)  # MenuItemType enumerations
+
+
+# NOTE(lloyd): Use in SettingsScreen
+class SettingsNavitemType(IntEnum):
+    MUTE_MUSIC = auto(0)
+    MUTE_SOUND = auto()
+    DISABLE_SCREENSHAKE = auto()
+    GO_BACK = auto()
+
+
+# PERF: Can just use an array initialized
+SETTINGS_NAVITEMS: List[str] = [
+    "MUTE MUSIC",
+    "MUTE SOUND",
+    "DISABLE SCREENSHAKE",
+    "GO BACK",
+]
+
+MAX_SETTINGS_NAVITEMS = len(SETTINGS_NAVITEMS)
 
 
 @dataclass
@@ -851,7 +870,7 @@ class Game:
         # ===---------------------------------------------------------------===
 
     # @profile
-    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | CreditsScreen | Game"]):
+    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | SettingsScreen | CreditsScreen | Game"]):
         # delete existing screen
         if self.mainscreen != None:
             del self.mainscreen
@@ -1274,31 +1293,26 @@ class CreditsScreen:
             (1110, "MUSIC * SOUNDS * SFX * BY LLOYD LOBO", pg.Color("cyan")),  # 160
             (1140, "GAME LIBRARY * BY PYGAME", pg.Color("cyan")),  # 190
         ]
+        # TODO: if time permits work on animating start and end times declaratively
+        # `worse is better`
+        self.credits_marque = [
+            (0, 3000, "TIP TOE"),
+            (3000, 6000, "CREATED BY LLOYD LOBO"),
+        ]
 
         self.MAX_CREDITS_COUNT = len(self.credits)
-
         self.daw_timer = self.credits[0][0]
-        #
-        # Observed logs when 4 credits with time intervals ( 1000, 1060, 1120, 1200,  ) -> 60, 80
-        #
-        self.daw_timer_markers_offset = self.daw_timer - self.prev_daw_timer  # e.g. (1060 - 1000).
+        self.daw_timer_markers_offset = self.daw_timer - self.prev_daw_timer
+
         assert self.daw_timer_markers_offset > 0
 
     def run(self) -> None:
         self.bgcolor = pre.COLOR.BACKGROUND
 
-        loop_counter = 0
+        loop_counter = 0  # GAME_SLOW=0 :: safety feature
         MAX_LOOP_COUNTER = pre.FPS_CAP * 60  # 60 seconds
 
-        # play background music
-        if 0:
-            pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "intro_loop.wav")
-            pg.mixer.music.set_volume(0.3)
-            pg.mixer.music.play(loops=-1)
-
         while self.running:
-            loop_counter += 1
-
             if loop_counter >= MAX_LOOP_COUNTER:
                 self.running = False
                 break
@@ -1308,6 +1322,8 @@ class CreditsScreen:
             self.events()
             self.update()
             self.render()
+
+            loop_counter += 1
 
     def events(self):
         for event in pg.event.get():
@@ -1320,8 +1336,14 @@ class CreditsScreen:
                 quit_exit()
 
     def update(self):
-        # clear screen and render background
-        self.game.display.fill(self.bgcolor)
+        self.game.display.fill(self.bgcolor)  # Clear screen and render background
+
+        if self.current_credit == (self.MAX_CREDITS_COUNT - 1):
+            last_position = self.creditroll_y + (self.current_credit * self.credit_item_offset_y)
+            last_item_is_above_fold = last_position <= ((-1 * (self.h // 4)) + self.credit_item_offset_y)
+
+            if last_item_is_above_fold:
+                self.running = False  # Exit current screen
 
         self.fps = self.clock.get_fps()
 
@@ -1331,18 +1353,12 @@ class CreditsScreen:
         self.creditroll_y -= 1
         self.daw_timer += 1
 
-        if self.current_credit == (self.MAX_CREDITS_COUNT - 1):
-            last_item_has_reached_top = self.creditroll_y + (self.current_credit * self.credit_item_offset_y) <= (-(self.h // 4) + self.credit_item_offset_y)
-            if last_item_has_reached_top:  # NOTE: should use modulus?
-                self.running = False
-
         cur_time_marker = 0
         next_time_marker = 10
 
         if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
             cur_time_marker = self.credits[self.current_credit][0]
             next_time_marker = self.credits[self.current_credit + 1][0]
-
             assert next_time_marker > cur_time_marker
 
             if self.daw_timer > cur_time_marker:
@@ -1351,22 +1367,20 @@ class CreditsScreen:
             if self.creditroll_y <= self.h // 2:
                 if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
                     self.current_credit += 1
+
         elif 1 and self.current_credit > 0:
-
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
+
                 if cur_time_marker < self.daw_timer <= next_time_marker:
-
                     if self.daw_timer >= cur_time_marker:
-
                         if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
-
                             if self.previous_credit != self.current_credit:
                                 self.previous_credit = self.current_credit
                                 self.current_credit += 1
-                                # print(f" self.can_switch_to_next_credit = True ")
                                 self.can_switch_to_next_credit = True
                 else:
                     self.can_switch_to_next_credit = False
+
         else:  # simplest version
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
 
@@ -1376,30 +1390,259 @@ class CreditsScreen:
                     self.can_switch_to_next_credit = True
 
     def render(self):
+        """
+        # either change offset_y or add to it or lerp it also consider creditroll_y
+        # y=pos_y + (i * (offset_y * 1 + self.daw_timer_markers_offset)),
+
+        # DEBUG:
+        # text=f"{text} {round(self.daw_timer)} {credit[0]} {self.daw_timer_markers_offset} {round(self.creditroll_y)}",
+        """
+
+        # draw credits vertical marque
+        # ---------------------------------------------------------------------
+        offset_y = self.credit_item_offset_y
+
         pos_y = self.creditroll_y
-        offset_y = self.credit_item_offset_y  # default offset_y
+
         for i, credit in enumerate(self.credits):
-            text: str = credit[1]
-            if i <= self.current_credit:
-                if i != 0:
-                    offset_y = self.credits[i][0] - self.credits[i - 1][0]
-                self.game.draw_text(
-                    x=(self.w // 2),
-                    #
-                    # either change offset_y or add to it or lerp it also consider creditroll_y
-                    #
-                    # y=pos_y + (i * (offset_y * 1 + self.daw_timer_markers_offset)),
-                    # y=pos_y + (i * (self.daw_timer_markers_offset)),
-                    y=pos_y + (i * offset_y),
-                    font=self.start_font,
-                    # color=(pg.Color("maroon") if (i == self.current_credit) else self.credits[i][2]),
-                    color=(self.credits[i][2]),
-                    text=text,
-                    #
-                    # DEBUG:
-                    #
-                    # text=f"{text} {round(self.daw_timer)} {credit[0]} {self.daw_timer_markers_offset} {round(self.creditroll_y)}",
-                )
+            if i > self.current_credit:
+                continue
+
+            if i > 0:
+                offset_y = self.credits[i][0] - self.credits[i - 1][0]
+
+            self.game.draw_text(
+                x=(self.w // 2),
+                y=(pos_y + (i * offset_y)),
+                font=self.start_font,
+                color=(self.credits[i][2]),
+                text=credit[1],
+            )
+        # ---------------------------------------------------------------------
+
+        # draw mask outline for all
+        # ---------------------------------------------------------------------
+        dispmask = pg.mask.from_surface(self.game.display)
+        dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            self.game.display_2.blit(dispsilhouette, offset)
+        # ---------------------------------------------------------------------
+
+        # render display
+        # ---------------------------------------------------------------------
+        self.game.display_2.blit(self.game.display, (0, 0))
+        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
+
+        pg.display.flip()
+        # ---------------------------------------------------------------------
+
+
+class SettingsScreen:
+    """Implements SettingsScreen that provide game settings.
+    It is accessed via StartScreen main menu.
+    """
+
+    def __init__(self, game: Game, level: int) -> None:
+        # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
+        # Game | ...') requires each args passed to __init__ to have game and
+        # level. doing this via manual inheritance. sigh OOP -_-
+        self.game = game
+        self.level = level
+
+        self.w, self.h = pre.DIMENSIONS_HALF
+
+        self.clock = pg.time.Clock()  # or use game's clock?
+        self.running = True
+
+        # TODO: Add required members here
+        # ---------------------------------------------------------------------
+        # ...
+
+        self.FONT_TYPES = [self.game.font_xs, self.game.font_sm, self.game.font]
+
+        position_x, position_y = self.w // 2, self.h // 2
+        offset_x, offset_y = 0, 16
+
+        self.settings = [
+            ((position_x + offset_x), (position_y + (0 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[0]),
+            ((position_x + offset_x), (position_y + (1 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[1]),
+            ((position_x + offset_x), (position_y + (2 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[2]),
+            #
+            # NOTE(lloyd): This must always be at the end.
+            # Please adjust index accordingly.
+            #
+            ((position_x), (position_y + (3 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[3]),
+        ]
+        assert ((want := MAX_SETTINGS_NAVITEMS, got := len(self.settings)) and (want == got)) and f"want settings array length to be {repr(want)}. got {repr(got)}"
+        assert ((want := "GO BACK", got := self.settings[-1][4]) and (want == got)) and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
+
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        self.is_key_pressed_key_enter = False
+
+        self.navitem_offset = 0
+        self.selected_navitem = SettingsNavitemType.MUTE_MUSIC
+        assert (want := 0, got := self.selected_navitem) and (got == want) and f"want selected_navitem to be initialized with the zero value enumeration. got {repr(got)}"
+        # ...
+        # ---------------------------------------------------------------------
+
+    def run(self) -> None:
+        self.bgcolor = pre.COLOR.BACKGROUND
+
+        loop_counter = 0  # GAME_SLOW=0 :: safety feature
+        MAX_LOOP_COUNTER = pre.FPS_CAP * 60  # 60 seconds
+
+        while self.running:
+            if loop_counter >= MAX_LOOP_COUNTER:
+                self.running = False
+                break
+
+            self.clock.tick(pre.FPS_CAP // 2)  # play at half-speed
+
+            self.events()  # Process events this frame
+            self.update()  # Update data this frame
+            self.render()  # Draw updated data this frame
+
+            loop_counter += 1
+
+    def events(self):
+        # Resets
+        # ------
+        # NOTE(lloyd): this resets self.movement each frame to avoid navigating on key down at 60fps 0_0
+        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        self.is_key_pressed_key_enter = False
+        # ------
+
+        for event in pg.event.get():
+            if event.type == pg.KEYDOWN and event.key == pg.K_q:
+                self.running = False
+                quit_exit()
+
+            if event.type == pg.QUIT:
+                self.running = False
+                quit_exit()
+
+            if event.type == pg.KEYDOWN:
+                if event.key in (pg.K_UP, pg.K_w):
+                    self.movement.top = True
+                elif event.key in (pg.K_DOWN, pg.K_s):
+                    self.movement.bottom = True
+                elif event.key in (pg.K_LEFT, pg.K_a):
+                    self.movement.left = True
+                elif event.key in (pg.K_RIGHT, pg.K_d):
+                    self.movement.right = True
+            elif event.type == pg.KEYUP:
+                if event.key in (pg.K_UP, pg.K_w):
+                    self.movement.top = False
+                elif event.key in (pg.K_DOWN, pg.K_s):
+                    self.movement.bottom = False
+                elif event.key in (pg.K_LEFT, pg.K_a):
+                    self.movement.left = False
+                elif event.key in (pg.K_RIGHT, pg.K_d):
+                    self.movement.right = False
+
+            if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
+                self.is_key_pressed_key_enter = True
+            elif event.type == pg.KEYUP and event.key == pg.K_RETURN:
+                self.is_key_pressed_key_enter = False
+
+    # TODO: use left/right for incr/decr music/sound levels
+    def update(self):
+        # Clear screen and render background
+        # ---------------------------------------------------------------------
+        self.game.display.fill(self.bgcolor)
+        # ---------------------------------------------------------------------
+
+        # TODO: update Settings content here
+        # ---------------------------------------------------------------------
+
+        # update movement parameters
+        # ---------------------------------------------------------------------
+        if self.movement.top:
+            self.navitem_offset -= 1
+        elif self.movement.bottom:
+            self.navitem_offset += 1
+        # ---------------------------------------------------------------------
+
+        # wrap around negative index for MenuItemType Enumerations
+        # ---------------------------------------------------------------------
+        if self.navitem_offset < 0:
+            self.navitem_offset = MAX_MENU_ITEMS - 1  # set to last item
+
+        if self.navitem_offset >= MAX_MENU_ITEMS:
+            self.navitem_offset = 0  # set to first item
+
+        assert (self.navitem_offset in range(0, MAX_SETTINGS_NAVITEMS)) and f"expected valid offset for menu items while navigating in StartScreen"
+        self.selected_navitem = SettingsNavitemType(self.navitem_offset)
+        # ---------------------------------------------------------------------
+
+        if self.is_key_pressed_key_enter:
+            match self.selected_navitem:
+                case SettingsNavitemType.MUTE_MUSIC:
+                    print(f"{self.selected_navitem = }")
+                    # TODO:
+                    pass
+                case SettingsNavitemType.MUTE_SOUND:
+                    print(f"{self.selected_navitem = }")
+                    # TODO:
+                    pass
+                case SettingsNavitemType.DISABLE_SCREENSHAKE:
+                    print(f"{self.selected_navitem = }")
+                    # TODO:
+                    pass
+                case SettingsNavitemType.GO_BACK:
+                    self.running = False # exit SettingsScreen and return to caller i.e. StartScreen
+                case _:  # pyright: ignore [reportUnnecessaryComparison]
+                    """# If using left and right. for sound music level fine controls
+                    match (self.movement.left, self.movement.right, self.movement.top, self.movement.bottom):
+                        case (True, _, _, _):
+                            pass
+                        case (_, True, _, _):
+                            pass
+                        case (_, _, True, _):
+                            pass
+                        case (_, _, _, True):
+                            pass
+                        case _:  # pyright: ignore [reportUnnecessaryComparison]
+                            pass
+                    """
+                    pass
+        # ...
+        # ---------------------------------------------------------------------
+
+    def render(self):
+        # TODO: render Settings content here
+        # ---------------------------------------------------------------------
+        # ...
+        for i, option in enumerate(self.settings):
+            self.game.draw_text(
+                x=option[0],
+                y=option[1],
+                font=self.FONT_TYPES[option[2]],
+                color=(pg.Color("maroon") if i == self.navitem_offset else option[3]),
+                text=option[4],
+            )
+        # ...
+        # ---------------------------------------------------------------------
+
+        # DEBUG: HUD
+        # ---------------------------------------------------------------------
+        if pre.DEBUG_GAME_HUD:
+            dbg_pos_y = 16
+            dbg_pos_x = 64
+            dbg_gap_y = 16
+
+            self.game.draw_text(dbg_pos_x, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("cyan")), text=f"UP*{1 if self.movement.top else 0} DOWN*{1 if self.movement.bottom else 0}")
+            dbg_pos_y += dbg_gap_y
+
+            self.game.draw_text(
+                dbg_pos_x + 10, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("cyan")), text=f"LEFT*{1 if self.movement.left else 0} RIGHT*{1 if self.movement.right else 0}"
+            )
+            dbg_pos_y += dbg_gap_y
+
+            self.game.draw_text(dbg_pos_x + 20, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("maroon")), text=f"NAVITEM OFFSET*{self.navitem_offset}")
+            dbg_pos_y += dbg_gap_y
+        # ---------------------------------------------------------------------
 
         # draw mask outline for all
         # ---------------------------------------------------------------------
@@ -1425,24 +1668,21 @@ class StartScreen:
     # @profile
     def __init__(self, game: "Game") -> None:
         self.game = game
-
         self.w, self.h = pre.DIMENSIONS_HALF
-
         self.bgcolor = pre.CHARCOAL
         self.title_str = "Menu"
         self.instruction_str = f"return* to enter game or q*uit to exit"
-        self.start_font = self.game.font_sm
-        self.title_font = self.game.font
-
-        self.clock = pg.time.Clock()  # or use game's clock?
-        self.running = True
+        self.font_sm = self.game.font_sm
+        self.font_base = self.game.font
 
         self._title_textz_offy = 4 * pre.TILE_SIZE
 
-        self.todo_menu_item_offset = 0
+        self.selected_menuitem = MenuItemType.PLAY  # current item
+        self.event_selected_menuitem: Optional[MenuItemType] = None  # current item
+        self.menuitem_offset = 0
 
-        self.todo_selected_menu_item = MenuItemType.PLAY  # current item
-        self.event_selected_menu_item: Optional[MenuItemType] = None  # current item
+        self.clock = pg.time.Clock()  # or use game's clock?
+        self.running = True
 
     # @profile
     def run(self) -> None:
@@ -1461,7 +1701,7 @@ class StartScreen:
             self.render()
 
     def events(self):
-        # RESET
+        # NOTE(lloyd): this resets self.movement each frame to avoid navigating on key down at 60fps 0_0
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         for event in pg.event.get():
@@ -1473,20 +1713,19 @@ class StartScreen:
                 self.running = False
                 quit_exit()
 
-            # to replace with menu item navigation ( 20240613050437UTC )
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                 pg.mixer.music.fadeout(1000)
 
-                match self.todo_selected_menu_item:
+                match self.selected_menuitem:
                     case MenuItemType.PLAY:
                         self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
 
-                    case MenuItemType.OPTIONS:
-                        pass  # TODO:
+                    case MenuItemType.SETTINGS:
+                        self.game.set_mainscreen(SettingsScreen(game=self.game, level=self.game.level))
+                        pass  # TODO: [ DOING ] : 20240614090235UTC
 
                     case MenuItemType.CREDITS:
                         self.game.set_mainscreen(CreditsScreen(game=self.game, level=self.game.level))
-                        pass  # TODO: [ DOING ] 20240613104012UTC
 
                     case MenuItemType.EXIT:
                         self.running = False
@@ -1513,52 +1752,41 @@ class StartScreen:
         # update movement parameters
         # ---------------------------------------------------------------------
         if self.movement.top:
-            self.todo_menu_item_offset -= 1
+            self.menuitem_offset -= 1
         elif self.movement.bottom:
-            self.todo_menu_item_offset += 1
+            self.menuitem_offset += 1
         # ---------------------------------------------------------------------
 
         # wrap around negative index for MenuItemType Enumerations
         # ---------------------------------------------------------------------
-        if self.todo_menu_item_offset < 0:
-            self.todo_menu_item_offset = MAX_MENU_ITEMS - 1  # set to last item
+        if self.menuitem_offset < 0:
+            self.menuitem_offset = MAX_MENU_ITEMS - 1  # set to last item
 
-        if self.todo_menu_item_offset >= MAX_MENU_ITEMS:
-            self.todo_menu_item_offset = 0  # set to first item
+        if self.menuitem_offset >= MAX_MENU_ITEMS:
+            self.menuitem_offset = 0  # set to first item
 
-        assert (self.todo_menu_item_offset in range(0, MAX_MENU_ITEMS)) and f"expected valid offset for menu items while navigating in StartScreen"
-
-        self.todo_selected_menu_item = MenuItemType(self.todo_menu_item_offset)
+        assert (self.menuitem_offset in range(0, MAX_MENU_ITEMS)) and f"expected valid offset for menu items while navigating in StartScreen"
+        self.selected_menuitem = MenuItemType(self.menuitem_offset)
         # ---------------------------------------------------------------------
 
         # DEBUG: update menu item behavior
         # ---------------------------------------------------------------------
-        match self.todo_selected_menu_item:
-            case MenuItemType.PLAY:
-                self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.todo_selected_menu_item}")
-                pass
-
-            case MenuItemType.OPTIONS:
-                self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.todo_selected_menu_item}")
-                pass
-
-            case MenuItemType.CREDITS:
-                self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.todo_selected_menu_item}")
-                pass
-
-            case MenuItemType.EXIT:
-                self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.todo_selected_menu_item}")
-                pass
-
-            case _:  # pyright: ignore [reportUnnecessaryComparison]
-                quit_exit("invalid MenuItemType passed to StartScreen update procedure")
+        if 0:
+            # fmt: off
+            match self.selected_menuitem:
+                case MenuItemType.PLAY:     self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.selected_menuitem}")
+                case MenuItemType.SETTINGS: self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.selected_menuitem}")
+                case MenuItemType.CREDITS:  self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.selected_menuitem}")
+                case MenuItemType.EXIT:     self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.selected_menuitem}")
+                case _:                     quit_exit("invalid MenuItemType passed to StartScreen update procedure") # pyright: ignore [reportUnnecessaryComparison]
+            # fmt: on
         # ---------------------------------------------------------------------
 
     def render(self):
         # DEBUG: events
         # ---------------------------------------------------------------------
         if 0:
-            self.game.draw_text(100, 100, self.start_font, pg.Color("purple"), f"{self.movement}")
+            self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.movement}")
         # ---------------------------------------------------------------------
 
         # draw game logo
@@ -1566,8 +1794,8 @@ class StartScreen:
         shake_x = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
         shake_y = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
 
-        self.game.draw_text((self.w // 2) + shake_x, 50 - shake_y, self.title_font, pg.Color("maroon"), "TIP")
-        self.game.draw_text((self.w // 2) - shake_x, 69 + shake_y, self.title_font, pre.WHITE, "TOE")
+        self.game.draw_text((self.w // 2) + shake_x, 50 - shake_y, self.font_base, pg.Color("maroon"), "TIP")
+        self.game.draw_text((self.w // 2) - shake_x, 69 + shake_y, self.font_base, pre.WHITE, "TOE")
         # ---------------------------------------------------------------------
 
         # draw menu items instructions
@@ -1578,11 +1806,11 @@ class StartScreen:
         pos_y = (self.h // 2) - (offset_y * 0.618)
 
         for i, val in enumerate(MENU_ITEMS):
-            if i == self.todo_selected_menu_item:
-                assert (i == self.todo_menu_item_offset) and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.todo_selected_menu_item =}"
-                self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.start_font, pg.Color("maroon"), val)
+            if i == self.selected_menuitem:
+                assert (i == self.menuitem_offset) and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.selected_menuitem =}"
+                self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.font_sm, pg.Color("maroon"), val)
             else:
-                self.game.draw_text(pos_x, pos_y, self.start_font, pre.WHITE, f"{val}")
+                self.game.draw_text(pos_x, pos_y, self.font_sm, pre.WHITE, f"{val}")
 
             pos_y += offset_y
         # ---------------------------------------------------------------------
@@ -1591,7 +1819,7 @@ class StartScreen:
         # ---------------------------------------------------------------------
         # if 0
         if 0:
-            self.game.draw_text((self.w // 2), (self.h - 100), self.start_font, pre.WHITE, "Press enter to start")
+            self.game.draw_text((self.w // 2), (self.h - 100), self.font_sm, pre.WHITE, "Press enter to start")
         # endif
         # ---------------------------------------------------------------------
 
