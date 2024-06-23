@@ -15,6 +15,7 @@ import threading
 import time
 import tracemalloc
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 from os import listdir, path
@@ -115,10 +116,10 @@ class SettingsNavitemType(IntEnum):
 
 # PERF: Can just use an array initialized
 SETTINGS_NAVITEMS: List[str] = [
-    "MUTE MUSIC",
-    "MUTE SOUND",
-    "DISABLE SCREENSHAKE",
-    "GO BACK",
+    "MUSIC",  # + " OFF" or + " ON"
+    "SOUND",  # + " OFF" or + " ON"
+    "SCREENSHAKE",  # + " OFF" or + " ON"
+    "GO BACK",  # + " OFF" or + " ON"
 ]
 
 MAX_SETTINGS_NAVITEMS = len(SETTINGS_NAVITEMS)
@@ -205,7 +206,9 @@ class Game:
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
-        self.config_handler: pre.UserConfig = get_user_config(pre.CONFIG_PATH)
+        self.config_handler: Final[pre.UserConfig] = get_user_config(pre.CONFIG_PATH)
+        self.settings_handler: pre.UserConfig = deepcopy(self.config_handler)
+        # self.settings_handler.screenshake = False
 
         self.assets = Assets.initialize_assets()
 
@@ -284,7 +287,7 @@ class Game:
         # seedling: Mon May 13 08:20:31 PM IST 2024
         self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
 
-        self.running = True
+        self.running = False
 
     # @profile
     def reset_state_on_gameover(self) -> None:
@@ -309,7 +312,7 @@ class Game:
         self.player_dash_enemy_collision_count = 0
 
         if pre.DEBUG_GAME_PRINTLOG:
-            print(f"resetting completed")
+            print("[INFO]: resetting completed")
 
     # @profile
     def run(self) -> None:
@@ -319,49 +322,48 @@ class Game:
         of the game, and renders the game.
         """
 
-        level_music_filename = "intro_loop.wav"
+        music_filename = "intro_loop.wav"  # fmt: skip
 
         match self.level:
-            case 0:
-                level_music_filename = "level_0.wav"
-
-            case 1:
-                level_music_filename = "theme_2.wav"
-
-            case 2:
-                level_music_filename = "level_2.wav"
-
-            case 3:
-                level_music_filename = "level_2.wav"
-
-            case 4:
-                level_music_filename = "level_2.wav"
-
-            case 5:
-                level_music_filename = "level_2.wav"
-
+            # fmt: off
+            case 0: music_filename = "level_0.wav"
+            case 1: music_filename = "theme_2.wav"
+            case 2: music_filename = "level_2.wav"
+            case 3: music_filename = "level_2.wav"
+            case 4: music_filename = "level_2.wav"
+            case 5: music_filename = "level_2.wav"
+            # fmt: on
             case _:
-                # NOTE: use a prev variable to hold last level music played if
-                # we want to let it followthrough and avoid playing via pg.mixer.play()
-                assert level_music_filename == "intro_loop.wav" and "expected default level music filename"
-                pass
+                # NOTE(lloyd): Use a prev variable to hold last level music played
+                # if we want to let it followthrough and avoid playing via pg.mixer.play()
+                assert (music_filename == "intro_loop.wav") and "expected default level music filename"
 
-        if self.level != 5:
-            pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / level_music_filename).__str__())
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / music_filename).__str__())
+
+        # Set individual music volume
+        #
+        # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update(). We are not setting it here to avoid hassle of dynamic update via SettingsScreen in mid-gameplay, maybe there is a better way??
+        # NOTE(lloyd): Also is mute different from music-disabled? (In that case, avoid playing music???)
+        # NOTE(lloyd): We could just pre-render audio files with similar LUFS using ay simple VU meter in a DAW.
+        if not self.settings_handler.music_muted:
             pg.mixer.music.set_volume(0.2)
-            pg.mixer.music.play(-1)
+
+        pg.mixer.music.play(-1)
 
         if self.level == 0:
             self.sfx.playerspawn.play()
 
+        self.running = True  # NOTE(lloyd): at init running is False. ensure load and reset keep it as false
         # gc.freeze()
+        bg_color=pre.hex_to_rgb("121607")
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
 
             self.display.fill((0, 0, 0, 0))
 
             if self.level in self.levels_space_theme:
-                self.display_2.fill((30, 30, 30))
+                if 0:self.display_2.fill((30, 30, 30))
+                else: self.display_2.fill(bg_color) #BIY theme
 
             self.events()
             self.update()
@@ -372,21 +374,25 @@ class Game:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 quit_exit("Exiting...")
+
             if event.type == pg.KEYDOWN and event.key == pg.K_F4:
                 quit_exit("Exiting...")
-            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                self.running = False
 
             if event.type == pg.VIDEORESIZE:
                 self.screen = pg.display.get_surface()
 
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                # Avoid glitchy stuck movement after resuming
+                self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+                # Bring up main menu without reseting the game
+                self.set_mainscreen(StartScreen(game=self))
+
+
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_LEFT,):  # pg.K_a):
                     self.movement.left = True
-
                 if event.key in (pg.K_RIGHT,):  # pg.K_d):
                     self.movement.right = True
-
                 if event.key in (pg.K_SPACE, pg.K_c):  # check jump keydown
                     if self.player.time_jump_keyup:  # reset manually
                         self.player.time_jump_keyup = None
@@ -395,10 +401,8 @@ class Game:
 
                     if self.player.jump():
                         self.sfx.jump.play()
-
                 if event.key in (pg.K_x, pg.K_v):
                     self.player.dash()
-
                 if event.key == pg.K_s:  # WASD like S | K
                     self.gcs_record_checkpoint()
                 if event.key == pg.K_a:  # WASD like A | J
@@ -493,9 +497,21 @@ class Game:
         # ===---------------------------------------------------------------===
         self.display_2.blit(self.display, (0, 0))
 
+        # MAYBE: - Assign precedence to this
+        #        - Or, preset settings_handler members from config_handler
+        #          at load player config file
+        #
+        # and (self.config_handler.screenshake or self.settings_handler.screenshake)
+        #
+        # TODO(lloyd): Enable toggling from Gameplay to Menu screen with Esc.
+        #           - Rename setting items to present the state. e.g. `SCREENSHAKE: OFF`
         dest = (
             ((shake * random()) - halfshake, (shake * random()) - halfshake)
-            if (shake := self.screenshake, halfshake := shake * 0.5) and self.config_handler.screenshake
+            if (
+                shake := self.screenshake,
+                halfshake := shake * 0.5,
+            )
+            and self.settings_handler.screenshake
             else (0.0, 0.0)
         )
 
@@ -757,11 +773,7 @@ class Game:
                         self.screenshake = max(self._max_screenshake, self.screenshake - 1)
 
                         self.projectiles.remove(projectile)
-                        self.sparks.extend(
-                            Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan"))
-                            for _ in range(30)
-                            if (angle := random() * math.pi * 2, speed := 2 + random())
-                        )
+                        self.sparks.extend(Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan")) for _ in range(30) if (angle := random() * math.pi * 2, speed := 2 + random()))
                         self.particles.extend(
                             Particle(self, pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), velocity, frame)
                             for _ in range(30)
@@ -1465,14 +1477,12 @@ class SettingsScreen:
         offset_x, offset_y = 0, 16
 
         self.settings = [
-            ((position_x + offset_x), (position_y + (0 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[0]),
-            ((position_x + offset_x), (position_y + (1 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[1]),
-            ((position_x + offset_x), (position_y + (2 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[2]),
-            #
+            ((position_x + offset_x), (position_y + (0 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[0]),
+            ((position_x + offset_x), (position_y + (1 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[1]),
+            ((position_x + offset_x), (position_y + (2 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[2]),
             # NOTE(lloyd): This must always be at the end.
             # Please adjust index accordingly.
-            #
-            ((position_x), (position_y + (3 * offset_y)), FontType.XS, pg.Color("white"), SETTINGS_NAVITEMS[3]),
+            ((position_x), (position_y + (3 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[3]),
         ]
         assert ((want := MAX_SETTINGS_NAVITEMS, got := len(self.settings)) and (want == got)) and f"want settings array length to be {repr(want)}. got {repr(got)}"
         assert ((want := "GO BACK", got := self.settings[-1][4]) and (want == got)) and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
@@ -1522,6 +1532,10 @@ class SettingsScreen:
                 self.running = False
                 quit_exit()
 
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                self.running = False
+                # NOTE: See if we need to de-init or unload assets/flags/variables etc
+
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_UP, pg.K_w):
                     self.movement.top = True
@@ -1531,6 +1545,7 @@ class SettingsScreen:
                     self.movement.left = True
                 elif event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = True
+
             elif event.type == pg.KEYUP:
                 if event.key in (pg.K_UP, pg.K_w):
                     self.movement.top = False
@@ -1545,6 +1560,8 @@ class SettingsScreen:
                 self.is_key_pressed_key_enter = True
             elif event.type == pg.KEYUP and event.key == pg.K_RETURN:
                 self.is_key_pressed_key_enter = False
+
+            # TODO: if esc go back to menu
 
     # TODO: use left/right for incr/decr music/sound levels
     def update(self):
@@ -1578,20 +1595,56 @@ class SettingsScreen:
 
         if self.is_key_pressed_key_enter:
             match self.selected_navitem:
-                case SettingsNavitemType.MUTE_MUSIC:
+                case SettingsNavitemType.MUTE_MUSIC:  # TODO:
                     print(f"{self.selected_navitem = }")
-                    # TODO:
-                    pass
-                case SettingsNavitemType.MUTE_SOUND:
+                    self.game.settings_handler.music_muted = not self.game.settings_handler.music_muted
+
+                    if self.game.settings_handler.music_muted:
+                        pg.mixer.music.set_volume(0.0)
+                    else:
+                        pg.mixer.music.set_volume(0.4)
+
+                case SettingsNavitemType.MUTE_SOUND:  # TODO:
                     print(f"{self.selected_navitem = }")
-                    # TODO:
-                    pass
-                case SettingsNavitemType.DISABLE_SCREENSHAKE:
+                    self.game.settings_handler.sound_muted = not self.game.settings_handler.sound_muted
+
+                    if self.game.settings_handler.sound_muted:
+                        self.game.sfx.ambienceheartbeatloop.set_volume(0)
+                        self.game.sfx.dash.set_volume(0)
+                        self.game.sfx.dashbassy.set_volume(0)
+                        self.game.sfx.hit.set_volume(0)
+                        self.game.sfx.hitmisc.set_volume(0)
+                        self.game.sfx.hitwall.set_volume(0)
+                        self.game.sfx.jump.set_volume(0)
+                        self.game.sfx.jumplanding.set_volume(0)
+                        self.game.sfx.playerspawn.set_volume(0)
+                        self.game.sfx.portaltouch.set_volume(0)
+                        self.game.sfx.shoot.set_volume(0)
+                        self.game.sfx.shootmiss.set_volume(0)
+                        self.game.sfx.teleport.set_volume(0)
+                    else:
+                        self.game.sfx.ambienceheartbeatloop.set_volume(0.1)
+                        self.game.sfx.dash.set_volume(0.2)
+                        self.game.sfx.dashbassy.set_volume(0.2)
+                        self.game.sfx.hit.set_volume(0.2)
+                        self.game.sfx.hitmisc.set_volume(0.2)
+                        self.game.sfx.hitwall.set_volume(0.2)
+                        self.game.sfx.jump.set_volume(0.4)
+                        self.game.sfx.jumplanding.set_volume(0.3)
+                        self.game.sfx.playerspawn.set_volume(0.2)
+                        self.game.sfx.portaltouch.set_volume(0.2)
+                        self.game.sfx.shoot.set_volume(0.1)
+                        self.game.sfx.shootmiss.set_volume(0.2)
+                        self.game.sfx.teleport.set_volume(0.2)
+
+                case SettingsNavitemType.DISABLE_SCREENSHAKE:  # TODO:
                     print(f"{self.selected_navitem = }")
-                    # TODO:
-                    pass
+
+                    self.game.settings_handler.screenshake = not self.game.settings_handler.screenshake
+
                 case SettingsNavitemType.GO_BACK:
-                    self.running = False # exit SettingsScreen and return to caller i.e. StartScreen
+                    self.running = False  # Exit SettingsScreen and return to caller i.e. StartScreen
+
                 case _:  # pyright: ignore [reportUnnecessaryComparison]
                     """# If using left and right. for sound music level fine controls
                     match (self.movement.left, self.movement.right, self.movement.top, self.movement.bottom):
@@ -1614,34 +1667,84 @@ class SettingsScreen:
         # TODO: render Settings content here
         # ---------------------------------------------------------------------
         # ...
+
+        # Text VFX
+        shake_x = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
+        shake_y = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
+
+        # Draw screen name
+        # ---------------------------------------------------------------------
+        text_xpos: int = int((self.w // 2) + shake_x)
+        text_ypos: int = int(69 - shake_y)
+
+        self.game.draw_text(text_xpos, text_ypos, self.FONT_TYPES[FontType.BASE], pg.Color("maroon"), text="SETTINGS")
+        # ---------------------------------------------------------------------
+
+        # Draw navigation items
+        # ---------------------------------------------------------------------
+        shake_x = math.floor(shake_x)
+        shake_y = math.floor(shake_y)
+
         for i, option in enumerate(self.settings):
-            self.game.draw_text(
-                x=option[0],
-                y=option[1],
-                font=self.FONT_TYPES[option[2]],
-                color=(pg.Color("maroon") if i == self.navitem_offset else option[3]),
-                text=option[4],
-            )
+            assert (0 <= self.navitem_offset < MAX_SETTINGS_NAVITEMS) and f"want valid navitem offset ranging from {repr(0)}..={repr(MAX_SETTINGS_NAVITEMS-1)}. got {repr( self.navitem_offset )}"
+
+            is_active = (self.navitem_offset == i)  # fmt: skip
+
+            pos_x = (option[0] - shake_x) if is_active else option[0]
+            pos_y = (option[1] - shake_y) if is_active else option[1]
+            color = pg.Color("maroon")    if is_active else option[3]  # fmt: skip
+
+            text: str
+            match SettingsNavitemType(i):
+                # fmt: off
+                case SettingsNavitemType.MUTE_MUSIC:          text = (option[4] + " OFF") if self.game.settings_handler.music_muted       else (option[4] + " ON")
+                case SettingsNavitemType.MUTE_SOUND:          text = (option[4] + " OFF") if self.game.settings_handler.sound_muted       else (option[4] + " ON")
+                case SettingsNavitemType.DISABLE_SCREENSHAKE: text = (option[4] + " OFF") if not self.game.settings_handler.screenshake   else (option[4] + " ON")
+                case SettingsNavitemType.GO_BACK:             text = (option[4])
+                # fmt: on
+                case _:  # pyright: ignore [reportUnnecessaryComparison]
+                    msg = f"want valid SettingsNavitemType while drawing text in SettingsScreen. got {repr(SettingsNavitemType(i))} while iterating over item at index {repr(i)}."
+                    raise ValueError(msg)
+
+            self.game.draw_text(pos_x, pos_y, self.FONT_TYPES[option[2]], color, text)
+        # ---------------------------------------------------------------------
+
         # ...
         # ---------------------------------------------------------------------
 
         # DEBUG: HUD
         # ---------------------------------------------------------------------
         if pre.DEBUG_GAME_HUD:
-            dbg_pos_y = 16
-            dbg_pos_x = 64
-            dbg_gap_y = 16
-
-            self.game.draw_text(dbg_pos_x, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("cyan")), text=f"UP*{1 if self.movement.top else 0} DOWN*{1 if self.movement.bottom else 0}")
-            dbg_pos_y += dbg_gap_y
+            dbg_posy = 16
+            dbg_posx = 64
+            dbg_gapy = 16
 
             self.game.draw_text(
-                dbg_pos_x + 10, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("cyan")), text=f"LEFT*{1 if self.movement.left else 0} RIGHT*{1 if self.movement.right else 0}"
+                dbg_posx,
+                dbg_posy,
+                self.FONT_TYPES[0],
+                pg.Color("cyan"),
+                text=f"UP*{1 if self.movement.top else 0} DOWN*{1 if self.movement.bottom else 0}",
             )
-            dbg_pos_y += dbg_gap_y
+            dbg_posy += dbg_gapy
 
-            self.game.draw_text(dbg_pos_x + 20, dbg_pos_y, self.FONT_TYPES[0], (pg.Color("maroon")), text=f"NAVITEM OFFSET*{self.navitem_offset}")
-            dbg_pos_y += dbg_gap_y
+            self.game.draw_text(
+                dbg_posx + 10,
+                dbg_posy,
+                self.FONT_TYPES[0],
+                pg.Color("cyan"),
+                text=f"LEFT*{1 if self.movement.left else 0} RIGHT*{1 if self.movement.right else 0}",
+            )
+            dbg_posy += dbg_gapy
+
+            self.game.draw_text(
+                dbg_posx + 20,
+                dbg_posy,
+                self.FONT_TYPES[0],
+                pg.Color("maroon"),
+                text=f"NAVITEM OFFSET*{self.navitem_offset}",
+            )
+            dbg_posy += dbg_gapy
         # ---------------------------------------------------------------------
 
         # draw mask outline for all
@@ -1687,8 +1790,8 @@ class StartScreen:
     # @profile
     def run(self) -> None:
         # play background music
-        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "intro_loop.wav")
-        pg.mixer.music.set_volume(0.3)
+        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "level_2.wav")
+        pg.mixer.music.set_volume(0.3)  # NOTE: Player can toggle this in SettingsScreen
         pg.mixer.music.play(loops=-1)
 
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
@@ -1714,11 +1817,14 @@ class StartScreen:
                 quit_exit()
 
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
-                pg.mixer.music.fadeout(1000)
-
                 match self.selected_menuitem:
+                    # FIXME: Ensure that on keydown ESCAPE during gameplay, we end up here and show the player the 'main menu'
                     case MenuItemType.PLAY:
-                        self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
+                        pg.mixer.music.fadeout(1000)
+                        if not self.game.running:
+                            self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
+                        else:
+                            self.game.set_mainscreen(self.game)
 
                     case MenuItemType.SETTINGS:
                         self.game.set_mainscreen(SettingsScreen(game=self.game, level=self.game.level))
@@ -1728,6 +1834,7 @@ class StartScreen:
                         self.game.set_mainscreen(CreditsScreen(game=self.game, level=self.game.level))
 
                     case MenuItemType.EXIT:
+                        pg.mixer.music.fadeout(1000)
                         self.running = False
                         quit_exit()
 
@@ -1791,8 +1898,8 @@ class StartScreen:
 
         # draw game logo
         # ---------------------------------------------------------------------
-        shake_x = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
-        shake_y = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
+        shake_x = math.floor(0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0
+        shake_y = math.floor(0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0
 
         self.game.draw_text((self.w // 2) + shake_x, 50 - shake_y, self.font_base, pg.Color("maroon"), "TIP")
         self.game.draw_text((self.w // 2) - shake_x, 69 + shake_y, self.font_base, pre.WHITE, "TOE")
@@ -1803,11 +1910,18 @@ class StartScreen:
         offset_y = 24
 
         pos_x = self.w // 2
-        pos_y = (self.h // 2) - (offset_y * 0.618)
+        pos_y = math.floor((self.h // 2) - (offset_y * 0.618))
 
         for i, val in enumerate(MENU_ITEMS):
+
+            if i == MenuItemType(0):  # PLAY
+                assert MENU_ITEMS[i] == "PLAY"
+                if self.game.running:
+                    val = "RESUME"
+
             if i == self.selected_menuitem:
                 assert (i == self.menuitem_offset) and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.selected_menuitem =}"
+
                 self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.font_sm, pg.Color("maroon"), val)
             else:
                 self.game.draw_text(pos_x, pos_y, self.font_sm, pre.WHITE, f"{val}")

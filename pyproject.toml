@@ -1,8 +1,14 @@
 [tool.pyright]
 typeCheckingMode = "strict"
 
+# This is moved to ./.flake8
+# [tool.flake8]
+# ignore = E501 W503 W504 E203
+# max-line-length = 200
+# max-complexity = 10
+
 [tool.black]
-line-length = 180                # 79 | 88 | 99
+line-length = 200                # 79 | 88 | 99
 skip-string-normalization = true
 # target-version = ["py38"] # seems to fail on match statements
 include = '\.pyi?$'
@@ -32,3 +38,4 @@ skip = [
   ".tox",
   ".pytest_cache",
 ]
+

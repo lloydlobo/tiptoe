@@ -53,4 +53,11 @@ screenshake      true
 #================================
 # Sound Configuration
 #================================
+sound_muted       false
 sound_volume      0.7
+
+#================================
+# Music Configuration
+#================================
+music_muted       false
+music_volume      0.7

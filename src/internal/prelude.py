@@ -342,15 +342,18 @@ class UserConfig:
     drop_shadow: bool
     enemy_jump: int
     enemy_speed: int
-    window_height: int
-    window_width: int
+    music_muted: bool
+    music_volume: float
     player_dash: int
     player_jump: int
     player_speed: int
-    shadow_range: int
     screenshake: bool
+    shadow_range: int
+    sound_muted: bool
     sound_volume: float
     star_count: int
+    window_height: int
+    window_width: int
 
     @classmethod
     def from_dict(cls, config_dict: dict[str, str]):
@@ -385,15 +388,18 @@ class UserConfig:
             drop_shadow=config_dict.get('drop_shadow', 'false').lower() == 'true',
             enemy_jump=int(config_dict.get('enemy_jump', '0')),
             enemy_speed=int(config_dict.get('enemy_speed', '0')),
-            window_height=int(config_dict.get('window_height', '480')),
-            window_width=int(config_dict.get('window_width', '640')),
+            music_muted=config_dict.get('music_muted', 'false').lower() == 'true',
+            music_volume=float(config_dict.get('music_volume', '0.0')),
             player_dash=int(config_dict.get('player_dash', '0')),
             player_jump=int(config_dict.get('player_jump', '0')),
             player_speed=int(config_dict.get('player_speed', '0')),
             screenshake=config_dict.get('screenshake', 'true').lower() == 'true',
             shadow_range=int(config_dict.get('shadow_range', '1')),
+            sound_muted=config_dict.get('sound_muted', 'false').lower() == 'true',
             sound_volume=float(config_dict.get('sound_volume', '0.0')),
             star_count=int(config_dict.get('star_count', '0')),
+            window_height=int(config_dict.get('window_height', '480')),
+            window_width=int(config_dict.get('window_width', '640')),
         )
 
     @staticmethod
@@ -646,6 +652,37 @@ class Palette:
     COLOR6 = 57, 57, 57  # 393939
     COLOR7 = 32, 32, 32  # 202020
 
+# https://lospec.com/palette-list/baba-is-you-default-color
+# 080808
+# 0b0a0f
+# 242424
+# 737373
+# c3c3c3
+# ffffff
+# 15181f
+# 293040
+# 3e7687
+# 5f9dd0
+# 83c9e5
+# 411910
+# 82261b
+# e5533a
+# e39950
+# 692e4c
+# 8e5e9c
+# 4e5a94
+# 9183d8
+# d9386a
+# ea91c9
+# 303823
+# 4c5c1d
+# 5d833a
+# a4b13e
+# 362e23
+# 503f25
+# 91673f
+# c29e46
+#
 
 @dataclass
 class COLOR:
