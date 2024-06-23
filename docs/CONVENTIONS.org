@@ -1,0 +1,24 @@
+#+tile: General Project Code Conventions
+
+See https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#typing-stub-files
+
+#+begin_quote
+Typing stub files
+PEP 484 describes the syntax for type hints in Python. One of the use cases for typing is providing type annotations for modules which cannot contain them directly (they might be written in C, or they might be third-party, or their implementation may be overly dynamic, and so on).
+
+To solve this, stub files with the .pyi file extension can be used to describe typing information for an external module. Those stub files omit the implementation of classes and functions they describe, instead they only contain the structure of the file (listing globals, functions, and classes with their members). The recommended code style for those files is more terse than PEP 8:
+
+prefer ... on the same line as the class/function signature;
+
+avoid vertical whitespace between consecutive module-level functions, names, or methods and fields within a single class;
+
+use a single blank line between top-level class definitions, or none if the classes are very small.
+
+Black enforces the above rules. There are additional guidelines for formatting .pyi file that are not enforced yet but might be in a future version of the formatter:
+
+prefer ... over pass;
+
+avoid using string literals in type annotations, stub files support forward references natively (like Python 3.7 code with from __future__ import annotations);
+
+use variable annotations instead of type comments, even for stubs that target older versions of Python.
+#+end_quote

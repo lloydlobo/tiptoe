@@ -66,11 +66,23 @@ class Assets:
         ]
         large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
         granites = spritesheet_tileset.load_sprites("tiles", "granite")
+
+        if 0 :granite_color=pre.hex_to_rgb("35d450")  # helix starlight green or bright2
+        granite_color=pre.hex_to_rgb("597119"or"425238")  # helix starlight green or bright2
+
+        if 0:granite_grid_border_color = pre.hex_to_rgb("616161")
+        granite_grid_border_color =pre.hex_to_rgb("384510"or"18260f"or"4c5c1d")
+
         for i, granite in enumerate(granites.copy()):
-            granites[i].fill(pre.hex_to_rgb("616161"))
+            # Grid line illusion
+            granites[i].fill(granite_grid_border_color) 
+
             rect_16_0 = granite.get_rect()
+
             rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
-            granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9)  # helix starlight green or bright2
+
+            if 0: granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9) 
+            else: granites[i].fill(color=granite_color, rect=rect_15_9)
 
         return cls(
             entity=dict(
