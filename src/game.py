@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-
-"""
-# TODO:
-    - [ ] create fallthrough platform ramps
-
-"""
-
 import itertools as it
 import math
 import queue
@@ -280,8 +273,8 @@ class Game:
 
         # Edit level manually for quick feedback gameplay iterations
         ################################################################################################
-        self.level = 5
-        self.levels_space_theme = {0, 1, 2, 3, 4, 5}  # ^_^ so all levels??!!!
+        self.level = 0  # 20240623122916UTC: level 3 has a lovely color palette
+        self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6}  # ^_^ so all levels??!!!
         ################################################################################################
 
         # seedling: Mon May 13 08:20:31 PM IST 2024
@@ -296,19 +289,18 @@ class Game:
 
         self.camera.reset()
 
-        if 0:
-            self.clock = pg.time.Clock()
-            self.dt = 0
-
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
 
         if self.level in self.levels_space_theme:
             self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
             self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
-            # self.tilemap = Tilemap(self, pre.TILE_SIZE)
+
         self.screenshake = 0
+
         self.gcs_deque.clear()
+
         self.level = 0
+
         self.player_dash_enemy_collision_count = 0
 
         if pre.DEBUG_GAME_PRINTLOG:
@@ -322,48 +314,92 @@ class Game:
         of the game, and renders the game.
         """
 
-        music_filename = "intro_loop.wav"  # fmt: skip
+        game_level_music_fname = "intro_loop.wav"  # fmt: skip
+        game_level_bg_color = pre.hex_to_rgb("121607")
+
+        def recolor_tiles(color: pre.ColorValue, border_color: pre.ColorValue):
+            for i, tile in enumerate(self.assets.tiles["granite"].copy()):
+                self.assets.tiles["granite"][i].fill(border_color)
+
+                rect_16_0 = tile.get_rect()
+                rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
+
+                self.assets.tiles["granite"][i].fill(color=color, rect=rect_15_9)
+
+        recolor_tiles(color=pre.hex_to_rgb("597119" or "425238"), border_color=pre.hex_to_rgb("384510" or "18260f" or "4c5c1d"))
 
         match self.level:
-            # fmt: off
-            case 0: music_filename = "level_0.wav"
-            case 1: music_filename = "theme_2.wav"
-            case 2: music_filename = "level_2.wav"
-            case 3: music_filename = "level_2.wav"
-            case 4: music_filename = "level_2.wav"
-            case 5: music_filename = "level_2.wav"
-            # fmt: on
+            case 0:
+                game_level_music_fname = "level_0.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+
+            case 1:
+                game_level_music_fname = "theme_2.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+
+            case 2:
+                game_level_music_fname = "level_2.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+
+            case 3:
+                game_level_music_fname = "level_2.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("384510"))
+
+            case 4:
+                game_level_music_fname = "level_2.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("597119"), border_color=pre.hex_to_rgb("384510"))
+
+            case 5:
+                game_level_music_fname = "level_2.wav"
+                game_level_bg_color = pre.hex_to_rgb("121607")
+                recolor_tiles(color=pre.hex_to_rgb("597119"), border_color=pre.hex_to_rgb("384510"))
+
             case _:
                 # NOTE(lloyd): Use a prev variable to hold last level music played
                 # if we want to let it followthrough and avoid playing via pg.mixer.play()
-                assert (music_filename == "intro_loop.wav") and "expected default level music filename"
+                assert (game_level_music_fname == "intro_loop.wav") and "expected default level music filename"
 
-        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / music_filename).__str__())
+        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / game_level_music_fname).__str__())
 
+        #
         # Set individual music volume
         #
-        # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update(). We are not setting it here to avoid hassle of dynamic update via SettingsScreen in mid-gameplay, maybe there is a better way??
+        # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update().
+        # We are not setting it here to avoid hassle of dynamic update via SettingsScreen in mid-gameplay,
+        # maybe there is a better way??
+        #
         # NOTE(lloyd): Also is mute different from music-disabled? (In that case, avoid playing music???)
+        #
         # NOTE(lloyd): We could just pre-render audio files with similar LUFS using ay simple VU meter in a DAW.
+        #
         if not self.settings_handler.music_muted:
             pg.mixer.music.set_volume(0.2)
 
         pg.mixer.music.play(-1)
 
-        if self.level == 0:
-            self.sfx.playerspawn.play()
+        if 0:
+            if self.level == 0:
+                self.sfx.playerspawn.play()
+        self.sfx.playerspawn.play()
 
         self.running = True  # NOTE(lloyd): at init running is False. ensure load and reset keep it as false
         # gc.freeze()
-        bg_color=pre.hex_to_rgb("121607")
+
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
 
             self.display.fill((0, 0, 0, 0))
 
             if self.level in self.levels_space_theme:
-                if 0:self.display_2.fill((30, 30, 30))
-                else: self.display_2.fill(bg_color) #BIY theme
+                if 0:
+                    self.display_2.fill((30, 30, 30))
+                else:
+                    self.display_2.fill(game_level_bg_color)  # BIY theme
 
             self.events()
             self.update()
@@ -386,7 +422,6 @@ class Game:
                 self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
                 # Bring up main menu without reseting the game
                 self.set_mainscreen(StartScreen(game=self))
-
 
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_LEFT,):  # pg.K_a):
@@ -628,11 +663,30 @@ class Game:
 
         # ===---------------------------------------------------------------===
         # ===-Update and Draw drop-point location zones---------------------===
-        if not self.dead and (spawner_position := self.player_spawner_pos) and spawner_position:
+        if not self.dead and (position_ := self.player_spawner_pos) and position_:
             success_width, success_height = 48, 6
-            rect_value = (spawner_position.x - success_width / 2 - render_scroll[0], (spawner_position.y - render_scroll[1]) + 16 - success_height, success_width, success_height)
-            pg.draw.rect(self.display, pre.hex_to_rgb("13c299"), rect_value)
+            surf_color = pre.hex_to_rgb("ece187" or "13c299")
 
+            rect_value = (
+                position_.x - success_width / 2 - render_scroll[0],
+                (position_.y - render_scroll[1]) + 16 - success_height,
+                success_width,
+                success_height,
+            )
+
+            surf = self.assets.tiles["portal"][1].copy()  # NOTE(Lloyd): Copying sanity check
+            anim_offset_y = 3
+            surf_w = surf.get_width()
+            surf_h = surf.get_height()
+
+            dest_position = (
+                (position_.x - (surf.get_width() / 2) - render_scroll[0]),
+                (position_.y - (surf.get_height() / 2) + anim_offset_y - render_scroll[1]),
+            )
+
+            # This is on victory.. sparks around flags to signify SUCESS state.
+            # And signal player to go to flag_end
+            # ---------------------------------------------------------------------
             enemy_count = len(self.enemies)
 
             for enemy in self.enemies:
@@ -643,10 +697,39 @@ class Game:
                         self.collected_enemies_counter += 1
                         self.collected_enemies_seen.add(enemy)
 
+            # TODO: Use flag_start asset portal
             if enemy_count == 0:
-                rect_value = (spawner_position.x - success_width / 2 - render_scroll[0], (spawner_position.y - render_scroll[1]) + success_height, success_width, success_height)
-                pg.draw.rect(self.display, pre.hex_to_rgb("cc1299"), rect_value)
                 self.collected_enemies = True
+
+                radius = 1
+                colors = (pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167"))
+                offset_y_ = pre.TILE_SIZE / 8
+                center = [(dest_position[0] + surf_w // 2), (dest_position[1] + surf_h)]
+                dy = 0.0
+
+                for i in range(0, (surf_h * 2)):
+                    if dy > (surf_h // 1.618):
+                        break
+
+                    if random() < 0.8:
+                        for j in range(0, surf_w // 4):
+                            pg.draw.circle(self.display, colors[0], (center[0] + (4 * j), center[1] - dy), radius)
+                            pg.draw.circle(self.display, colors[0], (center[0] - (4 * j), center[1] - dy), radius)
+                    else:
+                        for j in range(0, surf_w // 4):
+                            pg.draw.circle(self.display, colors[1], (center[0] + (4 * j), center[1] - dy), radius)
+                            pg.draw.circle(self.display, colors[1], (center[0] - (4 * j), center[1] - dy), radius)
+
+                    dy += offset_y_
+            # ---------------------------------------------------------------------
+
+            # Update and Draw start drop location
+            # ---------------------------------------------------------------------
+            # NOTE(Lloyd): success_width/height are for a rectangular slab for prototyping.
+            # Might want to get correct dimension based of the asset
+            self.display.blit(surf, dest_position)
+            # ---------------------------------------------------------------------
+
         # ===---------------------------------------------------------------===
 
         # ===-Portal: detect and render-------------------------------------===
@@ -1031,8 +1114,9 @@ class Game:
 
         self.transition = self._transition_lo
 
-        if self.level != 0:
-            self.sfx.playerspawn.play()
+        if 0:
+            if self.level != 0:
+                self.sfx.playerspawn.play()
 
         progress = 100
 
@@ -1821,6 +1905,12 @@ class StartScreen:
                     # FIXME: Ensure that on keydown ESCAPE during gameplay, we end up here and show the player the 'main menu'
                     case MenuItemType.PLAY:
                         pg.mixer.music.fadeout(1000)
+
+                        if self.game.level == 0:
+                            print(f"selected menuitem {self.game.level =}")
+                        elif self.game.level == 6:
+                            print(f"selected menuitem {self.game.level =}")
+
                         if not self.game.running:
                             self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
                         else:
@@ -1913,15 +2003,14 @@ class StartScreen:
         pos_y = math.floor((self.h // 2) - (offset_y * 0.618))
 
         for i, val in enumerate(MENU_ITEMS):
-
             if i == MenuItemType(0):  # PLAY
                 assert MENU_ITEMS[i] == "PLAY"
+
                 if self.game.running:
                     val = "RESUME"
 
             if i == self.selected_menuitem:
                 assert (i == self.menuitem_offset) and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.selected_menuitem =}"
-
                 self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.font_sm, pg.Color("maroon"), val)
             else:
                 self.game.draw_text(pos_x, pos_y, self.font_sm, pre.WHITE, f"{val}")
