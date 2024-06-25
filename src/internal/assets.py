@@ -113,7 +113,8 @@ class Assets:
                 bouncepad=spritesheet_bouncepad.load_sprites("tiles", "bouncepad"),
                 portal=[
                     pre.load_img(pre.IMGS_PATH / "tiles" / "spawners" / "flag.png", colorkey=pre.BLACK),
-                    pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2),
+                    pre.load_img(pre.IMGS_PATH / "tiles" / "spawners" / "flag_start.png", colorkey=pre.BLACK),
+                    # pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2), # previously 20240623104030UTC 
                 ],
                 spike=pre.load_imgs(str(pre.IMGS_PATH / "tiles" / "spikes"), colorkey=pre.BLACK),
                 # offgrid decoration

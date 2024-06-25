@@ -19,3 +19,6 @@ src/__pycache__
 src/data/images/entities/player/config.json
 src/data/images/background/level_0
 CHANGELOG.md
+
+# EDITOR ARTIFACTS
+*.un~
