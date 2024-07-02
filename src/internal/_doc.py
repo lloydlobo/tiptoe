@@ -1,4 +1,4 @@
-"""General internal documetation.
+"""General internal documentation.
 
 ```markdown
 

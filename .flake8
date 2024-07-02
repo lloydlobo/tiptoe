@@ -1,7 +1,7 @@
 # See https://flake8.pycqa.org/en/latest/user/configuration.html
 
 [flake8]
-max-line-length = 200 # from pyproject.toml in [tool.black]
+max-line-length = 120  # from pyproject.toml in [tool.black]
 max-complexity = 10
 ignore = E501 W503 W504 E203
 

@@ -1,8 +1,15 @@
+# file: hud.py
+
 from __future__ import annotations
 
-import math
-from functools import partial
-from typing import TYPE_CHECKING, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generator,
+    LiteralString,
+    Optional,
+)
 
 import pygame as pg
 
@@ -10,59 +17,110 @@ import internal.prelude as pre
 
 
 if TYPE_CHECKING:
-    from tiptoe import Game
+    from game import Game
+
+# TOP
 
 
-def render_debug_hud(game: Game, surface: pg.SurfaceType, render_scroll: tuple[int, int], mouse_pos: Optional[tuple[int, int]] = None) -> None:
-    t_size = pre.TILE_SIZE
-    antialias = True
-    key_w = 14
-    val_w = 14
-    line_height = math.floor(game.font.get_linesize() / 2)
-    text_color = pre.Palette.COLOR0
-    key_fillchar = " "
-    val_fillchar = " "  # non monospace fonts look uneven vertically in tables
+def draw_text(
+    surface: pg.SurfaceType,
+    x: int,
+    y: int,
+    font: pg.font.Font,
+    color: pre.ColorValue,
+    text: str,
+    antialias: bool = True,
+) -> pg.Rect:
+    textsurf = font.render(text, antialias, color)
+    textrect = textsurf.get_rect()
+    textrect.midtop = (x, y)
+    return surface.blit(textsurf, textrect)
 
-    collisions_bitmap_str = " ".join(((k[0] + ('#' if v else ' ')) for k, v in game.player.collisions.__dict__.items())).upper().split(',')[0]
-    movement_bitmap_str = " ".join(list((k[0] + str(int(v))) for k, v in game.movement.__dict__.items())[0:2]).upper().split(',')[0]
-    player_action = val.value.upper() if (val := game.player.action) and val else None
 
-    hud_elements = (
-        (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
-        for text in (
-            ##################################
-            f"CLOCK_FPS.{game.clock.get_fps():2.0f}",
-            f"CLOCK_DT*1000.{game.dt*1000}",
-            ###################################
+def render_debug_hud(
+    game: Game,
+    surface: Optional[pg.SurfaceType] = None,
+    render_scroll: tuple[int, int] = (0, 0),
+    mouse_pos: Optional[tuple[int, int]] = None,
+) -> None:
+    # Since non-monospace fonts look uneven vertically in tables
+    keyfillchar, valfillchar = " ", " "
+    keywidth, valwidth = 14, 14
+
+    # Get line height with math.floor(game.font.get_linesize() / 2)
+    lineheight = 9
+    textcolor = (127, 255, 127)
+
+    playeraction: LiteralString | None = (
+        actionkind.value.upper() if ((actionkind := game.player.action) and actionkind) else None
+    )
+
+    collisions: Dict[str, Any] = game.player.collisions.__dict__
+    collisions_items = collisions.items()
+    collisions_iter: Generator[str, None, None] = ((key[0] + ('#' if val else ' ')) for key, val in collisions_items)
+
+    movement: Dict[str, Any] = game.movement.__dict__
+    movement_items = movement.items()
+    movements_iter: Generator[str, None, None] = ((key[0] + str(int(val))) for key, val in movement_items)
+
+    huditems_iter: Generator[str, None, None] = (
+        (
+            f"""{key}{spacechars}{val}"""
+            if ('.' in item)
+            and (
+                keyval := item.split('.'),
+                key := keyval[0].rjust(keywidth, keyfillchar),
+                val := keyval[1].rjust(valwidth, valfillchar),
+                spacechars := (2 * keyfillchar),
+            )
+            else f"{item.ljust(valwidth, valfillchar)}"
+        )
+        for item in (
+            # HUD items
+            # -----------------------------------------------------------------
             f"CAM_RSCROLL.{render_scroll.__str__()}",
             f"CAM_SCROLL.{game.scroll.__round__(0)}",
-            f"MOUSE_POS.{mouse_pos.__str__()}",
-            ##################################
-            f"INPT_MVMNT.{movement_bitmap_str}",
+            f"CLOCK_DT*1000.{game.dt*1000}",
+            f"CLOCK_FPS.{game.clock.get_fps():2.0f}",
+            f"INPT_MVMNT.{' '.join(tuple(movements_iter)[0:2]).upper().split(',')[0]}",  # L0 R0 | L1 R0 | L0 R1 | L1 R1
             f"MAP_LEVEL.{str(game.level)}",
-            ##################################
-            f"PLYR_ACTION.{player_action }",
-            f"PLYR_ALPHA.{game.player.animation_assets[game.player.action.value].img().get_alpha() if game.player.action else None}",
-            f"PLYR_COLLIDE.{collisions_bitmap_str}",
+            f"MOUSE_POS.{mouse_pos.__str__()}",
+            f"PLYR_ACTION.{playeraction }",
+            f"PLYR_COLLIDE.{' '.join(collisions_iter).upper().split(',')[0]}",  # L  R  U  D  | L1 R  U  D  | L  R1  U  D1
+            f"PLYR_DASH.{str(game.player.dash_timer)}",
             f"PLYR_FLIP.{str(game.player.flip).upper()}",
             f"PLYR_POS.{game.player.pos.__round__(0)}",
             f"PLYR_VEL.{str(game.player.velocity.__round__(0))}",
-            f"PLYR_DASH.{str(game.player.dash_timer)}",
-            ##################################
+            # -----------------------------------------------------------------
         )
     )
 
-    # TODO: render on a surface then render surface on screen
-    # blit_text_partialfn = partial(game.screen.blit)
-    # render_font_partial = partial(game.font_hud.render)
-    start_row = 16 * 4
-    start_col = 16 // 2
+    # Draw HUD
+    # -------------------------------------------------------------------------
+    rowstart, colstart = (16 * 4), (16 // 2)
+    rowstart = surface.get_width() - rowstart
+    colstart = surface.get_height() - colstart - (13 * lineheight)  # 13 items
 
-    # def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
-    font = game.font_hud
-    for index, text in enumerate(hud_elements):
-        game.draw_text(int(start_row), int(start_col + index * line_height), font, text_color, text)
-        # surface.blit(
-        #     game.font_hud.render(text, antialias, text_color, None),
-        #     dest=(start_row, (start_col + index * line_height)),
-        # )
+    if surface is not None:
+        for index, text in enumerate(huditems_iter):
+            draw_text(
+                surface,
+                int(rowstart),
+                int(colstart + index * lineheight),
+                game.font_hud,
+                textcolor,
+                text,
+            )
+    else:
+        for index, text in enumerate(huditems_iter):
+            game.draw_text(
+                int(rowstart),
+                int(colstart + index * lineheight),
+                game.font_hud,
+                textcolor,
+                text,
+            )
+    # -------------------------------------------------------------------------
+
+
+# BOT

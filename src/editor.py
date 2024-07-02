@@ -72,12 +72,12 @@ class Editor:
         while True:
             self.display.fill(pre.COLOR.BACKGROUND)
 
-            # camera: update and parallax
+            # Camera: Update and Parallax
             self.scroll.x += round(self.movement.right - self.movement.left) * pre.CAMERA_SPEED
             self.scroll.y += round(self.movement.bottom - self.movement.top) * pre.CAMERA_SPEED
             render_scroll: tuple[int, int] = (int(self.scroll.x), int(self.scroll.y))
 
-            # tilemap: render
+            # Tilemap: Render
             self.tilemap.render(self.display, render_scroll)
 
             cur_tile_img: pg.Surface = self.assets.tiles[self.tile_list[self.tile_group]][self.tile_variant].copy()
@@ -87,21 +87,28 @@ class Editor:
             mpos = mpos / pre.RENDER_SCALE
             tile_pos = pg.Vector2(tuple(map(int, (mpos + self.scroll) // self.tilemap.tilesize)))
 
-            # preview: at cursor the next tile to be placed
             if self.ongrid:
-                self.display.blit(cur_tile_img, tile_pos * self.tilemap.tilesize - self.scroll)
-            else:  # notice smooth off grid preview
-                self.display.blit(cur_tile_img, mpos)
+                self.display.blit(
+                    cur_tile_img, tile_pos * self.tilemap.tilesize - self.scroll
+                )  # Preview: at cursor the next tile to be placed
+            else:
+                self.display.blit(cur_tile_img, mpos)  # Notice smooth off-grid preview
 
-            if self.clicking and self.ongrid:  # tile: add
-                self.tilemap.tilemap[pos_to_loc(tile_pos.x, tile_pos.y, None)] = TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos)
+            if self.clicking and self.ongrid:  # Tile: add
+                ongrid_tile = TileItem(
+                    kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=tile_pos
+                )
+                self.tilemap.tilemap[pos_to_loc(tile_pos.x, tile_pos.y, None)] = ongrid_tile
+
             if self.right_clicking:  # tile: remove
                 if (tile_loc := pos_to_loc(tile_pos.x, tile_pos.y, None)) and tile_loc in self.tilemap.tilemap:
                     del self.tilemap.tilemap[tile_loc]
 
                 for tile in self.tilemap.offgrid_tiles.copy():
                     t_img = self.assets.tiles[tile.kind.value][tile.variant]
-                    tile_r = pg.Rect(tile.pos.x - self.scroll.x, tile.pos.y - self.scroll.y, t_img.get_width(), t_img.get_height())
+                    tile_r = pg.Rect(
+                        tile.pos.x - self.scroll.x, tile.pos.y - self.scroll.y, t_img.get_width(), t_img.get_height()
+                    )
                     if tile_r.collidepoint(mpos):
                         self.tilemap.offgrid_tiles.remove(tile)
 
@@ -111,13 +118,22 @@ class Editor:
                 if event.type == pg.QUIT:
                     pg.quit()
                     sys.exit()
+
                 if event.type == pg.MOUSEBUTTONDOWN:
                     if event.button == 1:
                         self.clicking = True
+
                         if not self.ongrid:
-                            self.tilemap.offgrid_tiles.add(TileItem(kind=pre.TileKind(self.tile_list[self.tile_group]), variant=self.tile_variant, pos=mpos + self.scroll))
+                            offgrid_tile = TileItem(
+                                kind=pre.TileKind(self.tile_list[self.tile_group]),
+                                variant=self.tile_variant,
+                                pos=mpos + self.scroll,
+                            )
+                            self.tilemap.offgrid_tiles.add(offgrid_tile)
+
                     if event.button == 3:  # 2 is when you click down on the mice
                         self.right_clicking = True
+
                 if event.type == pg.MOUSEBUTTONUP:
                     if event.button == 1:
                         self.clicking = False
@@ -139,6 +155,7 @@ class Editor:
                             self.tile_group += 1
                             self.tile_group %= len(self.tile_list)
                             self.tile_variant = 0
+
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_a:
                         self.movement.left = True
@@ -154,7 +171,6 @@ class Editor:
                         self.tilemap.autotile()
                     if event.key == pg.K_o:  # o: output
                         if not self.last_save_time or (t := time.time(), dt := t - self.last_save_time) and dt >= 0.12:
-                            # path=os.path.join(pre.MAP_PATH, f"{self.level}.json")
                             self.tilemap.save(str(Path(pre.MAP_PATH) / f"{self.level}.json"))
                             self.last_save_time = time.time()
                             self.last_save_time_readable = time.asctime()
@@ -163,6 +179,7 @@ class Editor:
                             raise ValueError(f"Something went wrong. Saving too fast. Please debounce. {t, dt}")
                     if event.key == pg.K_LSHIFT:
                         self.shift = not self.shift
+
                 if event.type == pg.KEYUP:
                     if event.key == pg.K_a:
                         self.movement.left = False
@@ -174,19 +191,24 @@ class Editor:
                         self.movement.bottom = False
 
             # DISPLAY: RENDERING
-
+            # ------------------------------------------------------------------
             self.screen.blit(pg.transform.scale(self.display, self.screen.get_size()), (0, 0))
 
-            # DEBUG: HUD
-
             if pre.DEBUG_EDITOR_HUD:
+                # DEBUG: HUD
+                # ------------------------------------------------------------------
                 antialias = True
                 key_w = 11  # TILEVARMODE key
                 val_w = 10  # LASTSAVE value | max overflow is 24 for local time readable
                 key_fillchar = " "
-                val_fillchar = " "  # non monospace fonts look uneven vertically in tables
+                val_fillchar = " "  # Non monospace fonts look uneven vertically in tables
+
                 hud_elements = [
-                    (f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}" if '.' in text else f"{text.ljust(val_w,val_fillchar)}")
+                    (
+                        f"{text.split('.')[0].rjust(key_w,key_fillchar)}{key_fillchar*2}{text.split('.')[1].rjust(val_w,val_fillchar)}"
+                        if '.' in text
+                        else f"{text.ljust(val_w,val_fillchar)}"
+                    )
                     for text in [
                         f"FPS.{self.clock.get_fps():2.0f}",
                         f"GRIDMODE.{str(self.ongrid).upper()}",
@@ -204,19 +226,25 @@ class Editor:
                         f"TILEVARMODE.{str(self.shift).upper()}",
                     ]
                 ]
+
                 blit_text, line_height = self.screen.blit, min(self.font_size, pre.TILE_SIZE)
+
                 for index, text in enumerate(hud_elements):
-                    blit_text(self.font.render(text, antialias, pre.GREEN, None), (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height))
+                    blit_text(
+                        self.font.render(text, antialias, pre.GREEN, None),
+                        (pre.TILE_SIZE, pre.TILE_SIZE + index * line_height),
+                    )
+            # ------------------------------------------------------------------
 
             pg.display.flip()  # update whole screen
             self.clock.tick(pre.FPS_CAP)  # note: returns delta time (dt)
+            # ------------------------------------------------------------------
 
 
 if __name__ == "__main__":
-    """
-    usage: editor.py [-h]
+    """Usage: editor.py [-h]
 
-    options:
+    Options:
       -h, --help  show this help message and exit
 
     Example::
@@ -227,10 +255,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("level", help="edit map for given level id", type=int)
+
     args = parser.parse_args()
 
     ed = Editor(level_id=int(args.level))
-    ed.run()
 
-# The line beneath this is called `modeline`. See `:help modeline`
-# vim: ts=2 sts=2 sw=2 et
+    ed.run()

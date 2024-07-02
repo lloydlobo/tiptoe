@@ -8,7 +8,7 @@ from internal import prelude as pre
 
 
 if TYPE_CHECKING:
-    from tiptoe import Game
+    from game import Game
 
 
 class Particle:
