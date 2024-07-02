@@ -299,9 +299,12 @@ def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorVa
 
     Note: Ported from DaFluffyPotato's pygpen lib
     """
+    path = Path(path)
     img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
+
     if colorkey is not None:
         img.set_colorkey(colorkey)
+
     return img
 
 
@@ -536,7 +539,7 @@ DEBUG_GAME_ASSERTS = True
 DEBUG_GAME_CACHEINFO = False
 DEBUG_GAME_CAMERA = False
 DEBUG_GAME_CPROFILE = False
-DEBUG_GAME_HUD = False
+DEBUG_GAME_HUD = True
 DEBUG_GAME_LOGGING = False
 DEBUG_GAME_PRINTLOG = False
 DEBUG_GAME_STRESSTEST = False
@@ -639,7 +642,7 @@ class Palette:
 
     GIMP Palette
     #Palette Name: Rust Gold 8
-    #Description: This pallete was made based on rust colors and gold tones.
+    #Description: This palette was made based on rust colors and gold tones.
     #Colors: 8
     """
 

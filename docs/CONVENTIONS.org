@@ -1,4 +1,4 @@
-#+tile: General Project Code Conventions
+#+title: General Project Code Conventions
 
 See https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#typing-stub-files
 

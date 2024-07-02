@@ -8,7 +8,7 @@ typeCheckingMode = "strict"
 # max-complexity = 10
 
 [tool.black]
-line-length = 200                # 79 | 88 | 99
+line-length = 120  # 79 :_: | 88 *_* | 99 @_@ | 120 ^v^ | 200 ^_^
 skip-string-normalization = true
 # target-version = ["py38"] # seems to fail on match statements
 include = '\.pyi?$'

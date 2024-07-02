@@ -16,19 +16,19 @@ from typing import (
     Tuple,
 )
 
+import pygame as pg
+
 import internal.prelude as pre
 from internal.particle import Particle
 from internal.spark import Spark
 from internal.tilemap import Tilemap
 
 
-# FIXME: do not use mutable defaults in func args. movement
-
-
 if TYPE_CHECKING:
-    from tiptoe import Game
+    from game import Game
 
-import pygame as pg
+
+# TOP
 
 
 _TDeque = deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]]
@@ -115,9 +115,11 @@ class PhysicalEntity:
                 if frame_movement.x > 0:  # traveling right
                     entity_rect.right = rect.left
                     self.collisions.right = True
+
                 if frame_movement.x < 0:  # traveling left
                     entity_rect.left = rect.right
                     self.collisions.left = True
+
                 self.pos.x = entity_rect.x
 
         # Y-axis movement
@@ -128,14 +130,17 @@ class PhysicalEntity:
                 if frame_movement.y > 0:  # traveling down
                     entity_rect.bottom = rect.top
                     self.collisions.down = True
+
                 if frame_movement.y < 0:  # traveling up
                     entity_rect.top = rect.bottom
                     self.collisions.up = True
+
                 self.pos.y = entity_rect.y
 
         # ===--------Movement Quirks-------=== #
         if movement.x < 0:
             self.flip = True
+
         if movement.x > 0:
             self.flip = False
 
@@ -181,6 +186,7 @@ class Enemy(PhysicalEntity):
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.history_contact_with_player: _TDeque = deque(maxlen=pre.FPS_CAP * 2)
+        self.is_collected_by_player = False
 
         self.is_player_close_by = False
 
@@ -210,14 +216,19 @@ class Enemy(PhysicalEntity):
 
                     # Calculate moving average for smooth/erratic movement
                     if self._alertness_enabled and self.alert_timer:
-                        if (_tmp_disabling_as_they_may_shoot_opposite_side := 1) and _tmp_disabling_as_they_may_shoot_opposite_side:
-                            boost_x = 3.28 + 2  # 3.28
-                            avg_mvmt_x = 0.1 * round(10 * sum(self.movement_history_x) / len(self.movement_history_x) if self.movement_history_x else 0)
-                            # perf: hard code the length of movement history ^^^^^
-                            movement.x += 0.1 * round(avg_mvmt_x * boost_x)
-
-                        extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # agitated little hops -_-
-                        movement.y -= extra_crazy  # todo: remove extra_crazy after demo
+                        # Shoot opposite sides
+                        # ------------------------------------------------------
+                        boost_x = 3.28 + 2  # 3.28
+                        avg_mvmt_x = 0.1 * round(
+                            # PERF(Lloyd): Hard code the length of movement history
+                            10 * sum(self.movement_history_x) / len(self.movement_history_x)
+                            if self.movement_history_x
+                            else 0
+                        )
+                        movement.x += 0.1 * round(avg_mvmt_x * boost_x)
+                        # ------------------------------------------------------
+                        extra_crazy = math.sin(self.alert_timer) * randint(0, 2)  # Agitated little hops ^_^
+                        movement.y -= extra_crazy  # NOTE(Lloyd): We can remove extra_crazy if required
 
                     if self._alertness_enabled:
                         self.movement_history_x.append(dx)
@@ -240,14 +251,15 @@ class Enemy(PhysicalEntity):
                     enemy_is_facing_left, enemy_is_facing_right = self.flip, not self.flip
 
                     if self.action != Action.SLEEPING:
-                        if (enemy_is_facing_left and player_left_of_enemy) or (enemy_is_facing_right and player_right_of_enemy):
+                        if (enemy_is_facing_left and player_left_of_enemy) or (
+                            enemy_is_facing_right and player_right_of_enemy
+                        ):
                             self.spawn_projectile_with_sparks()
-                    if 0:
-                        movement = self.make_enemy_go_after_player(movement)
 
                 if self._alertness_enabled and self.alert_timer:
-                    # FIXED: only alerted enemies can be boosted for more alertness. and not everyone in the game.
-                    if (self.walking_timer <= self._max_alert_time) and (random() < 0.01 * self.alert_boost_factor):  # 20% chance increase to get more alert
+                    # Only alerted enemies can be boosted for more alertness. and not everyone in the game.
+                    # 20% chance increase to get more alert
+                    if (self.walking_timer <= self._max_alert_time) and (random() < 0.01 * self.alert_boost_factor):
                         prev_timer = self.alert_timer
                         next_timer = randint(30 * 2, 120 * 2)
                         self.alert_timer = next_timer
@@ -255,16 +267,17 @@ class Enemy(PhysicalEntity):
                         if pre.DEBUG_GAME_ASSERTS:
                             if self.alert_timer != 0:
                                 err_context = f"{prev_timer,next_timer,self.alert_timer,self._max_alert_time = }"
+
                                 if next_timer > prev_timer:
                                     assert self.alert_timer >= prev_timer, err_context
+
         elif random() < self.walking_timer_reset_probability:  # refill timer one in every 0.67 seconds
             self.walking_timer = randint(30, 120)  # 0.5s to 2.0s random duration for walking
         else:
             if (_tmp_feature_sleeping := 1) and _tmp_feature_sleeping:
                 threat_dist = pre.TILE_SIZE * 12
                 player_distance_to_enemy = self.game.player.pos.distance_to(self.pos)
-                self.is_player_close_by = (abs(player_distance_to_enemy)) < threat_dist
-            pass
+                self.is_player_close_by = abs(player_distance_to_enemy) < threat_dist
 
         if self.action == Action.SLEEPING:
             super().update(tilemap, prev_movement)
@@ -299,20 +312,13 @@ class Enemy(PhysicalEntity):
             # Pushed by player
             if not self.dashed_by_player:
                 player = self.game.player
-                self.pos = player.pos.copy()  # avoid sticking to player -_-
-
-                if 0:
-                    self.flip = not self.flip
+                # Avoid sticking to player -_-
+                self.pos = player.pos.copy()
 
                 self.velocity.y = player.velocity.y / 4
                 self.velocity.x = 1.5 if self.flip else -1.5
 
             return False
-
-        # if self.action == Action.SLEEPING and self.dashed_by_player_counter < 2:
-        #     self.dashed_by_player_counter = max(0,  self.dashed_by_player_counter-1)
-        #   if _dead_condition:
-        #       return True
 
         # Normalize horizontal velocity (copied from Player.update())
         self.velocity.x = max(0, self.velocity.x - 0.1) if (self.velocity.x > 0) else min(0, self.velocity.x + 0.1)
@@ -342,10 +348,7 @@ class Enemy(PhysicalEntity):
 
         self.game.projectiles.append(
             pre.Projectile(
-                pos=pg.Vector2(
-                    (self.rect.centerx + direction * SIZE_GUN[0]),
-                    (self.rect.centery + SIZE_GUN[1] // 2),  # use y gun offset???
-                ),
+                pos=pg.Vector2((self.rect.centerx + direction * SIZE_GUN[0]), (self.rect.centery + SIZE_GUN[1] // 2)),
                 velocity=(direction * SPEED_BULLET),
                 timer=0,
             ),
@@ -368,31 +371,40 @@ class Enemy(PhysicalEntity):
     def make_enemy_go_after_player(self, movement: pg.Vector2) -> pg.Vector2:
         max_distance = self._lookahead_x * 2
         tmp_movement = self.pos.move_towards(self.game.player.pos, max_distance)
+
         if abs(tmp_movement.y) < pre.TILE_SIZE:
             next_movement = tmp_movement
+
             if not (self.get_flip_dir() == abs(next_movement.x) // next_movement.x):
                 self.flip = not self.flip
             else:
                 pass
+
             accum = 0
             rushing = True
+
             while rushing:
                 if self.collisions.left or self.collisions.right:
                     rushing = False
                     break
+
                 if accum >= max_distance:
                     rushing = False
                     break
+
                 next_movement.x += min(self._moveby_x, tmp_movement.x) or self.get_flip_dir()
                 accum += tmp_movement.x
-                pass
+
             movement.x += next_movement.x
+
         return movement
 
 
 class Player(PhysicalEntity):
     def __init__(self, game: Game, pos: pg.Vector2, size: pg.Vector2) -> None:
-        super().__init__(game, pre.EntityKind.PLAYER, pos, size)  # NOTE: allow entity kind to be passed to Player class, to use switchable player mid games
+        super().__init__(
+            game, pre.EntityKind.PLAYER, pos, size
+        )  # NOTE: allow entity kind to be passed to Player class, to use switchable player mid games
 
         # Constants
         self._air_time_freefall_death: Final = 2.5 * pre.FPS_CAP  # 120 or 2 seconds
@@ -414,7 +426,7 @@ class Player(PhysicalEntity):
         self.air_timer = 0
         self.coyote_timer = self._coyote_timer_lo
         self.dash_timer = 0
-        self.delta_time_jump_keydown_keyup: Optional[float] = None
+        self.deltatime_jump_keydownup: Optional[float] = None
         self.jump_buffer_interval = 0.1
         self.jumps = self._jumps
         self.time_jump_keydown: Optional[float] = None
@@ -449,14 +461,17 @@ class Player(PhysicalEntity):
         if self.air_timer > self._air_time_freefall_death:
             if not self.game.dead:
                 self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 1)
+
             self.game.dead += 1  # Increment dead timer
 
         # Reset times when touch ground
         self.did_land = False
+
         if self.collisions.down:
             if self.air_timer > self.max_air_time:  # Credit: mrc
                 self.game.sfx.jumplanding.play()
                 self.did_land = True
+
             self.air_timer = 0
             self.coyote_timer = self._coyote_timer_hi
             self.jumps = self._jumps
@@ -469,14 +484,20 @@ class Player(PhysicalEntity):
             self.wallslide = True
             self.velocity.y = min(self.velocity.y, self._wallslide_velocity_cap_y)
             self.air_timer = self.max_air_time  # FIX: trying to avoid player death while sliding for too long
+
             if 1:  # requires wall_slide animation, todo
                 if (flip_enabled := 1) and flip_enabled:
                     self.flip = False if self.collisions.right else True
-                # print("wall_slide_animation flipped")
+
                 self.set_action(Action.WALLSLIDE)
 
-        if self.time_jump_keydown:  # JUMP BUFFERING
-            if self.jumps in {0, 1} and self.collisions.down and (time.time() - self.time_jump_keydown <= self.jump_buffer_interval):
+        # JUMP BUFFERING
+        if self.time_jump_keydown:
+            if (
+                self.jumps in {0, 1}
+                and self.collisions.down
+                and (time.time() - self.time_jump_keydown <= self.jump_buffer_interval)
+            ):
                 if not self.wallslide:
                     self.velocity.y = -self.jump_force
                     self.jumps -= 1
@@ -501,9 +522,14 @@ class Player(PhysicalEntity):
         # Handle dash
         if (abs_dash_t := abs(self.dash_timer)) in (self.dash_burst_1, self.dash_burst_2):
             is_burst1 = abs_dash_t == self.dash_burst_1
-
             self.game.particles.extend(
-                Particle(self.game, pre.ParticleKind.PARTICLE, pg.Vector2(self.rect.center), pg.Vector2(velocity * dir_x, velocity * decay_y), frame=randint(0, 7))
+                Particle(
+                    self.game,
+                    pre.ParticleKind.PARTICLE,
+                    pg.Vector2(self.rect.center),
+                    pg.Vector2(velocity * dir_x, velocity * decay_y),
+                    frame=randint(0, 7),
+                )
                 for i in range(1, 17)
                 if (
                     angle := (random() * (math.pi * 2)),
@@ -516,8 +542,10 @@ class Player(PhysicalEntity):
 
         if self.dash_timer > 0:  # 0..60
             self.dash_timer = max(0, self.dash_timer - 1)
+
         if self.dash_timer < 0:  # -60..0
             self.dash_timer = min(0, self.dash_timer + 1)
+
         if abs(self.dash_timer) > 50:  # at first ten frames of dash abs(60 -> 50)
             self.velocity.x = self._dash_force * (abs(self.dash_timer) / self.dash_timer)
 
@@ -529,7 +557,9 @@ class Player(PhysicalEntity):
                     self.game,
                     pre.ParticleKind.PARTICLE,
                     pg.Vector2(self.rect.center),
-                    pg.Vector2((abs(self.dash_timer) / self.dash_timer) * random() * 3, -(0.5 / i) * math.sin(self.dash_timer)),
+                    pg.Vector2(
+                        (abs(self.dash_timer) / self.dash_timer) * random() * 3, -(0.5 / i) * math.sin(self.dash_timer)
+                    ),
                     frame=randint(0, 7),
                 )
                 for i in range(1, 4)
@@ -591,6 +621,7 @@ class Player(PhysicalEntity):
             self.game.sfx.dashbassy.play()
             self.game.screenshake = max(self.game.tilemap.tilesize, self.game.screenshake - 0.05)
             return dash
+
         return dash
 
     def calculate_bezier_particle_radius(self) -> float:
@@ -598,11 +629,16 @@ class Player(PhysicalEntity):
         pstar_radius: Final = pre.SIZE.PLAYERSTARDASHRADIUS[0]
         dash_amount: Final = abs(self.dash_timer)
         t = 1.0 - (dash_amount / self._max_dash_time)  # Calculate the Bezier curve parameter t
-        radius = ((1 - t) ** 2 * 0) + (2 * t * (1 - t) * 1) + (t**2 * 3)  # Calculate the radius based on the Bezier curve quadratic formula
+
+        # Calculate the radius based on the Bezier curve quadratic formula
+        radius = ((1 - t) ** 2 * 0) + (2 * t * (1 - t) * 1) + (t**2 * 3)
+
         radius *= pstar_radius * 0.5  # Scale the radius based on the maximum dash time and the playersstar dash size
         radius = min(pstar_radius, 2 * math.pi * (radius * 1.618))  # Keep radius in bounds
+
         if radius >= pstar_radius:  # shrink
             radius = radius * 0.618 / ((1 + dash_amount) * math.pi)
+
         return radius
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
@@ -614,6 +650,7 @@ class Player(PhysicalEntity):
         - Render a star particle if the player is falling offscreen with 15 frames left before death or during a dash burst.
         """
         near_freefall_death = self.air_timer + self.max_air_time + pre.FPS_CAP // 4 >= self._air_time_freefall_death
+
         if (not (abs(self.dash_timer) <= self.dash_burst_2)) or near_freefall_death:
             # self._drawcircle_starfn(surface=surf, center=(self.pos - offset), radius=self.calculate_bezier_particle_radius() * 1.328)
             # if near_freefall_death and (is_mid_air := not any(self.collisions.__dict__.values())) and is_mid_air: # note: is_mid_air seems unreliable as it constantly flips on off since it listens to keyup and keydown movements
@@ -629,9 +666,14 @@ class Player(PhysicalEntity):
                     if self.flip  # ===-----====
                     else (self.rect.midbottom[0] - dust_offset[0], self.rect.midbottom[1] + dust_offset[1])
                 )
+
                 pg.draw.circle(surf, pg.Color("cyan"), dust_center - offset, 3, 1)
                 pg.draw.circle(surf, pg.Color("gray"), dust_center - (1, 1) - offset, 3, 1)
                 pg.draw.circle(surf, pg.Color("cyan"), dust_center + (3, -2) - offset, 2, 1)
                 pg.draw.circle(surf, pg.Color("gray"), dust_center + (4, -3) - offset, 1, 1)
                 pg.draw.circle(surf, pg.Color("silver"), dust_center - (3, 3) - offset, 2, 1)
+
             super().render(surf, offset)
+
+
+# BOT

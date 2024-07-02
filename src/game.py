@@ -1,3 +1,8 @@
+# file: game.py
+
+
+# TOP
+
 from __future__ import annotations
 
 import itertools as it
@@ -14,14 +19,21 @@ from enum import Enum, IntEnum, auto
 from os import listdir, path
 from pathlib import Path
 from random import randint, random, uniform
-from typing import List  # pyright:ignore
-from typing import Final, NoReturn, Optional, Set  # pyright: ignore
+from typing import (  # pyright:ignore; pyright: ignore
+    Final,
+    List,
+    Literal,
+    NoReturn,
+    Optional,
+    Set,
+    Tuple,
+)
 
 import pygame as pg
 
 
 try:
-    from memory_profiler import profile  # pyright: ignore
+    from memory_profiler import profile
 except ImportError as e:
     print(f"failed to import dev package in {__file__}:\n\t{e}")
     exit(2)
@@ -41,52 +53,9 @@ from internal.tilemap import Tilemap
 if pre.DEBUG_GAME_TRACEMALLOC:
     tracemalloc.start()
 
-
-def quit_exit(context: str = "") -> NoReturn:
-    if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
-        print(f"{pre.hsl_to_rgb.cache_info() = }")
-
-    if pre.DEBUG_GAME_TRACEMALLOC:
-        snapshot = tracemalloc.take_snapshot()
-        stat_key_type = ("traceback", "filename", "lineno")
-        top_stats = snapshot.statistics(stat_key_type[0])
-
-        print("Top memory allocations:")
-        for stat in top_stats[:30]:
-            print(stat)
-
-    if context:
-        print(f"{context}")
-
-    pg.quit()
-    sys.exit()
-
-
-class AppState(Enum):
-    GAMESTATE = auto()
-    MENUSTATE = auto()
-
-
-class GameState(Enum):
-    PLAY = auto()
-    PAUSE = auto()
-    EXIT = auto()
-    NEXTLEVEL = auto()
-
-
-class FontType(IntEnum):
-    XS = auto(0)
-    SM = auto()
-    BASE = auto()
-
-
-# NOTE(lloyd): Use In StartScreen
-class MenuItemType(IntEnum):
-    PLAY = auto(0)
-    SETTINGS = auto()
-    CREDITS = auto()
-    EXIT = auto()
-
+# ------------------------------------------------------------------------------
+# GLOBAL CONSTANTS (module)
+# ------------------------------------------------------------------------------
 
 # PERF: Can just use an array initialized
 MENU_ITEMS: List[str] = [
@@ -99,23 +68,20 @@ MENU_ITEMS: List[str] = [
 MAX_MENU_ITEMS = len(MENU_ITEMS)  # MenuItemType enumerations
 
 
-# NOTE(lloyd): Use in SettingsScreen
-class SettingsNavitemType(IntEnum):
-    MUTE_MUSIC = auto(0)
-    MUTE_SOUND = auto()
-    DISABLE_SCREENSHAKE = auto()
-    GO_BACK = auto()
-
-
-# PERF: Can just use an array initialized
+# PERF(Lloyd): Can just use an array initialized
 SETTINGS_NAVITEMS: List[str] = [
-    "MUSIC",  # + " OFF" or + " ON"
-    "SOUND",  # + " OFF" or + " ON"
-    "SCREENSHAKE",  # + " OFF" or + " ON"
-    "GO BACK",  # + " OFF" or + " ON"
+    "MUSIC",  # .. " OFF" or + " ON"
+    "SOUND",  # .. " OFF" or + " ON"
+    "SCREENSHAKE",  # .. " OFF" or + " ON"
+    "GO BACK",  # .. " OFF" or + " ON"
 ]
 
 MAX_SETTINGS_NAVITEMS = len(SETTINGS_NAVITEMS)
+
+
+# ------------------------------------------------------------------------------
+# DATA STRUCTURES, TYPES AND ENUMS
+# ------------------------------------------------------------------------------
 
 
 @dataclass
@@ -150,6 +116,65 @@ class SFX:
     teleport: pg.mixer.Sound
 
 
+class AppState(Enum):
+    GAMESTATE = auto()
+    MENUSTATE = auto()
+
+
+class GameState(Enum):
+    PLAY = auto()
+    PAUSE = auto()
+    EXIT = auto()
+    NEXTLEVEL = auto()
+
+
+class FontType(IntEnum):
+    XS = auto(0)
+    SM = auto()
+    BASE = auto()
+
+
+# Implemented in StartScreen
+class MenuItemType(IntEnum):
+    PLAY = auto(0)
+    SETTINGS = auto()
+    CREDITS = auto()
+    EXIT = auto()
+
+
+# Implemented in SettingsScreen
+class SettingsNavitemType(IntEnum):
+    MUTE_MUSIC = auto(0)
+    MUTE_SOUND = auto()
+    DISABLE_SCREENSHAKE = auto()
+    GO_BACK = auto()
+
+
+# ------------------------------------------------------------------------------
+# MODULE FUNCTION DEFINITIONS
+# ------------------------------------------------------------------------------
+
+
+def quit_exit(context: str = "") -> NoReturn:
+    if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
+        print(f"{pre.hsl_to_rgb.cache_info() = }")
+
+    if pre.DEBUG_GAME_TRACEMALLOC:
+        snapshot: tracemalloc.Snapshot = tracemalloc.take_snapshot()
+        stat_key_type = ("traceback", "filename", "lineno")
+        top_stats: List[tracemalloc.Statistic] = snapshot.statistics(stat_key_type[0])
+
+        print("Top memory allocations:")
+        for stat in top_stats[:30]:
+            print(stat)
+
+    if context:
+        print(f"{context}")
+
+    pg.quit()
+    sys.exit()
+
+
 def get_user_config(filepath: Path) -> pre.UserConfig:
     config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
 
@@ -160,39 +185,68 @@ def get_user_config(filepath: Path) -> pre.UserConfig:
     return pre.UserConfig.from_dict(config)
 
 
+# @profile # @Disabled
+def set_mainscreen(
+    game: "Game",
+    scr: Optional["StartScreen | LoadingScreen | SettingsScreen | CreditsScreen | Game"],
+):
+    # Delete existing screen
+    if game.mainscreen != None:
+        del game.mainscreen
+        game.mainscreen = None
+
+    # Show new screen
+    game.mainscreen = scr
+
+    if game.mainscreen != None:
+        game.mainscreen.run()
+
+    if game.gameover:
+        return AppState.MENUSTATE, GameState.EXIT
+    elif not game.running:
+        # NOTE(Lloyd): Can just set gamestate form key-event/update loop
+        return AppState.GAMESTATE, GameState.NEXTLEVEL
+
+
+# -----------------------------------------------------------------------------
+# GAME
+# -----------------------------------------------------------------------------
+
+
 class Game:
-    @profile
+    # @profile
     def __init__(self) -> None:
-        """
-        |tags:init,game,gameloop|
-        """
         pg.init()
 
-        self.mainscreen = None  # menu | loading | game
+        self.mainscreen = None  # Choices: StartScreen, Game, LoadingScreen, CreditsScreen, SettingsScreen, None
 
-        display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # SCLAED | FULLSCREEN
-        # HWSURFACE flag does nothing in pygameg ver2.0+, DOUBLEBUF has some use, but not a magic speed up flag.
-        # See https://www.pygame.org/docs/tut/newbieguide.html
+        # More choices: SCLAED | FULLSCREEN
+        #   HWSURFACE flag does nothing in pygameg ver2.0+, DOUBLEBUF has some use, but not a magic speed up flag.
+        #   See https://www.pygame.org/docs/tut/newbieguide.html
+        display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, display_flag)
 
-        pg.display._set_autoresize(False)  # pyright: ignore |> see github:pygame/examples/resizing_new.py
+        # See github:pygame/examples/resizing_new.py
+        pg.display._set_autoresize(False)  # pyright: ignore
         pg.display.set_caption(pre.CAPTION)
 
         self.display = pg.Surface(pre.DIMENSIONS_HALF, pg.SRCALPHA)
         self.display_2 = pg.Surface(pre.DIMENSIONS_HALF)
 
-        # font author suggest using font size in multiples of 9
+        # Font: The author suggests using font size in multiples of 9
+        # ---------------------------------------------------------------------
         self.fontface_path = pre.FONT_PATH / "8bit_wonder" / "8-BIT WONDER.TTF"
         self.font = pg.font.Font(self.fontface_path, 18)
         self.font_sm = pg.font.Font(self.fontface_path, 12)
         self.font_xs = pg.font.Font(self.fontface_path, 9)
 
         if pre.DEBUG_GAME_HUD:
-            self.font_hud = pg.font.SysFont(name=("monospace"), size=7, bold=True)
+            self.font_hud = pg.font.SysFont(name=("Julia Mono"), size=7, bold=False)
+        # ---------------------------------------------------------------------
 
         self.clock = pg.time.Clock()
-        self.dt: float = 0.0  # delta time == 1 / framerate(fps) or pygame.clock.tick() / 1000
+        self.dt: float = 0.0
 
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[pre.Number] = deque([self.dt, self.dt])
@@ -201,7 +255,6 @@ class Game:
 
         self.config_handler: Final[pre.UserConfig] = get_user_config(pre.CONFIG_PATH)
         self.settings_handler: pre.UserConfig = deepcopy(self.config_handler)
-        # self.settings_handler.screenshake = False
 
         self.assets = Assets.initialize_assets()
 
@@ -239,16 +292,22 @@ class Game:
         self.sfx.teleport.set_volume(0.2)
 
         self._player_starting_pos: Final = pg.Vector2(50, 50)
-        self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
+        self.player = Player(
+            self,  # pyright: ignore [reportArgumentType]
+            self._player_starting_pos.copy(),
+            pg.Vector2(pre.SIZE.PLAYER),
+        )
         self.player_spawner_pos: Optional[pg.Vector2] = None
 
         self.gcs_deque: deque[GameCheckpointState] = deque([])
-        # self.player_gcs_pos_before_death: Optional[pg.Vector2] = None
 
         self._star_count: Final[int] = min(64, max(16, int(self.config_handler.star_count) or pre.TILE_SIZE * 2))
         self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
 
-        self.tilemap = Tilemap(self, pre.TILE_SIZE)
+        self.tilemap = Tilemap(
+            self,  # pyright: ignore [reportArgumentType]
+            pre.TILE_SIZE,
+        )
 
         self.screenshake = 0
         self.gameover = False
@@ -257,54 +316,74 @@ class Game:
         self._dead_mid: Final = 10
         self._dead_hi: Final = 40
 
-        self.scroll_ease: Final = pg.Vector2(1 / 30, 1 / 30)
+        # B.I.Y. Inspired Color Scheme
+        self.colorscheme_green3 = pre.hex_to_rgb("425238")
+        self.colorscheme_green4 = pre.hex_to_rgb("597119")
+
+        self.scroll_ease: Final[pg.Vector2] = pg.Vector2(1 / 30, 1 / 30)
         self.camerasize = self.display.get_size()
         self.camera = SimpleCamera(size=self.camerasize)
 
-        # when abs transition is 30 -> opaque screen see nothing
-        # and when transition is 0  -> see everything so load level when all black
+        # When abs transition is 30 -> opaque screen see nothing
+        # And when transition is 0  -> see everything so load level when all black
         self._transition_lo: Final = -30
         self._transition_mid: Final = 0
         self._transition_hi: Final = 30
 
         self._max_screenshake: Final = pre.TILE_SIZE
 
-        self._level_map_count: Final[int] = len(listdir(pre.MAP_PATH))
+        level_map_path: Path = pre.MAP_PATH
+        self._level_map_count: Final[int] = len(listdir(level_map_path))
 
         # Edit level manually for quick feedback gameplay iterations
-        ################################################################################################
-        self.level = 0  # 20240623122916UTC: level 3 has a lovely color palette
+        ##############################################################################
+        self.level = 6  # 20240623122916UTC: level 3 has a lovely color palette
         self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6}  # ^_^ so all levels??!!!
-        ################################################################################################
+        ##############################################################################
 
-        # seedling: Mon May 13 08:20:31 PM IST 2024
-        self.player_dash_enemy_collision_count = 0  # possible to farm this by dying repeatedly but that's alright for now
+        # NOTE(Lloyd): Possible to farm this by dying repeatedly but that's alright for now
+        self.player_dash_enemy_collision_count = 0
 
         self.running = False
 
     # @profile
+    def set_mainscreen(
+        self,
+        scr: Optional["StartScreen | LoadingScreen | SettingsScreen | CreditsScreen | Game"],
+    ):
+        # Delete existing screen
+        if self.mainscreen != None:
+            del self.mainscreen
+            self.mainscreen = None
+
+        # Show new screen
+        self.mainscreen = scr
+
+        if self.mainscreen != None:
+            self.mainscreen.run()
+
+        if self.gameover:
+            return AppState.MENUSTATE, GameState.EXIT
+        elif not self.running:  # NOTE(Lloyd): Can just set gamestate form key-event/update loop
+            return AppState.GAMESTATE, GameState.NEXTLEVEL
+
+    # @profile
     def reset_state_on_gameover(self) -> None:
-        if pre.DEBUG_GAME_PRINTLOG:
-            print(f"resetting after gameover...")
-
         self.camera.reset()
-
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        self.movement = pre.Movement(False, False, False, False)
 
         if self.level in self.levels_space_theme:
-            self.player = Player(self, self._player_starting_pos.copy(), pg.Vector2(pre.SIZE.PLAYER))
+            self.player = Player(
+                self,  # pyright: ignore [reportArgumentType]
+                self._player_starting_pos.copy(),
+                pg.Vector2(pre.SIZE.PLAYER),
+            )
             self.stars = Stars(self.assets.misc_surfs["stars"], self._star_count)
 
         self.screenshake = 0
-
         self.gcs_deque.clear()
-
         self.level = 0
-
         self.player_dash_enemy_collision_count = 0
-
-        if pre.DEBUG_GAME_PRINTLOG:
-            print("[INFO]: resetting completed")
 
     # @profile
     def run(self) -> None:
@@ -314,59 +393,56 @@ class Game:
         of the game, and renders the game.
         """
 
-        game_level_music_fname = "intro_loop.wav"  # fmt: skip
+        game_level_music_fname = "intro_loop.wav"
         game_level_bg_color = pre.hex_to_rgb("121607")
 
         def recolor_tiles(color: pre.ColorValue, border_color: pre.ColorValue):
             for i, tile in enumerate(self.assets.tiles["granite"].copy()):
                 self.assets.tiles["granite"][i].fill(border_color)
-
                 rect_16_0 = tile.get_rect()
                 rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
-
                 self.assets.tiles["granite"][i].fill(color=color, rect=rect_15_9)
 
-        recolor_tiles(color=pre.hex_to_rgb("597119" or "425238"), border_color=pre.hex_to_rgb("384510" or "18260f" or "4c5c1d"))
+        recolor_tiles(pre.hex_to_rgb("597119"), pre.hex_to_rgb("384510"))
 
         match self.level:
             case 0:
                 game_level_music_fname = "level_0.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+                recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
 
             case 1:
                 game_level_music_fname = "theme_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+                recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
 
             case 2:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("597119"))
+                recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
 
             case 3:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("425238"), border_color=pre.hex_to_rgb("384510"))
+                recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
 
             case 4:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("597119"), border_color=pre.hex_to_rgb("384510"))
+                recolor_tiles(self.colorscheme_green4, pre.hex_to_rgb("384510"))
 
             case 5:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(color=pre.hex_to_rgb("597119"), border_color=pre.hex_to_rgb("384510"))
+                recolor_tiles(pre.hex_to_rgb("597119"), pre.hex_to_rgb("384510"))
 
             case _:
                 # NOTE(lloyd): Use a prev variable to hold last level music played
-                # if we want to let it followthrough and avoid playing via pg.mixer.play()
+                # If we want to let it followthrough and avoid playing via pg.mixer.play()
                 assert (game_level_music_fname == "intro_loop.wav") and "expected default level music filename"
 
         pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / game_level_music_fname).__str__())
 
-        #
         # Set individual music volume
         #
         # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update().
@@ -379,91 +455,79 @@ class Game:
         #
         if not self.settings_handler.music_muted:
             pg.mixer.music.set_volume(0.2)
+            pg.mixer.music.play(-1)
 
-        pg.mixer.music.play(-1)
+        if not self.settings_handler.sound_muted:
+            self.sfx.playerspawn.play()
 
-        if 0:
-            if self.level == 0:
-                self.sfx.playerspawn.play()
-        self.sfx.playerspawn.play()
+        # NOTE(Lloyd): On __init__ running is False. Ensure ..load(self,...)
+        # and ..reset(self,...) also set it to False
+        self.running = True
 
-        self.running = True  # NOTE(lloyd): at init running is False. ensure load and reset keep it as false
         # gc.freeze()
 
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
-
             self.display.fill((0, 0, 0, 0))
 
             if self.level in self.levels_space_theme:
-                if 0:
-                    self.display_2.fill((30, 30, 30))
-                else:
-                    self.display_2.fill(game_level_bg_color)  # BIY theme
+                self.display_2.fill(game_level_bg_color)  # B.I.Y. theme
 
             self.events()
             self.update()
             self.render()
+
         # gc.unfreeze()
 
     def events(self) -> None:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 quit_exit("Exiting...")
-
             if event.type == pg.KEYDOWN and event.key == pg.K_F4:
                 quit_exit("Exiting...")
-
             if event.type == pg.VIDEORESIZE:
                 self.screen = pg.display.get_surface()
-
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 # Avoid glitchy stuck movement after resuming
                 self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-                # Bring up main menu without reseting the game
-                self.set_mainscreen(StartScreen(game=self))
-
+                # Bring up main menu without resetting the game
+                set_mainscreen(game=self, scr=StartScreen(game=self))
             if event.type == pg.KEYDOWN:
-                if event.key in (pg.K_LEFT,):  # pg.K_a):
+                if event.key in (pg.K_LEFT, pg.K_a):
                     self.movement.left = True
-                if event.key in (pg.K_RIGHT,):  # pg.K_d):
+                if event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = True
-                if event.key in (pg.K_SPACE, pg.K_c):  # check jump keydown
-                    if self.player.time_jump_keyup:  # reset manually
-                        self.player.time_jump_keyup = None
-
+                if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keydown and manually reset if jump keyup did occur.
+                    self.player.time_jump_keyup = None if self.player.time_jump_keyup else self.player.time_jump_keyup
                     self.player.time_jump_keydown = time.time()
+                    isjump = self.player.jump()
 
-                    if self.player.jump():
+                    if isjump:
                         self.sfx.jump.play()
                 if event.key in (pg.K_x, pg.K_v):
                     self.player.dash()
-                if event.key == pg.K_s:  # WASD like S | K
-                    self.gcs_record_checkpoint()
-                if event.key == pg.K_a:  # WASD like A | J
-                    self.gcs_rewind_recent_checkpoint()
-                if event.key == pg.K_d:  # WASD like D | L
-                    self.gcs_rewind_checkpoint()
-                if event.key == pg.K_q:  # WASD like Q | E
-                    self.gcs_remove_recent_checkpoint()
-                if event.key == pg.K_e:  # WASD like E | O
-                    self.gcs_remove_checkpoint()
-
+                # fmt: off
+                if event.key == pg.K_f: self.gcs_record_checkpoint()
+                if event.key == pg.K_g: self.gcs_rewind_recent_checkpoint()
+                if event.key == pg.K_h: self.gcs_rewind_checkpoint()
+                if event.key == pg.K_j: self.gcs_remove_recent_checkpoint()
+                if event.key == pg.K_y: self.gcs_remove_checkpoint()
+                # fmt: on
             if event.type == pg.KEYUP:
-                if event.key in (pg.K_LEFT,):  # pg.K_a):
+                if event.key in (pg.K_LEFT, pg.K_a):
                     self.movement.left = False
-
-                if event.key in (pg.K_RIGHT,):  # pg.K_d):
+                if event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = False
-
-                if event.key in (pg.K_SPACE, pg.K_c):  # check jump keyup
+                if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keyup
                     if self.player.time_jump_keydown and not self.player.time_jump_keyup:
                         self.player.time_jump_keyup = time.time()
-                        self.player.delta_time_jump_keydown_keyup = self.player.time_jump_keyup - self.player.time_jump_keydown
+                        self.player.deltatime_jump_keydownup = (
+                            self.player.time_jump_keyup - self.player.time_jump_keydown
+                        )
 
                         if (
-                            self.player.delta_time_jump_keydown_keyup < self.player.jump_buffer_interval
-                            and self.player.air_timer <= self.player.max_air_time * 5
+                            self.player.deltatime_jump_keydownup < self.player.jump_buffer_interval
+                            and self.player.air_timer <= 5 * self.player.max_air_time
                             and not self.player.wallslide
                             and not self.player.collisions.left
                             and not self.player.collisions.right
@@ -473,87 +537,94 @@ class Game:
                             if self.player.dash_timer and self.player.velocity.y <= 0.1:
                                 self.player.velocity.y = -3.0
 
-                                if self.player.last_movement.x:
-                                    self.player.velocity.x = -2.00 if self.player.flip else 2.00
-
-                            elif self.player.coyote_timer and self.player.air_timer <= self.player.max_air_time * 3:  # 3 -> jump force
+                                if self.player.last_movement.x and (player_dir := (-1 if self.player.flip else 1)):
+                                    self.player.velocity.x = player_dir * 2.00
+                            # Where 3 is jump force                                                                vvv
+                            elif self.player.coyote_timer and (self.player.air_timer <= (self.player.max_air_time * 3)):
                                 self.player.velocity.y += 1.35
 
-                                if self.player.last_movement.x:
-                                    self.player.velocity.x = -2.25 if self.player.flip else 2.25
-
-                                    if 1 < abs(self.player.velocity.x) < 2:
-                                        self.player.velocity.x *= 1.618
-                                    elif 0 < abs(self.player.velocity.x) <= 1:
-                                        self.player.velocity.x *= 0.5
+                                if self.player.last_movement.x and (player_dir := (-1 if self.player.flip else 1)):
+                                    self.player.velocity.x = player_dir * 2.25
+                                    self.player.velocity.x *= (
+                                        1.328
+                                        if 1 < abs(self.player.velocity.x) < 2
+                                        else 0.5 if 0 < abs(self.player.velocity.x) <= 1 else 1.0
+                                    )
 
     def render(self) -> None:
         """Render display."""
-        # ===-Create background buffer--------------------------------------===
-        # ===---------------------------------------------------------------===
+
+        # Create background buffer---------------------------------------------
+        # ---------------------------------------------------------------------
         if self.level in self.levels_space_theme:
             pass
         else:
             self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
             self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
-            self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # wrap around
+            self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # Wrap around
             self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
-            self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))  # wrap around
-        # ===---------------------------------------------------------------===
+            self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))  # Wrap around
+        # ---------------------------------------------------------------------
 
-        # ===-Create a transition surface with a circular cutout------------===
-        # ===---------------------------------------------------------------===
+        # Create a transition surface with a circular cutout-------------------
+        # ---------------------------------------------------------------------
         if self.transition and (
             transition := abs(self.transition),
             tilesize := self.tilemap.tilesize,
             displaysize := self.display.get_size(),
             surf := pg.Surface(displaysize).convert(),
             # Declare and Initialize Variables
+            # -----------------------------------------------------------------
             speed := 16 + 1 / self.transition,
             radius := (tilesize - 1 - transition) * speed,
             center := (displaysize[0] // 2, displaysize[1] // 2),
+            # -----------------------------------------------------------------
         ):
             # Update Surface
             if not self.gcs_deque and not self.dead:
                 center = self.player.rect.center
                 entering = self._transition_lo < self.transition < self._transition_lo // 2
-
                 radius = (tilesize * 2 + 4) if entering else ((tilesize * 2 - transition) * speed * 0.8)
             else:
                 speed /= 2.0
 
             # Draw Surface
-            pg.draw.circle(surf, (255, 255, 255), center, radius)  # white color on screen acts as transparant mask
-            surf.set_colorkey((255, 255, 255))  # ... and now anything outside of mask is opaque black
+            # -----------------------------------------------------------------
+            pg.draw.circle(surf, (255, 255, 255), center, radius)  # White color on screen acts as transparent mask
+            surf.set_colorkey((255, 255, 255))  # And now anything outside of mask is opaque black
             self.display.blit(surf, (0, 0))
-        # ===---------------------------------------------------------------===
+            # -----------------------------------------------------------------
+        # ---------------------------------------------------------------------
 
-        # ===-Final buffer swap 3-stage rendering---------------------------===
-        # ===---------------------------------------------------------------===
+        # Final buffer swap 3-stage rendering
+        # ---------------------------------------------------------------------
+
+        # Display Mask: Drop Shadow Trick
+        display_mask = pg.mask.from_surface(self.display)
+        display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
+
+        for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            self.display_2.blit(display_silhouette, offset)
+
         self.display_2.blit(self.display, (0, 0))
-
-        # MAYBE: - Assign precedence to this
-        #        - Or, preset settings_handler members from config_handler
-        #          at load player config file
         #
-        # and (self.config_handler.screenshake or self.settings_handler.screenshake)
+        # TODO(Lloyd):  - Enable toggling from Gameplay to Menu screen with Esc.
+        #               - Rename setting items to present the state. e.g. `SCREENSHAKE: OFF`
+        # MAYBE(Lloyd): - Assign precedence to this
+        #               - Or, preset settings_handler members from config_handler
+        #                 at load player config file
+        #                 and (self.config_handler.screenshake or self.settings_handler.screenshake)
         #
-        # TODO(lloyd): Enable toggling from Gameplay to Menu screen with Esc.
-        #           - Rename setting items to present the state. e.g. `SCREENSHAKE: OFF`
         dest = (
             ((shake * random()) - halfshake, (shake * random()) - halfshake)
-            if (
-                shake := self.screenshake,
-                halfshake := shake * 0.5,
-            )
-            and self.settings_handler.screenshake
+            if (shake := self.screenshake, halfshake := (shake * 0.5)) and self.settings_handler.screenshake
             else (0.0, 0.0)
         )
 
         self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), dest)
 
         pg.display.flip()
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
     def _increment_player_dead_timer(self):
         if pre.DEBUG_GAME_PRINTLOG:
@@ -562,129 +633,95 @@ class Game:
         self.dead += 1
 
     def update(self) -> None:
-        # Camera: update and parallax
-        _target = self.player.rect
-        snapy = _target.centery % self.level_map_dimension[1]
+        # Camera: Update and Parallax
+        plyr_rect = self.player.rect
+        snapy = plyr_rect.centery % self.level_map_dimension[1]
 
-        if snapy < self.camerasize[1]:  # snap camera to top floor of map area
-            snapy = _target.centery // 4
-        elif snapy > (self.level_map_dimension[1] - self.camerasize[1]) + (self.player.size.y * 2):  # snap camera to ground floor of map area
-            snapy = _target.centery + self.camerasize[1] // 2
+        # Either snap camera to top floor of map area
+        # Or snap camera to ground floor of map area
+        if snapy < self.camerasize[1]:
+            snapy = plyr_rect.centery // 4
+        elif snapy > (self.level_map_dimension[1] - self.camerasize[1]) + (self.player.size.y * 2):
+            snapy = plyr_rect.centery + self.camerasize[1] // 2
 
-        self.camera.update((_target.centerx, snapy), map_size=self.level_map_dimension, dt=self.dt)
-
-        render_scroll = self.camera.render_scroll
+        self.camera.update((plyr_rect.centerx, snapy), self.level_map_dimension, self.dt)
+        render_scroll: tuple[Literal[0], Literal[0]] | tuple[int, int] = self.camera.render_scroll
 
         if pre.DEBUG_GAME_CAMERA:
-            self.camera.debug(surf=self.display, target_pos=(int(_target.x), int(_target.y)))
+            self.camera.debug(surf=self.display, target_pos=(int(plyr_rect.x), int(plyr_rect.y)))
 
-        self.bg_cloud.pos.x -= math.floor(math.floor(uniform(2, 3) * 100 * self.bg_cloud.speed * self.bg_cloud.depth) / 10) / 10
+        self.bg_cloud.pos.x -= (
+            math.floor(math.floor(uniform(2, 3) * 100 * self.bg_cloud.speed * self.bg_cloud.depth) / 10) / 10
+        )
 
-        if self.bg_cloud.pos.x < -self.bg_display_w:  # <-480
+        if self.bg_cloud.pos.x < -self.bg_display_w:  # <- 480
             self.bg_cloud.pos.x = 0
 
-        self.bg_mountain.pos.x = math.floor(math.floor(self.bg_mountain.pos.x - self.camera.render_scroll[0]) * self.bg_mountain.depth * self.bg_mountain.speed)  # works
+        self.bg_mountain.pos.x = math.floor(
+            math.floor(self.bg_mountain.pos.x - self.camera.render_scroll[0])
+            * self.bg_mountain.depth
+            * self.bg_mountain.speed
+        )
 
         if self.bg_mountain.pos.x < -self.bg_display_w:
             self.bg_mountain.pos.x = 0
 
-        # Mouse: cursor position with offset
-        raw_mouse_pos = pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE
-        mouse_pos: pg.Vector2 = raw_mouse_pos + render_scroll
-
-        if 0:  # Render mouse blog
-            if (mouse_surf := self.assets.misc_surf.get("mouse")) and mouse_surf:
-                mask = pg.mask.from_surface(mouse_surf)
-                silhouette = mask.to_surface(setcolor=(20, 20, 21, math.floor(255 / 2)), unsetcolor=(0, 0, 0, 0))
-                dest = raw_mouse_pos - pg.Vector2(mouse_surf.get_size()) // 2
-
-                for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    self.display.blit(silhouette, (dest - (pg.Vector2(offset) * pre.TILE_SIZE)))
-
         self.screenshake = max(0, self.screenshake - 1)
 
         # Check for game level transitions
-        # Win condition
-        if self.collected_enemies and self.touched_portal:
+        if self.collected_enemies and self.touched_portal:  # Win condition
             self.transition += 1
 
             # Check if transition to the next level is required
             if self.transition > self._transition_hi:
                 if self.lvl_no_more_levels_left():
-                    self.gameover = True  # LoadingScreen will reset this later
+                    # LoadingScreen will reset this later
+                    self.gameover = True
                     self.reset_state_on_gameover()
                 else:
                     self.lvl_increment_level()
 
                 # Trigger loading screen
                 self.running = False
-
         if self.transition < self._transition_mid:
             self.transition += 1
-
         if self.dead:
-            self._increment_player_dead_timer()  # self.dead += 1
+            self._increment_player_dead_timer()  # Expands to `self.dead += 1`
 
-            # ease into incrementing for level change till _hi
+            # Ease into incrementing for level change till _hi
             if self.dead >= self._dead_mid:
                 self.transition = min(self._transition_hi, self.transition + 1)
-
             if self.dead >= self._dead_hi:
                 self.lvl_load_level(self.level)
 
-        # replenish health and revert to last checkpoint instead of "death"
+        # Replenish health and revert to last checkpoint instead of "death"
         if self.dead_hit_skipped_counter == 0 and self.respawn_death_last_checkpoint:
-            if 0:
-                self.gcs_rewind_checkpoint(record_current=False)
-            else:
-                self.gcs_rewind_recent_checkpoint(record_current=False)
-
+            self.gcs_rewind_recent_checkpoint(record_current=False)
             self.respawn_death_last_checkpoint = False
 
-        # Flametorch: particle animation
-        if 0:
-            # fmt: off
-            odds_of_flame: float = (6 * 0.001) * 49_999  # note: big number 49_999 controls spawn rate
-
-            self.particles.extend(Particle( game=self, p_kind=pre.ParticleKind.FLAME, pos=pg.Vector2((rect.x - random() * rect.w), (rect.y - random() * rect.h - 4)), velocity=pg.Vector2(uniform(-0.03, 0.03), uniform(0.0, -0.03)), frame=randint(0, 20),)
-                for rect in self.ftorch_spawners.copy() if (random() * odds_of_flame) < (rect.w * rect.h))
-
-            self.particles.extend(Particle( game=self, p_kind=pre.ParticleKind.FLAMEGLOW, pos=pg.Vector2((rect.x - random() * rect.w), (rect.y - random() * rect.h - 4)), velocity=pg.Vector2(uniform(-0.2, 0.2), uniform(0.1, 0.3)), frame=randint(0, 20),)
-                for rect in self.ftorch_spawners.copy() if (random() * odds_of_flame * 8) < (rect.w * rect.h))
-            # fmt: on
-
-        # Stars: backdrop update and render
+        # Stars: Backdrop update and render
         if self.level in self.levels_space_theme:
-            self.stars.update()  # stars drawn behind everything else
-            self.stars.render(self.display_2, render_scroll)  # display_2 blitting avoids masks depth
+            # Stars drawn behind everything else
+            self.stars.update()
+            # Blitting display_2 avoids masks depth
+            self.stars.render(self.display_2, render_scroll)
 
         # Tilemap: render
         self.tilemap.render(self.display, render_scroll)
 
-        # ===---------------------------------------------------------------===
-        # ===-Update and Draw drop-point location zones---------------------===
+        # Update and Draw drop-point location zones----------------------------
+        # ----------------------------------------------------------------------
         if not self.dead and (position_ := self.player_spawner_pos) and position_:
-            success_width, success_height = 48, 6
-            surf_color = pre.hex_to_rgb("ece187" or "13c299")
-
-            rect_value = (
-                position_.x - success_width / 2 - render_scroll[0],
-                (position_.y - render_scroll[1]) + 16 - success_height,
-                success_width,
-                success_height,
-            )
-
             surf = self.assets.tiles["portal"][1].copy()  # NOTE(Lloyd): Copying sanity check
-            anim_offset_y = 3
             surf_w = surf.get_width()
             surf_h = surf.get_height()
-
+            anim_offset_y: Final = 3
             dest_position = (
                 (position_.x - (surf.get_width() / 2) - render_scroll[0]),
                 (position_.y - (surf.get_height() / 2) + anim_offset_y - render_scroll[1]),
             )
 
-            # This is on victory.. sparks around flags to signify SUCESS state.
+            # This is on victory.. sparks around flags to signify SUCCESS state.
             # And signal player to go to flag_end
             # ---------------------------------------------------------------------
             enemy_count = len(self.enemies)
@@ -696,47 +733,57 @@ class Game:
                     if enemy not in self.collected_enemies_seen:
                         self.collected_enemies_counter += 1
                         self.collected_enemies_seen.add(enemy)
+                        # This flag is used to indicate success capture in the HUD.
+                        enemy.is_collected_by_player = True
 
-            # TODO: Use flag_start asset portal
+            # Flag win condition
             if enemy_count == 0:
                 self.collected_enemies = True
 
-                radius = 1
-                colors = (pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167"))
-                offset_y_ = pre.TILE_SIZE / 8
-                center = [(dest_position[0] + surf_w // 2), (dest_position[1] + surf_h)]
-                dy = 0.0
+                # Draw flag success sparks
+                # ---------------------------------------------------------------------
+                colors: Final = (pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167"))
+                offset_y_: Final = pre.TILE_SIZE / 8
+                radius: Final = 1
+                sparkcenter: Final = [(dest_position[0] + surf_w // 2), (dest_position[1] + surf_h)]
+
+                maxdy_: Final = surf_h // 1.618
+                dy_ = 0.0
 
                 for i in range(0, (surf_h * 2)):
-                    if dy > (surf_h // 1.618):
+                    if dy_ > maxdy_:
                         break
 
                     if random() < 0.8:
                         for j in range(0, surf_w // 4):
-                            pg.draw.circle(self.display, colors[0], (center[0] + (4 * j), center[1] - dy), radius)
-                            pg.draw.circle(self.display, colors[0], (center[0] - (4 * j), center[1] - dy), radius)
+                            pg.draw.circle(
+                                self.display, colors[0], (sparkcenter[0] + (4 * j), sparkcenter[1] - dy_), radius
+                            )
+                            pg.draw.circle(
+                                self.display, colors[0], (sparkcenter[0] - (4 * j), sparkcenter[1] - dy_), radius
+                            )
                     else:
                         for j in range(0, surf_w // 4):
-                            pg.draw.circle(self.display, colors[1], (center[0] + (4 * j), center[1] - dy), radius)
-                            pg.draw.circle(self.display, colors[1], (center[0] - (4 * j), center[1] - dy), radius)
+                            pg.draw.circle(
+                                self.display, colors[1], (sparkcenter[0] + (4 * j), sparkcenter[1] - dy_), radius
+                            )
+                            pg.draw.circle(
+                                self.display, colors[1], (sparkcenter[0] - (4 * j), sparkcenter[1] - dy_), radius
+                            )
 
-                    dy += offset_y_
-            # ---------------------------------------------------------------------
+                    dy_ += offset_y_
+                # --------------------------------------------------------------
 
-            # Update and Draw start drop location
-            # ---------------------------------------------------------------------
-            # NOTE(Lloyd): success_width/height are for a rectangular slab for prototyping.
-            # Might want to get correct dimension based of the asset
+            # Draw start drop location
             self.display.blit(surf, dest_position)
-            # ---------------------------------------------------------------------
+            # ------------------------------------------------------------------
+        # ----------------------------------------------------------------------
 
-        # ===---------------------------------------------------------------===
-
-        # ===-Portal: detect and render-------------------------------------===
-        # ===---------------------------------------------------------------===
-        if not self.touched_portal:  # <- note: this disappears very fast
+        # Portal: Detect and Render---------------------------------------------
+        # ----------------------------------------------------------------------
+        if not self.touched_portal:
+            # NOTE(Lloyd): This disappears very fast
             for i, portal in enumerate(self.portal_spawners):
-
                 if self.collected_enemies and self.player.rect.colliderect(portal.rect()):
                     self.touched_portal = True
 
@@ -744,42 +791,37 @@ class Game:
                         self.sfx.portaltouch.play()
 
                 self.display.blit(portal.assets[i], portal.pos - render_scroll)
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
-        # ===Enemy: update and render0--------------------------------------===
-        # ===---------------------------------------------------------------===
+        # Enemy: update and render0--------------------------------------------
+        # ---------------------------------------------------------------------
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
             enemy.render(self.display, render_scroll)
 
             if kill_animation:
                 self.enemies.remove(enemy)
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
-        # ===-Update Interactive Spawners-----------------------------------===
-        # ===---------------------------------------------------------------===
+        # Update Interactive Spawners------------------------------------------
+        # ---------------------------------------------------------------------
         for rect_spike in self.spike_spawners:
             if self.player.rect.colliderect(rect_spike):
                 self._increment_player_dead_timer()  # self.dead += 1
 
         for rect_bp in self.bouncepad_spawners:
             if self.player.rect.colliderect(rect_bp):
-                did_jump = self.player.jump()
-
-                # HACK: Avoid triggering freefall death and allow infinite jumps
-
-                if did_jump:
+                if self.player.jump():
+                    # HACK(Lloyd): Avoid freefall death & allow infinite jumps
                     self.player.air_timer = 0
                     self.player.velocity.y = -5
-
                     self.sfx.jump.play()
 
             for enemy in self.enemies:
                 if enemy.rect.colliderect(rect_bp):
                     enemy.velocity.y -= 3
 
-                    # HACK: Avoid infinite jump at the same spot
-
+                    # HACK(Lloyd): Avoid infinite jump at the same spot
                     if enemy.rect.left < rect_bp.left:
                         enemy.velocity.x -= 2.0
                     elif enemy.rect.right > rect_bp.right:
@@ -788,199 +830,228 @@ class Game:
                         enemy.velocity.x += randint(-3, 3)
 
                     self.sfx.jump.play()
+        # ---------------------------------------------------------------------
 
-            if 0:  # debug
-                self.display.blit(pg.Surface(rect_bp.size), (rect_bp.x - render_scroll[0], rect_bp.y - render_scroll[1]))  # for debugging
-        # ===---------------------------------------------------------------===
-
-        # ===-Update and Draw GameCheckpoints ------------------------------===
-        # ===---------------------------------------------------------------===
+        # Update and Draw GameCheckpoints -------------------------------------
+        # ---------------------------------------------------------------------
         for i, state in enumerate(self.gcs_deque):
             _r = 2 * (1 + 1 / (1 + i))  # radius -> 2
-            center = (int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]))
+            checkpoint_center = (
+                int(state.player_position[0] - render_scroll[0]),
+                int(state.player_position[1] - render_scroll[1]),
+            )
 
-            pg.draw.circle(self.display, pre.GREENGLOW, center, radius=(_r + 1))
-            pg.draw.circle(self.display, pre.GREENBLURB, center, radius=_r)
+            pg.draw.circle(self.display, pre.GREENGLOW, checkpoint_center, radius=(_r + 1))
+            pg.draw.circle(self.display, pre.GREENBLURB, checkpoint_center, radius=_r)
 
-            if 0:  # debugging
+            # fmt: off
+            if 1:  # debugging
                 self.draw_text(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
-        # ===---------------------------------------------------------------===
+            # fmt: on
+        # ---------------------------------------------------------------------
 
-        # ===-Player: update and render-------------------------------------===
-        # ===---------------------------------------------------------------===
+        # Player: update and render--------------------------------------------
+        # ---------------------------------------------------------------------
         if not self.dead:
             self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
             self.player.render(self.display, render_scroll)
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
-        # ===-Gun: projectiles and sparks-----------------------------------===
-        # ===---------------------------------------------------------------===
+        # Gun: projectiles and sparks------------------------------------------
+        # ---------------------------------------------------------------------
         for projectile in self.projectiles:
             projectile.pos[0] += projectile.velocity
             projectile.timer += 1
-
             img = self.assets.misc_surf["projectile"]
-            dest = (projectile.pos[0] - (img.get_width() // 2) - render_scroll[0], projectile.pos[1] - (img.get_height() // 2) - render_scroll[1])
-
+            dest = (
+                projectile.pos[0] - (img.get_width() // 2) - render_scroll[0],
+                projectile.pos[1] - (img.get_height() // 2) - render_scroll[1],
+            )
             self.display.blit(img, dest)
 
             # Projectile post render: update
-            projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])  # int -> precision for grid system
+            # NOTE(Lloyd): int -> precision for grid system
+            projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])
 
             if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
-                self.projectiles.remove(projectile)
-
                 # Wall sparks bounce opposite to projectile's direction
-                spark_speed, spark_direction = 0.5, math.pi if (projectile.velocity > 0) else 0  # note: unit circle direction (0 left, right math.pi)
-                self.sparks.extend(Spark(projectile.pos, angle=(random() - spark_speed + spark_direction), speed=(2 + random())) for _ in range(4))
-
+                self.projectiles.remove(projectile)
+                # NOTE(Lloyd): unit circle direction (0 left, right math.pi)
+                spark_speed, spark_direction = 0.5, (math.pi if (projectile.velocity > 0) else 0)
+                self.sparks.extend(
+                    Spark(projectile.pos, angle, speed)
+                    for _ in range(4)
+                    if (
+                        angle := (random() - spark_speed + spark_direction),
+                        speed := (2 + random()),
+                    )
+                )
                 self.sfx.hitwall.play()
             elif projectile.timer > 360:
                 self.projectiles.remove(projectile)
-            elif abs(self.player.dash_timer) < self.player.dash_burst_2:  # vulnerable player
-
+            elif abs(self.player.dash_timer) < self.player.dash_burst_2:
+                # Player is vulnerable
                 if self.player.rect.collidepoint(projectile_x, projectile_y):
-
-                    # Player looses health but still alive if idle/still
-                    if (self.player.action == Action.IDLE) and (self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter):
+                    # Player looses health but still alive if idle or still
+                    if (
+                        self.player.action == Action.IDLE
+                        and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter
+                    ):
                         self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
-
                         self.projectiles.remove(projectile)
-                        self.sparks.extend(Spark(pg.Vector2(self.player.rect.center), angle, speed) for _ in range(30) if (angle := random() * math.pi * 2, speed := 2 + random()))
+
+                        self.sparks.extend(
+                            Spark(pg.Vector2(self.player.rect.center), angle, speed)
+                            for _ in range(30)
+                            if (angle := random() * math.pi * 2, speed := 2 + random())
+                        )
 
                         self.sfx.hitmisc.play()
-
-                        self.dead_hit_skipped_counter += 1  # Todo: should reset this if players action state changes from idle to something else
+                        # NOTE(Lloyd): Should reset this if players action
+                        # state changes from idle to something else
+                        self.dead_hit_skipped_counter += 1
                     else:
                         # Player death OR send back in time(checkpoint)
                         self.screenshake = max(self._max_screenshake, self.screenshake - 1)
-
                         self.projectiles.remove(projectile)
-                        self.sparks.extend(Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan")) for _ in range(30) if (angle := random() * math.pi * 2, speed := 2 + random()))
-                        self.particles.extend(
-                            Particle(self, pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), velocity, frame)
+
+                        self.sparks.extend(
+                            Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan"))
                             for _ in range(30)
-                            if (angle := (random() * math.pi * 2), speed := (random() * 5), velocity := pg.Vector2(math.cos(angle + math.pi) * speed / 2), frame := randint(0, 7))
+                            if (angle := random() * math.pi * 2, speed := 2 + random())
+                        )
+
+                        self.particles.extend(
+                            # fmt: off
+                            Particle(
+                                self,  # pyright: ignore [reportArgumentType]
+                                pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), velocity, frame,
+                            )
+                            # fmt: on
+                            for _ in range(30)
+                            if (
+                                angle := (random() * math.pi * 2),
+                                speed := (random() * 5),
+                                velocity := pg.Vector2(math.cos(angle + math.pi) * speed / 2),
+                                frame := randint(0, 7),
+                            )
                         )
 
                         self.sfx.hit.play()
 
-                        # Note: Next iteration, when counter is 0 player pos is reverted to last checkpoint instead of death.
+                        # NOTE(Lloyd): Next iteration, when counter is 0 player pos is
+                        # reverted to last checkpoint instead of death.
                         if (_death_by_projectile_enabled := 0) and _death_by_projectile_enabled:
                             self._increment_player_dead_timer()
                         else:
-                            self.dead_hit_skipped_counter = 0  # replenish health
+                            # Replenish health
+                            self.dead_hit_skipped_counter = 0
                             self.respawn_death_last_checkpoint = True
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
-        # ===-Update Sparks-------------------------------------------------===
-        # ===---------------------------------------------------------------===
+        # Update Sparks--------------------------------------------------------
+        # ---------------------------------------------------------------------
         for spark in self.sparks.copy():
-            kill_animation = spark.update()
+            kill_animation: bool = spark.update()
             spark.render(self.display, offset=render_scroll)
 
             if kill_animation:
                 self.sparks.remove(spark)
-        # ===---------------------------------------------------------------===
+        # ---------------------------------------------------------------------
 
-        # ===-Display Mask: Drop Shadow Trick-------------------------------===
-        # ===---------------------------------------------------------------===
-        if 0:
-            display_mask = pg.mask.from_surface(self.display)
-            display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-
-            for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                self.display_2.blit(display_silhouette, offset)
-        # ===---------------------------------------------------------------===
-
-        # ===-Update particles----------------------------------------------===
-        # ===---------------------------------------------------------------===
+        # Update particles-----------------------------------------------------
+        # ---------------------------------------------------------------------
         for particle in self.particles.copy():
-            kill_animation = particle.update()
+            kill_animation: bool = particle.update()
             particle.render(self.display, render_scroll)
 
-            if kill_animation:
-                match particle.kind:
-                    case pre.ParticleKind.PARTICLE:
-                        if self.level in self.levels_space_theme:  # note: frame count is static after kill_animation
-                            amplitude_clamp = 0.328
-                            decay_initial_value, decay_factor, decay_iterations = (1, 0.95, particle.animation.frame)
-                            decay = decay_initial_value * (decay_factor**decay_iterations)
-                            chaos = amplitude_clamp * math.sin(particle.animation.frame * 0.035)
-                            particle.velocity.x -= math.copysign(1, particle.velocity.x) * chaos * decay * uniform(8, 16)
-                            particle.velocity.y -= math.copysign(1, particle.velocity.y) * chaos * decay * uniform(8, 16)
-                            if random() < uniform(0.01, 0.025):
-                                self.particles.remove(particle)
-                        else:
-                            self.particles.remove(particle)
-                    case _:
+            if not kill_animation:
+                continue
+
+            match particle.kind:
+                case pre.ParticleKind.PARTICLE:
+                    if not (self.level in self.levels_space_theme):
                         self.particles.remove(particle)
-        # ===---------------------------------------------------------------===
+                    else:
+                        # NOTE(Lloyd): Frame count is static after kill_animation
+                        decay_initial_value, decay_factor, decay_iterations = 1, 0.95, particle.animation.frame
+                        decay = decay_initial_value * (decay_factor**decay_iterations)
+                        amplitude_clamp = 0.328
+                        chaos = amplitude_clamp * math.sin(particle.animation.frame * 0.035)
+                        particle.velocity.x -= math.copysign(1, particle.velocity.x) * chaos * decay * uniform(8, 16)
+                        particle.velocity.y -= math.copysign(1, particle.velocity.y) * chaos * decay * uniform(8, 16)
 
-        # ===-Update HUD----------------------------------------------------===
-        # ===---------------------------------------------------------------===
-        if (_flag_show_hud := 0) and _flag_show_hud:
-            hud_size = (200, 48)
-            hud_pad = pg.Vector2(self.font_xs.size("0")[0] / 2, self.font_xs.size("0")[1] / 2)
-            hud_dest = pg.Vector2(0, 0)
+                        if random() < uniform(0.01, 0.025):
+                            self.particles.remove(particle)
 
-            hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
-            hud_bg_surf.set_colorkey(pg.Color("black"))
-            hud_bg_surf.fill(pre.CHARCOAL)
-            hud_bg_surf.set_alpha(10)
+                case _:
+                    self.particles.remove(particle)
+        # ---------------------------------------------------------------------
 
-            def hud_draw_text(surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str) -> pg.Rect:
-                surf_ = font.render(text, True, color)
-                rect = surf_.get_rect()
-                rect.midtop = (x, y)
-                return surf.blit(surf_, rect)
+        # Update(and HACK: Draw) Game Stats HUD
+        # ---------------------------------------------------------------------
+        # Create HUD surface.
+        hud_size: Final[Tuple[int, int]] = (256, 48)
+        hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
 
-            hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
-            hud_surf.blit(hud_bg_surf, (0, 0))
+        # Add semi-transparent background.
+        hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
+        hud_bg_surf.set_colorkey(pg.Color("black"))
+        hud_bg_surf.fill(pre.CHARCOAL)
+        hud_bg_surf.set_alpha(255 // 20)
+        hud_surf.blit(hud_bg_surf, (0, 0))
 
-            _ = hud_surf.blit(self.assets.entity["player"], hud_dest + (0, hud_pad.y))
-            label = f"{math.ceil(100*(self.player.max_dead_hit_skipped_counter -  self.dead_hit_skipped_counter)/self.player.max_dead_hit_skipped_counter)}"
-            hud_rect = hud_draw_text(hud_surf, 40, int(hud_pad.y), self.font_xs, pg.Color("purple"), label)
+        # Draw enemy icons.
+        enemy_icon_surf: Final[pg.SurfaceType] = self.assets.entity["enemy"].copy()
+        accumulator_offset_x: Final[int] = math.ceil(1.618 * pre.TILE_SIZE)  # Icon spacing
 
-            _ = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (50 + hud_rect.x + hud_rect.w + hud_pad.x, hud_pad.y))
-            # label = f"{len(self.enemies) - self.collected_enemies_counter}"
-            label = f"{self.player_dash_enemy_collision_count}"
-            hud_rect = hud_draw_text(hud_surf, 80, int(hud_pad.y), self.font_xs, pg.Color("yellow"), label)
+        icon_offset_x: Final[int] = 8
+        icon_offset_y: Final[int] = 4
+        icon_status_radius: Final[float] = 0.618 * (pre.TILE_SIZE / math.pi)
 
-            _ = hud_surf.blit(self.assets.entity["enemy"], hud_dest + (100 + hud_rect.x + hud_rect.w + hud_pad.x, hud_pad.y))
-            label = f"{len(self.enemies) - self.collected_enemies_counter}"
-            hud_rect = hud_draw_text(hud_surf, 150, int(hud_pad.y), self.font_xs, pg.Color("cyan"), label)
+        hud_dest: Final = pg.Vector2(0, 0)
 
-            _ = self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
+        accumulator_x: int = 0
 
-            if pre.DEBUG_GAME_HUD:
-                try:
-                    mousepos = [math.floor(mouse_pos.x), math.floor(mouse_pos.y)]
-                    render_debug_hud(self, self.display_2, render_scroll, (mousepos[0], mousepos[1]))
-                    self.clock_dt_recent_values.appendleft(self.dt)
-                    if len(self.clock_dt_recent_values) is pre.FPS_CAP:
-                        self.clock_dt_recent_values.pop()
-                except Exception as e:
-                    print(f"exception during rendering debugging HUD: {e}")
-        # ===---------------------------------------------------------------===
+        for enemy in self.enemies:
+            # Draw icons.
+            # -----------------------------------------------------------------
+            icon_rect: pg.Rect = hud_surf.blit(
+                source=enemy_icon_surf,
+                dest=(hud_dest + ((icon_offset_x + accumulator_x), icon_offset_y)),
+            )
+            accumulator_x += accumulator_offset_x
+            # -----------------------------------------------------------------
 
-    # @profile
-    def set_mainscreen(self, scr: Optional["StartScreen | LoadingScreen | SettingsScreen | CreditsScreen | Game"]):
-        # delete existing screen
-        if self.mainscreen != None:
-            del self.mainscreen
-            self.mainscreen = None
+            # Draw status indicator.
+            # -----------------------------------------------------------------
+            status_center: Tuple[int, int] = (icon_rect.x, (icon_rect.y + (icon_rect.h // 2) + int(icon_status_radius)))
 
-        # show new screen
-        self.mainscreen = scr
+            if enemy.is_collected_by_player:
+                pg.draw.circle(hud_surf, self.colorscheme_green4, status_center, icon_status_radius, 0)
+            else:
+                pg.draw.circle(hud_surf, self.colorscheme_green3, status_center, icon_status_radius, 1)
+            # -----------------------------------------------------------------
 
-        if self.mainscreen != None:
-            self.mainscreen.run()
+        # Draw HUD with pre-rendered buffer on display.
+        self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
+        # ---------------------------------------------------------------------
 
-        if self.gameover:
-            return AppState.MENUSTATE, GameState.EXIT
-        elif not self.running:  # note: we could just set gamestate form keyevent or update loop
-            return AppState.GAMESTATE, GameState.NEXTLEVEL
+        # Update (and HACK: Draw) Debugging HUD
+        # ---------------------------------------------------------------------
+        if pre.DEBUG_GAME_HUD and (
+            raw_mouse_pos := (pg.Vector2(pg.mouse.get_pos()) / pre.RENDER_SCALE),
+            mouse_position := (raw_mouse_pos + render_scroll),
+            mouse_pos_ints := (math.floor(mouse_position.x), math.floor(mouse_position.y)),
+        ):
+            render_debug_hud(self, self.display, render_scroll, mouse_pos_ints)
+
+            # Update clock values.
+            self.clock_dt_recent_values.appendleft(self.dt)
+
+            if len(self.clock_dt_recent_values) == pre.FPS_CAP:
+                self.clock_dt_recent_values.pop()
+        # ---------------------------------------------------------------------
 
     def lvl_no_more_levels_left(self) -> bool:
         return self.level + 1 >= self._level_map_count
@@ -1003,10 +1074,10 @@ class Game:
             progressbar.put(progress)
 
         self._lvl_load_level_map(map_id)
-        self.level_map_dimension = self.tilemap.cur_level_map_dimension  # 1470 approx for level1, 480 for leve12
+        self.level_map_dimension = self.tilemap.cur_level_map_dimension  # 1470 approx for level1, 480 for level2
 
-        if pre.DEBUG_GAME_PRINTLOG:
-            print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.level_map_dimension = }")  # FIX: dual loading at game over
+        if pre.DEBUG_GAME_PRINTLOG:  # FIX: Dual loading at game over
+            print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.level_map_dimension = }")
 
         progress += 5
 
@@ -1018,6 +1089,7 @@ class Game:
 
         bg_blue_sky_surf = self.assets.misc_surf["bg1"]
         bg_blue_sky_surf_yflipped = pg.transform.flip(bg_blue_sky_surf.copy(), 0, 1)
+
         self.bg_blue_sky_surf = pg.transform.average_surfaces((bg_blue_sky_surf, bg_blue_sky_surf_yflipped))
 
         bg_cloud_surf = self.assets.misc_surf["bg2"]
@@ -1027,19 +1099,30 @@ class Game:
         self.bg_mountain_surf = bg_mountain_surf
 
         if self.level in self.levels_space_theme:
-            self.grid_surf = pre.create_surface(self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)).convert()
-            grid_surf_pixels = pg.surfarray.pixels3d(self.grid_surf)  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+            self.grid_surf = pre.create_surface(
+                self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)
+            ).convert()
+
+            grid_surf_pixels = (  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+                pg.surfarray.pixels3d(  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+                    self.grid_surf
+                )
+            )
 
             for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
                 grid_surf_pixels[x, :] = (26, 27, 26)
+
             for y in range(0, pre.DIMENSIONS_HALF[1], self.tilemap.tilesize):
                 grid_surf_pixels[:, y] = (26, 27, 26)
+
             # Convert the pixel array back to a surface
             del grid_surf_pixels  # Unlock the pixel array
 
         self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
         self.bg_cloud = Background(depth=0.1 or 0.2, pos=pg.Vector2(0, 0), speed=0.5)
-        self.bg_mountain = Background(depth=0.6, pos=pg.Vector2(0, 0), speed=0.4)  # note: higher speed causes janky wrapping of bg due to render scroll ease by 1 or 2 tilesize
+        self.bg_mountain = Background(
+            depth=0.6, pos=pg.Vector2(0, 0), speed=0.4
+        )  # NOTE(Lloyd): Higher speed causes janky wrapping of bg due to render scroll ease by 1 or 2 tilesize
 
         progress += 10
 
@@ -1055,26 +1138,40 @@ class Game:
             )
             for torch in self.tilemap.extract([("decor", 2)], keep=True)
         ]
+
+        # 8 thickness  # actual w 16  # actual h 64
         self.bouncepad_spawners = [
-            pg.Rect(tileitem.pos.x, tileitem.pos.y + 32 - 8, pre.TILE_SIZE, pre.TILE_SIZE)  # 8 thickness  # actual w 16  # actual h 64
-            for tileitem in self.tilemap.extract([("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True)
+            pg.Rect(tileitem.pos.x, tileitem.pos.y + 32 - 8, pre.TILE_SIZE, pre.TILE_SIZE)
+            for tileitem in self.tilemap.extract(
+                [("bouncepad", 0), ("bouncepad", 1), ("bouncepad", 2), ("bouncepad", 3)], keep=True
+            )
         ]
-        self.spike_spawners = list(self.tilemap.spawn_spikes(self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)))
+        self.spike_spawners = list(
+            self.tilemap.spawn_spikes(
+                self.tilemap.extract([("spike", 0), ("spike", 1), ("spike", 2), ("spike", 3)], keep=True)
+            )
+        )
 
         progress += 10
 
         if progressbar:
             progressbar.put(progress)
 
+        # Handle spawners
+        # ---------------------------------------------------------------------
+        spawner_kinds: Final = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
+        progress_increment = math.floor((70 - progress) / len(spawner_kinds))
+
         self.portal_spawners: list[Portal] = []
         self.enemies: list[Enemy] = []
 
-        spawner_kinds: Final = (pre.SpawnerKind.PLAYER.value, pre.SpawnerKind.ENEMY.value, pre.SpawnerKind.PORTAL.value)
-        increment = math.floor((70 - progress) / len(spawner_kinds))
-
-        for spawner in self.tilemap.extract(list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), spawner_kinds)), False):
+        for spawner in self.tilemap.extract(
+            list(zip(it.repeat(str(pre.TileKind.SPAWNERS.value), len(spawner_kinds)), spawner_kinds)),
+            False,
+        ):
             match pre.SpawnerKind(spawner.variant):
-                case pre.SpawnerKind.PLAYER:  # coerce to a mutable list if pos is a tuple
+                case pre.SpawnerKind.PLAYER:
+                    # Coerce to a mutable list if pos is a tuple
                     self.player_spawner_pos = spawner.pos.copy()
 
                     if self.gcs_deque:
@@ -1082,16 +1179,33 @@ class Game:
                     else:
                         self.player.pos = spawner.pos.copy()
 
-                    self.player.air_timer = 0  # Reset time to avoid multiple spawns during fall
-                case pre.SpawnerKind.ENEMY:
-                    self.enemies.append(Enemy(self, spawner.pos, pg.Vector2(pre.SIZE.ENEMY)))
-                case pre.SpawnerKind.PORTAL:
-                    self.portal_spawners.append(Portal(self, pre.EntityKind.PORTAL, spawner.pos, pg.Vector2(pre.TILE_SIZE)))
+                    # Reset time to avoid multiple spawns during fall
+                    self.player.air_timer = 0
 
-            progress += increment
+                case pre.SpawnerKind.ENEMY:
+                    self.enemies.append(
+                        Enemy(
+                            game=self,  # pyright: ignore [reportArgumentType]
+                            pos=spawner.pos,
+                            size=pg.Vector2(pre.SIZE.ENEMY),
+                        )
+                    )
+
+                case pre.SpawnerKind.PORTAL:
+                    self.portal_spawners.append(
+                        Portal(
+                            game=self,  # pyright: ignore [reportArgumentType]
+                            ekind=pre.EntityKind.PORTAL,
+                            pos=spawner.pos,
+                            size=pg.Vector2(pre.TILE_SIZE),
+                        )
+                    )
+
+            progress += progress_increment
 
             if progressbar:
                 progressbar.put(progress)
+        # ---------------------------------------------------------------------
 
         if pre.DEBUG_GAME_ASSERTS:
             assert self.player is not None, f"want a spawned player. got {self.player}"
@@ -1100,31 +1214,47 @@ class Game:
 
         self.particles: list[Particle] = []
 
-        self.scroll = pg.Vector2(0.0, 0.0)  # note: seems redundant now
+        # NOTE(Lloyd): This seems redundant now after adding self.camera that
+        # handles scroll and render_scroll.
+        self.scroll = pg.Vector2(0.0, 0.0)
 
-        self.dead = 0  # tracks if the player died -> 'reloads level'
+        # Tracks if the player died -> 'reloads level'
+        self.dead = 0
+
         self.respawn_death_last_checkpoint = False
-        self.dead_hit_skipped_counter = 0  # if player is invincible while idle and hit, count amout of shield that is being hit on
 
+        # If player is invincible while idle and hit.
+        # Also count amount of shield that is being hit on.
+        self.dead_hit_skipped_counter = 0
+
+        # Win Condition Checkers
+        # ---------------------------------------------------------------------
         self.touched_portal = False
+
         self.collected_enemies = False
-        # self.collected_enemies_seen: List[Enemy] = []
         self.collected_enemies_seen: Set[Enemy] = set()
         self.collected_enemies_counter = 0
+        # ---------------------------------------------------------------------
 
         self.transition = self._transition_lo
-
-        if 0:
-            if self.level != 0:
-                self.sfx.playerspawn.play()
-
-        progress = 100
+        progress = 100  # Done
 
         if progressbar:
             progressbar.put(progress)
 
-        if 1:  # HACK: emulate loading heavy resources
+        if 1:  # HACK(Lloyd): emulate loading heavy resources
             time.sleep(uniform(0.100, 0.250))
+
+    def draw_text(
+        self, x: int, y: int, font: pg.font.Font, color: pre.ColorValue, text: str, antialias: bool = True
+    ) -> pg.Rect:
+        surf = font.render(text, antialias, color)
+
+        rect: pg.Rect = surf.get_rect()
+
+        rect.midtop = (x, y)
+
+        return self.display.blit(surf, rect)
 
     def gcs_remove_recent_checkpoint(self) -> None:
         if not self.gcs_deque:
@@ -1150,7 +1280,6 @@ class Game:
             case 2 | 3:
                 if self.gcs_deque.__len__() > 5:
                     self.gcs_deque.pop()
-
             case _:
                 if self.gcs_deque.__len__() > max_checkpoints:
                     self.gcs_deque.pop()
@@ -1178,12 +1307,9 @@ class Game:
         for enemy in self.enemies:
             if player_rect.colliderect(enemy.rect):
                 enemy.pos = next_pos.copy()
-
-                if 0:
-                    enemy.flip = not enemy.flip
-
                 enemy.sleep_timer = enemy.max_sleep_time
-                enemy.set_action(Action.SLEEPING)  # Note: if enemy was sleeping already, won't work
+                # NOTE(Lloyd): If enemy was sleeping already, this may not work
+                enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
         self.sfx.teleport.play()
@@ -1211,22 +1337,17 @@ class Game:
         for enemy in self.enemies:
             if player_rect.colliderect(enemy.rect):
                 enemy.pos = next_pos.copy()
-
-                if 0:
-                    enemy.flip = not enemy.flip
-
                 enemy.sleep_timer = enemy.max_sleep_time
-                # Note: if enemy was sleeping already, won't work
+                # NOTE(Lloyd): If enemy was sleeping already, this may not work
                 enemy.set_action(Action.SLEEPING)
 
         self.player.pos = next_pos.copy()
         self.sfx.teleport.play()
 
-    def draw_text(self, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
-        surf = font.render(text, True, color)
-        rect = surf.get_rect()
-        rect.midtop = (x, y)
-        return self.display.blit(surf, rect)
+
+# ------------------------------------------------------------------------------
+# GAME LOADING SCREEN (LEVEL RESOURCE LOADER)
+# ------------------------------------------------------------------------------
 
 
 class LoadingScreen:
@@ -1235,59 +1356,61 @@ class LoadingScreen:
         self.game = game
         self.level = level
 
+        self.clock = pg.time.Clock()  # Or use game's clock?
+
+        self.w, self.h = pre.DIMENSIONS_HALF
+        self.fontsize = 18  # 9*2: Font author suggest multiples of 9
+        self.font = self.game.font_sm
+
         self.queue: queue.Queue[int] = queue.Queue()
         self.queue.put(0)
         self.progress: int = self.queue.get()  # 0% initially
 
-        if pre.DEBUG_GAME_ASSERTS:  # self.queue.join()
+        if pre.DEBUG_GAME_ASSERTS:  # WHY: self.queue.join()
             assert self.queue.qsize() == 0 or self.queue.empty()
-
-        self.w, self.h = pre.DIMENSIONS_HALF
-        self.fontsize = 18  # 9*2
-        self.font = self.game.font_sm
-
-        self.clock = pg.time.Clock()  # or use game's clock?
 
     # @profile
     def run(self) -> None:
-        running = True
         self.bgcolor = pre.COLOR.BACKGROUND
-        # ^^^^ todo: remove this, not used in the game but in other screens
+
+        running = True
 
         while running:
             loading_thread: Optional[threading.Thread] = None
 
             match self.level:
                 case _:
-                    loading_thread = threading.Thread(target=self.game.lvl_load_level, args=(self.level, self.queue))
+                    loading_thread = threading.Thread(
+                        target=self.game.lvl_load_level,
+                        args=(self.level, self.queue),
+                    )
                     loading_thread.start()
-                # case _:
-                #     # todo: load the next level/levels
-                #     pass
 
             while True:
+                # NOTE(Lloyd): Do not tick to avoid slow loading time??
                 # self.clock.tick(pre.FPS_CAP)
+
                 self.events()
                 self.update()
                 self.render()
 
                 if loading_thread and not loading_thread.is_alive():
-                    _ = self.game.set_mainscreen(self.game)
+                    # NOTE(Lloyd): THIS IS CRAZY CODE UGHH!! -_-
+                    _ = set_mainscreen(game=self.game, scr=self.game)
 
                     if not self.game.running:
                         break
 
-            # sync state changes
+            # Sync state changes
             if not self.game.running:
                 self.game.running = True
                 self.level = self.game.level
 
                 if self.game.gameover:
                     running = False
-                    # NOTE: placeholdere to impl a GameoverScreen
-
-                    if 1:
-                        self.game.gameover = False
+                    # NOTE: Placeholder to impl a GameoverScreen
+                    # NOTE(Lloyd): I don't know what is going on here anymore -_-
+                    self.game.gameover = False
 
     def events(self):
         for event in pg.event.get():
@@ -1304,13 +1427,13 @@ class LoadingScreen:
             self.progress = self.queue.get()
 
     def render(self):
-        # clear screen and render background
+        # Clear screen and render background
         self.game.display.fill(self.bgcolor)
 
         pbar_h = 30 // 6
-        pbar_w = (self.w - self.w / 4) // 3
+        pbar_w = (self.w - (self.w / 4)) // 3
 
-        x = self.w / 2 - pbar_w / 2
+        x = (self.w / 2) - (pbar_w / 2)
         y = self.h / 2
 
         pcounter = self.progress / 100
@@ -1322,11 +1445,11 @@ class LoadingScreen:
         pbar_outline_rect = pg.Rect(x - 10 / 2, y - 10 / 2, pbar_w + 20 / 2, pbar_h + 20 / 2)
         pbar_fill_rect = pg.Rect(x, y, pbar_fill, pbar_h)
 
-        # draw bar
+        # Draw bar
         pg.draw.rect(self.game.display, pre.WHITE, pbar_fill_rect)
         pg.draw.rect(self.game.display, pre.WHITE, pbar_outline_rect, 1)
 
-        # draw text
+        # Draw text
         self.game.draw_text(
             self.w // 2 - self.fontsize // 2,
             self.h // 2 - self.fontsize // 2 - pbar_h - 50,
@@ -1342,20 +1465,27 @@ class LoadingScreen:
             self.game.display_2.blit(dispsilhouette, offset)
 
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
+        self.game.screen.blit(
+            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
+            (0, 0),
+        )
+        pg.display.flip()  # This *flip*s the display
 
-        # *flip* the display
-        pg.display.flip()
+
+# ------------------------------------------------------------------------------
+# GAME CREDITS SCREEN (CREDITS MENU PLAY ROLL)
+# ------------------------------------------------------------------------------
 
 
 class CreditsScreen:
     def __init__(self, game: Game, level: int) -> None:
-        # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
-        # Game | ...') requires each args passed to __init__ to have game and
-        # level. doing this via manual inheritance. sigh OOP -_-
         self.game = game
         self.level = level
 
+        # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
+        # Game | ...') requires each args passed to __init__ to have game and
+        # level. doing this via manual inheritance. sigh OOP -_-
+        #
         self.w, self.h = pre.DIMENSIONS_HALF
 
         self.start_font = self.game.font_sm
@@ -1363,14 +1493,16 @@ class CreditsScreen:
 
         self.bgcolor = pre.DARKCHARCOAL
 
-        self.clock = pg.time.Clock()  # or use game's clock?
+        self.clock = pg.time.Clock()  # Or use game's clock?
         self.running = True
 
         self.fps = self.clock.get_fps()
 
-        self.creditroll_y = self.h  # start credit roll from bottom
+        # Start credit roll from bottom??
         _offset_x = 32
-        self.creditroll_x = (self.w // 2) - _offset_x  # start credit roll from bottom
+        self.creditroll_x = (self.w // 2) - _offset_x
+
+        self.creditroll_y = self.h  # Start credit roll from bottom
 
         self.previous_credit = -1
         self.current_credit = 0
@@ -1379,17 +1511,18 @@ class CreditsScreen:
         self.credit_item_offset_y = 20  # temp
         self.prev_daw_timer = 970
 
-        # (endtime, content)
-        # using non-floats value for index to emulate DAWs
+        # Using non-floats value for index to emulate DAWs
+        # Data Structure: (endtime, content, color)
         self.credits = [
-            (1000, "TIP", pg.Color("maroon")),  # 50
-            (1019, "TOE", pg.Color("maroon")),  # 69
-            (1050, "2024", pg.Color("white")),  # 100
-            (1080, "DESIGN * CODE * ETC * BY LLOYD LOBO", pg.Color("cyan")),  # 130
-            (1110, "MUSIC * SOUNDS * SFX * BY LLOYD LOBO", pg.Color("cyan")),  # 160
-            (1140, "GAME LIBRARY * BY PYGAME", pg.Color("cyan")),  # 190
+            (1000, "TIP", pg.Color("maroon")),
+            (1019, "TOE", pg.Color("maroon")),
+            (1050, "2024", pg.Color("white")),
+            (1080, "DESIGN * CODE * ETC * BY LLOYD LOBO", pg.Color("cyan")),
+            (1110, "MUSIC * SOUNDS * SFX * BY LLOYD LOBO", pg.Color("cyan")),
+            (1140, "GAME LIBRARY * BY PYGAME", pg.Color("cyan")),
         ]
-        # TODO: if time permits work on animating start and end times declaratively
+
+        # TODO: If time permits work on animating start and end times # declaratively
         # `worse is better`
         self.credits_marque = [
             (0, 3000, "TIP TOE"),
@@ -1413,7 +1546,7 @@ class CreditsScreen:
                 self.running = False
                 break
 
-            self.clock.tick(pre.FPS_CAP // 2)  # play at half-speed
+            self.clock.tick(pre.FPS_CAP // 2)  # Play at half-speed
 
             self.events()
             self.update()
@@ -1431,15 +1564,20 @@ class CreditsScreen:
                 self.running = False
                 quit_exit()
 
+            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                self.running = False
+
     def update(self):
-        self.game.display.fill(self.bgcolor)  # Clear screen and render background
+        # Clear screen and render background
+        self.game.display.fill(self.bgcolor)
 
         if self.current_credit == (self.MAX_CREDITS_COUNT - 1):
-            last_position = self.creditroll_y + (self.current_credit * self.credit_item_offset_y)
-            last_item_is_above_fold = last_position <= ((-1 * (self.h // 4)) + self.credit_item_offset_y)
+            last_position = self.creditroll_y + self.current_credit * self.credit_item_offset_y
+            last_item_is_above_fold = last_position <= (-1 * (self.h // 4)) + self.credit_item_offset_y
 
+            # Exit current screen
             if last_item_is_above_fold:
-                self.running = False  # Exit current screen
+                self.running = False
 
         self.fps = self.clock.get_fps()
 
@@ -1459,14 +1597,10 @@ class CreditsScreen:
 
             if self.daw_timer > cur_time_marker:
                 self.daw_timer_markers_offset = next_time_marker - cur_time_marker
-        if 0:
-            if self.creditroll_y <= self.h // 2:
-                if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
-                    self.current_credit += 1
 
+        # FIXME: Stop manually overriding this branch
         elif 1 and self.current_credit > 0:
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
-
                 if cur_time_marker < self.daw_timer <= next_time_marker:
                     if self.daw_timer >= cur_time_marker:
                         if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
@@ -1479,7 +1613,6 @@ class CreditsScreen:
 
         else:  # simplest version
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
-
                 if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
                     self.previous_credit = self.current_credit
                     self.current_credit += 1
@@ -1487,17 +1620,14 @@ class CreditsScreen:
 
     def render(self):
         """
-        # either change offset_y or add to it or lerp it also consider creditroll_y
-        # y=pos_y + (i * (offset_y * 1 + self.daw_timer_markers_offset)),
-
-        # DEBUG:
-        # text=f"{text} {round(self.daw_timer)} {credit[0]} {self.daw_timer_markers_offset} {round(self.creditroll_y)}",
+        FIXME(Lloyd): Either change offset_y or add to it or lerp it also
+        consider creditroll_y:
+            y=pos_y + (i * (offset_y * 1 + self.daw_timer_markers_offset)),
         """
 
-        # draw credits vertical marque
+        # Draw credits vertical marque
         # ---------------------------------------------------------------------
         offset_y = self.credit_item_offset_y
-
         pos_y = self.creditroll_y
 
         for i, credit in enumerate(self.credits):
@@ -1508,15 +1638,15 @@ class CreditsScreen:
                 offset_y = self.credits[i][0] - self.credits[i - 1][0]
 
             self.game.draw_text(
-                x=(self.w // 2),
-                y=(pos_y + (i * offset_y)),
-                font=self.start_font,
+                (self.w // 2),
+                (pos_y + (i * offset_y)),
+                self.start_font,
                 color=(self.credits[i][2]),
                 text=credit[1],
             )
         # ---------------------------------------------------------------------
 
-        # draw mask outline for all
+        # Draw mask outline for all
         # ---------------------------------------------------------------------
         dispmask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -1525,13 +1655,20 @@ class CreditsScreen:
             self.game.display_2.blit(dispsilhouette, offset)
         # ---------------------------------------------------------------------
 
-        # render display
+        # Render display
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
-
+        self.game.screen.blit(
+            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
+            (0, 0),
+        )
         pg.display.flip()
         # ---------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------
+# GAME SETTINGS SCREEN (SETTINGS MENU)
+# ------------------------------------------------------------------------------
 
 
 class SettingsScreen:
@@ -1540,44 +1677,58 @@ class SettingsScreen:
     """
 
     def __init__(self, game: Game, level: int) -> None:
-        # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
-        # Game | ...') requires each args passed to __init__ to have game and
-        # level. doing this via manual inheritance. sigh OOP -_-
         self.game = game
         self.level = level
 
+        # NOTE(lloyd): Using this as Game.set_screen(screen: 'CreditsScreen | # Game | ...')
+        # requires each args passed to __init__ to have game and level.
+        # So doing # this via manual inheritance. sigh OOP -_-
+        #
         self.w, self.h = pre.DIMENSIONS_HALF
-
-        self.clock = pg.time.Clock()  # or use game's clock?
+        self.clock = pg.time.Clock()  # Or use game's clock?
         self.running = True
 
-        # TODO: Add required members here
+        # Update key events on navigation buttons
         # ---------------------------------------------------------------------
-        # ...
-
-        self.FONT_TYPES = [self.game.font_xs, self.game.font_sm, self.game.font]
+        self.FONT_TYPES = [
+            self.game.font_xs,
+            self.game.font_sm,
+            self.game.font,
+        ]
+        font = FontType.SM
 
         position_x, position_y = self.w // 2, self.h // 2
         offset_x, offset_y = 0, 16
 
         self.settings = [
-            ((position_x + offset_x), (position_y + (0 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[0]),
-            ((position_x + offset_x), (position_y + (1 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[1]),
-            ((position_x + offset_x), (position_y + (2 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[2]),
-            # NOTE(lloyd): This must always be at the end.
-            # Please adjust index accordingly.
-            ((position_x), (position_y + (3 * offset_y)), FontType.SM, pg.Color("white"), SETTINGS_NAVITEMS[3]),
-        ]
-        assert ((want := MAX_SETTINGS_NAVITEMS, got := len(self.settings)) and (want == got)) and f"want settings array length to be {repr(want)}. got {repr(got)}"
-        assert ((want := "GO BACK", got := self.settings[-1][4]) and (want == got)) and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
+            ((position_x + offset_x), (position_y + (0 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[0]),
+            ((position_x + offset_x), (position_y + (1 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[1]),
+            ((position_x + offset_x), (position_y + (2 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[2]),
+            # NOTE(lloyd): This must always be at the end. Please adjust index accordingly.
+            (position_x, (position_y + (3 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[3])
+        ]  # fmt: skip
 
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        assert (
+            (want := MAX_SETTINGS_NAVITEMS, got := len(self.settings))
+            and (want == got)
+            and f"want settings array length to be {repr(want)}. got {repr(got)}"
+        )
+        assert (
+            (want := "GO BACK", got := self.settings[-1][4])
+            and (want == got)
+            and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
+        )
+
+        self.movement = pre.Movement(False, False, False, False)
         self.is_key_pressed_key_enter = False
 
         self.navitem_offset = 0
         self.selected_navitem = SettingsNavitemType.MUTE_MUSIC
-        assert (want := 0, got := self.selected_navitem) and (got == want) and f"want selected_navitem to be initialized with the zero value enumeration. got {repr(got)}"
-        # ...
+        assert (
+            (want := 0, got := self.selected_navitem)
+            and (got == want)
+            and f"want selected_navitem to be initialized with the zero value enumeration. got {repr(got)}"
+        )
         # ---------------------------------------------------------------------
 
     def run(self) -> None:
@@ -1589,10 +1740,8 @@ class SettingsScreen:
         while self.running:
             if loop_counter >= MAX_LOOP_COUNTER:
                 self.running = False
-                break
 
-            self.clock.tick(pre.FPS_CAP // 2)  # play at half-speed
-
+            self.clock.tick(pre.FPS_CAP // 2)  # Play at half-speed
             self.events()  # Process events this frame
             self.update()  # Update data this frame
             self.render()  # Draw updated data this frame
@@ -1600,12 +1749,13 @@ class SettingsScreen:
             loop_counter += 1
 
     def events(self):
-        # Resets
-        # ------
-        # NOTE(lloyd): this resets self.movement each frame to avoid navigating on key down at 60fps 0_0
-        self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
+        # Some event resets
+        # ---------------------------------------------------------------------
+        # Reset self.movement each frame to avoid navigating on key down at 60fps 0_0
+        self.movement = pre.Movement(False, False, False, False)
+
         self.is_key_pressed_key_enter = False
-        # ------
+        # ---------------------------------------------------------------------
 
         for event in pg.event.get():
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
@@ -1617,8 +1767,8 @@ class SettingsScreen:
                 quit_exit()
 
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                self.running = False
-                # NOTE: See if we need to de-init or unload assets/flags/variables etc
+                # NOTE(Lloyd): See if we need to de-init or unload assets/flags/variables etc
+                self.running = False  # Go back to main menu
 
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_UP, pg.K_w):
@@ -1645,42 +1795,39 @@ class SettingsScreen:
             elif event.type == pg.KEYUP and event.key == pg.K_RETURN:
                 self.is_key_pressed_key_enter = False
 
-            # TODO: if esc go back to menu
-
-    # TODO: use left/right for incr/decr music/sound levels
     def update(self):
         # Clear screen and render background
-        # ---------------------------------------------------------------------
         self.game.display.fill(self.bgcolor)
-        # ---------------------------------------------------------------------
 
-        # TODO: update Settings content here
-        # ---------------------------------------------------------------------
-
-        # update movement parameters
-        # ---------------------------------------------------------------------
+        # Update movement parameters
         if self.movement.top:
             self.navitem_offset -= 1
         elif self.movement.bottom:
             self.navitem_offset += 1
-        # ---------------------------------------------------------------------
 
-        # wrap around negative index for MenuItemType Enumerations
+        # Wrap around negative index for MenuItemType Enumerations
         # ---------------------------------------------------------------------
         if self.navitem_offset < 0:
-            self.navitem_offset = MAX_MENU_ITEMS - 1  # set to last item
+            self.navitem_offset = MAX_MENU_ITEMS - 1  # Set to last item
 
         if self.navitem_offset >= MAX_MENU_ITEMS:
-            self.navitem_offset = 0  # set to first item
+            self.navitem_offset = 0  # Set to first item
 
-        assert (self.navitem_offset in range(0, MAX_SETTINGS_NAVITEMS)) and f"expected valid offset for menu items while navigating in StartScreen"
+        assert (
+            self.navitem_offset in range(0, MAX_SETTINGS_NAVITEMS)
+        ) and f"expected valid offset for menu items while navigating in StartScreen"
+
         self.selected_navitem = SettingsNavitemType(self.navitem_offset)
         # ---------------------------------------------------------------------
 
+        # Handle settings screen navigation button on press/enter
+        #
+        # PERF: use left/right for incr/decr music/sound levels
+        #
+        # ---------------------------------------------------------------------
         if self.is_key_pressed_key_enter:
             match self.selected_navitem:
                 case SettingsNavitemType.MUTE_MUSIC:  # TODO:
-                    print(f"{self.selected_navitem = }")
                     self.game.settings_handler.music_muted = not self.game.settings_handler.music_muted
 
                     if self.game.settings_handler.music_muted:
@@ -1689,7 +1836,6 @@ class SettingsScreen:
                         pg.mixer.music.set_volume(0.4)
 
                 case SettingsNavitemType.MUTE_SOUND:  # TODO:
-                    print(f"{self.selected_navitem = }")
                     self.game.settings_handler.sound_muted = not self.game.settings_handler.sound_muted
 
                     if self.game.settings_handler.sound_muted:
@@ -1722,12 +1868,11 @@ class SettingsScreen:
                         self.game.sfx.teleport.set_volume(0.2)
 
                 case SettingsNavitemType.DISABLE_SCREENSHAKE:  # TODO:
-                    print(f"{self.selected_navitem = }")
-
                     self.game.settings_handler.screenshake = not self.game.settings_handler.screenshake
 
                 case SettingsNavitemType.GO_BACK:
-                    self.running = False  # Exit SettingsScreen and return to caller i.e. StartScreen
+                    # Exit SettingsScreen and return to caller i.e. StartScreen
+                    self.running = False
 
                 case _:  # pyright: ignore [reportUnnecessaryComparison]
                     """# If using left and right. for sound music level fine controls
@@ -1744,14 +1889,9 @@ class SettingsScreen:
                             pass
                     """
                     pass
-        # ...
         # ---------------------------------------------------------------------
 
     def render(self):
-        # TODO: render Settings content here
-        # ---------------------------------------------------------------------
-        # ...
-
         # Text VFX
         shake_x = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
         shake_y = (0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0.0
@@ -1761,7 +1901,13 @@ class SettingsScreen:
         text_xpos: int = int((self.w // 2) + shake_x)
         text_ypos: int = int(69 - shake_y)
 
-        self.game.draw_text(text_xpos, text_ypos, self.FONT_TYPES[FontType.BASE], pg.Color("maroon"), text="SETTINGS")
+        self.game.draw_text(
+            text_xpos,
+            text_ypos,
+            self.FONT_TYPES[FontType.BASE],
+            pg.Color("maroon"),
+            "SETTINGS",
+        )
         # ---------------------------------------------------------------------
 
         # Draw navigation items
@@ -1770,7 +1916,10 @@ class SettingsScreen:
         shake_y = math.floor(shake_y)
 
         for i, option in enumerate(self.settings):
-            assert (0 <= self.navitem_offset < MAX_SETTINGS_NAVITEMS) and f"want valid navitem offset ranging from {repr(0)}..={repr(MAX_SETTINGS_NAVITEMS-1)}. got {repr( self.navitem_offset )}"
+            assert (
+                (0 <= self.navitem_offset < MAX_SETTINGS_NAVITEMS)
+                and f"want valid navitem offset ranging from {repr(0)}..={repr(MAX_SETTINGS_NAVITEMS-1)}. got {repr( self.navitem_offset )}"
+            )
 
             is_active = (self.navitem_offset == i)  # fmt: skip
 
@@ -1779,13 +1928,20 @@ class SettingsScreen:
             color = pg.Color("maroon")    if is_active else option[3]  # fmt: skip
 
             text: str
+
             match SettingsNavitemType(i):
-                # fmt: off
-                case SettingsNavitemType.MUTE_MUSIC:          text = (option[4] + " OFF") if self.game.settings_handler.music_muted       else (option[4] + " ON")
-                case SettingsNavitemType.MUTE_SOUND:          text = (option[4] + " OFF") if self.game.settings_handler.sound_muted       else (option[4] + " ON")
-                case SettingsNavitemType.DISABLE_SCREENSHAKE: text = (option[4] + " OFF") if not self.game.settings_handler.screenshake   else (option[4] + " ON")
-                case SettingsNavitemType.GO_BACK:             text = (option[4])
-                # fmt: on
+                case SettingsNavitemType.MUTE_MUSIC:
+                    text = (option[4] + " OFF") if self.game.settings_handler.music_muted else (option[4] + " ON")
+
+                case SettingsNavitemType.MUTE_SOUND:
+                    text = (option[4] + " OFF") if self.game.settings_handler.sound_muted else (option[4] + " ON")
+
+                case SettingsNavitemType.DISABLE_SCREENSHAKE:
+                    text = (option[4] + " OFF") if not self.game.settings_handler.screenshake else (option[4] + " ON")
+
+                case SettingsNavitemType.GO_BACK:
+                    text = option[4]
+
                 case _:  # pyright: ignore [reportUnnecessaryComparison]
                     msg = f"want valid SettingsNavitemType while drawing text in SettingsScreen. got {repr(SettingsNavitemType(i))} while iterating over item at index {repr(i)}."
                     raise ValueError(msg)
@@ -1793,45 +1949,29 @@ class SettingsScreen:
             self.game.draw_text(pos_x, pos_y, self.FONT_TYPES[option[2]], color, text)
         # ---------------------------------------------------------------------
 
-        # ...
-        # ---------------------------------------------------------------------
-
         # DEBUG: HUD
         # ---------------------------------------------------------------------
         if pre.DEBUG_GAME_HUD:
-            dbg_posy = 16
-            dbg_posx = 64
-            dbg_gapy = 16
+            font = self.FONT_TYPES[0]
+            pos_y = 16
+            pos_x = 64
+            gap_y = 16
 
-            self.game.draw_text(
-                dbg_posx,
-                dbg_posy,
-                self.FONT_TYPES[0],
-                pg.Color("cyan"),
-                text=f"UP*{1 if self.movement.top else 0} DOWN*{1 if self.movement.bottom else 0}",
-            )
-            dbg_posy += dbg_gapy
+            text = f"UP*{1 if self.movement.top else 0} DOWN*{1 if self.movement.bottom else 0}"
+            color = pg.Color("cyan")
+            self.game.draw_text(pos_x, pos_y, font, color, text)
+            pos_y += gap_y
 
-            self.game.draw_text(
-                dbg_posx + 10,
-                dbg_posy,
-                self.FONT_TYPES[0],
-                pg.Color("cyan"),
-                text=f"LEFT*{1 if self.movement.left else 0} RIGHT*{1 if self.movement.right else 0}",
-            )
-            dbg_posy += dbg_gapy
+            text = f"LEFT*{1 if self.movement.left else 0} RIGHT*{1 if self.movement.right else 0}"
+            self.game.draw_text(pos_x + 10, pos_y, font, color, text)
+            pos_y += gap_y
 
-            self.game.draw_text(
-                dbg_posx + 20,
-                dbg_posy,
-                self.FONT_TYPES[0],
-                pg.Color("maroon"),
-                text=f"NAVITEM OFFSET*{self.navitem_offset}",
-            )
-            dbg_posy += dbg_gapy
+            text = f"NAVITEM OFFSET*{self.navitem_offset}"
+            self.game.draw_text(pos_x + 20, pos_y, font, pg.Color("maroon"), text)
+            pos_y += gap_y
         # ---------------------------------------------------------------------
 
-        # draw mask outline for all
+        # Draw mask outline for all
         # ---------------------------------------------------------------------
         dispmask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -1840,13 +1980,19 @@ class SettingsScreen:
             self.game.display_2.blit(dispsilhouette, offset)
         # ---------------------------------------------------------------------
 
-        # render display
+        # Render display
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
-
+        self.game.screen.blit(
+            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
+            (0, 0),
+        )
         pg.display.flip()
-        # ---------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------
+# GAME START SCREEN (MAIN MENU)
+# ------------------------------------------------------------------------------
 
 
 class StartScreen:
@@ -1912,16 +2058,16 @@ class StartScreen:
                             print(f"selected menuitem {self.game.level =}")
 
                         if not self.game.running:
-                            self.game.set_mainscreen(LoadingScreen(game=self.game, level=self.game.level))
+                            set_mainscreen(game=self.game, scr=LoadingScreen(game=self.game, level=self.game.level))
                         else:
-                            self.game.set_mainscreen(self.game)
+                            set_mainscreen(game=self.game, scr=self.game)
 
                     case MenuItemType.SETTINGS:
-                        self.game.set_mainscreen(SettingsScreen(game=self.game, level=self.game.level))
+                        set_mainscreen(game=self.game, scr=SettingsScreen(game=self.game, level=self.game.level))
                         pass  # TODO: [ DOING ] : 20240614090235UTC
 
                     case MenuItemType.CREDITS:
-                        self.game.set_mainscreen(CreditsScreen(game=self.game, level=self.game.level))
+                        set_mainscreen(game=self.game, scr=CreditsScreen(game=self.game, level=self.game.level))
 
                     case MenuItemType.EXIT:
                         pg.mixer.music.fadeout(1000)
@@ -1943,10 +2089,10 @@ class StartScreen:
                     self.movement.bottom = False
 
     def update(self):
-        # clear screen and render background
+        # Clear screen and render background
         self.game.display.fill(self.bgcolor)
 
-        # update movement parameters
+        # Update movement parameters
         # ---------------------------------------------------------------------
         if self.movement.top:
             self.menuitem_offset -= 1
@@ -1954,7 +2100,7 @@ class StartScreen:
             self.menuitem_offset += 1
         # ---------------------------------------------------------------------
 
-        # wrap around negative index for MenuItemType Enumerations
+        # Wrap around negative index for MenuItemType Enumerations
         # ---------------------------------------------------------------------
         if self.menuitem_offset < 0:
             self.menuitem_offset = MAX_MENU_ITEMS - 1  # set to last item
@@ -1962,7 +2108,9 @@ class StartScreen:
         if self.menuitem_offset >= MAX_MENU_ITEMS:
             self.menuitem_offset = 0  # set to first item
 
-        assert (self.menuitem_offset in range(0, MAX_MENU_ITEMS)) and f"expected valid offset for menu items while navigating in StartScreen"
+        assert (
+            self.menuitem_offset in range(0, MAX_MENU_ITEMS)
+        ) and f"expected valid offset for menu items while navigating in StartScreen"
         self.selected_menuitem = MenuItemType(self.menuitem_offset)
         # ---------------------------------------------------------------------
 
@@ -1995,7 +2143,7 @@ class StartScreen:
         self.game.draw_text((self.w // 2) - shake_x, 69 + shake_y, self.font_base, pre.WHITE, "TOE")
         # ---------------------------------------------------------------------
 
-        # draw menu items instructions
+        # Draw menu items instructions
         # ---------------------------------------------------------------------
         offset_y = 24
 
@@ -2010,7 +2158,10 @@ class StartScreen:
                     val = "RESUME"
 
             if i == self.selected_menuitem:
-                assert (i == self.menuitem_offset) and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.selected_menuitem =}"
+                assert (
+                    (i == self.menuitem_offset)
+                    and f"expected exact selected menu item type while rendering in StartScreen. got {i, val, self.selected_menuitem =}"
+                )
                 self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.font_sm, pg.Color("maroon"), val)
             else:
                 self.game.draw_text(pos_x, pos_y, self.font_sm, pre.WHITE, f"{val}")
@@ -2018,15 +2169,13 @@ class StartScreen:
             pos_y += offset_y
         # ---------------------------------------------------------------------
 
-        # draw instructions
+        # Draw instructions
         # ---------------------------------------------------------------------
-        # if 0
         if 0:
             self.game.draw_text((self.w // 2), (self.h - 100), self.font_sm, pre.WHITE, "Press enter to start")
-        # endif
         # ---------------------------------------------------------------------
 
-        # draw mask outline for all
+        # Draw mask outline for all
         # ---------------------------------------------------------------------
         dispmask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -2035,10 +2184,27 @@ class StartScreen:
             self.game.display_2.blit(dispsilhouette, offset)
         # ---------------------------------------------------------------------
 
-        # render display
+        # Render display
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
         self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
 
         pg.display.flip()
         # ---------------------------------------------------------------------
+
+
+# ------------------------------------------------------------------------------
+# GAME LAUNCHER
+# ------------------------------------------------------------------------------
+
+
+class Launcher(Game):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def start(self) -> None:
+        startscreen = StartScreen(self)
+        set_mainscreen(game=self, scr=startscreen)
+
+
+# BOT
