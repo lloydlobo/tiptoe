@@ -309,6 +309,7 @@ class Game:
         # B.I.Y. Inspired Color Scheme
         self.colorscheme_green3 = pre.hex_to_rgb("425238")
         self.colorscheme_green4 = pre.hex_to_rgb("597119")
+        self.colorscheme_green5 = pre.hex_to_rgb("6a822a")
 
         self.scroll_ease: Final[pg.Vector2] = pg.Vector2(1 / 30, 1 / 30)
         self.camerasize = self.display.get_size()
@@ -976,16 +977,6 @@ class Game:
 
         # Update(and HACK: Draw) Game Stats HUD
         # ---------------------------------------------------------------------
-        # Create HUD surface.
-        hud_size: Final[Tuple[int, int]] = (256, 48)
-        hud_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
-
-        # Add semi-transparent background.
-        hud_bg_surf = pg.Surface(hud_size, flags=pg.SRCALPHA).convert_alpha()
-        hud_bg_surf.set_colorkey(pg.Color("black"))
-        hud_bg_surf.fill(pre.CHARCOAL)
-        hud_bg_surf.set_alpha(255 // 20)
-        hud_surf.blit(hud_bg_surf, (0, 0))
 
         # Draw enemy icons.
         enemy_icon_surf: Final[pg.SurfaceType] = self.assets.entity["enemy"].copy()
@@ -1002,7 +993,7 @@ class Game:
         for enemy in self.enemies:
             # Draw icons.
             # -----------------------------------------------------------------
-            icon_rect: pg.Rect = hud_surf.blit(
+            icon_rect: pg.Rect = self.hud_surf.blit(
                 source=enemy_icon_surf,
                 dest=(hud_dest + ((icon_offset_x + accumulator_x), icon_offset_y)),
             )
@@ -1014,13 +1005,13 @@ class Game:
             status_center: Tuple[int, int] = (icon_rect.x, (icon_rect.y + (icon_rect.h // 2) + int(icon_status_radius)))
 
             if enemy.is_collected_by_player:
-                pg.draw.circle(hud_surf, self.colorscheme_green4, status_center, icon_status_radius, 0)
+                pg.draw.circle(self.hud_surf, self.colorscheme_green5, status_center, icon_status_radius, 0)
             else:
-                pg.draw.circle(hud_surf, self.colorscheme_green3, status_center, icon_status_radius, 1)
+                pg.draw.circle(self.hud_surf, self.colorscheme_green4, status_center, icon_status_radius, 1)
             # -----------------------------------------------------------------
 
         # Draw HUD with pre-rendered buffer on display.
-        self.display.blit(hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
+        self.display.blit(self.hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
         # ---------------------------------------------------------------------
 
         # Update (and HACK: Draw) Debugging HUD
@@ -1072,6 +1063,17 @@ class Game:
 
         self.projectiles: list[pre.Projectile] = []
         self.sparks: list[Spark] = []
+
+        # Create HUD surface.
+        self.hud_size: Tuple[int, int] = (256, 48)
+        self.hud_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
+
+        # Add semi-transparent background.
+        self.hud_bg_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
+        self.hud_bg_surf.set_colorkey(pg.Color("black"))
+        self.hud_bg_surf.fill(pre.CHARCOAL)
+        self.hud_bg_surf.set_alpha(127)
+        self.hud_surf.blit(self.hud_bg_surf, (0, 0))
 
         bg_blue_sky_surf = self.assets.misc_surf["bg1"]
         bg_blue_sky_surf_yflipped = pg.transform.flip(bg_blue_sky_surf.copy(), 0, 1)
