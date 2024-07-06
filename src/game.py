@@ -328,7 +328,7 @@ class Game:
         # Edit level manually for quick feedback gameplay iterations
         ##############################################################################
 
-        self.level = 7  # 20240623122916UTC: level 3 has a lovely color palette
+        self.level = 0  # 20240623122916UTC: level 3 has a lovely color palette
         self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
 
         ##############################################################################
