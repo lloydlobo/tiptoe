@@ -1,8 +1,5 @@
 # file: game.py
 
-
-# TOP
-
 from __future__ import annotations
 
 import itertools as it
@@ -19,24 +16,17 @@ from enum import Enum, IntEnum, auto
 from os import listdir, path
 from pathlib import Path
 from random import randint, random, uniform
-from typing import (  # pyright:ignore; pyright: ignore
-    Final,
-    List,
-    Literal,
-    NoReturn,
-    Optional,
-    Set,
-    Tuple,
-)
+from typing import Final, List, Literal, NoReturn, Optional, Set, Tuple
 
-import pygame as pg
+import pygame as pg  # pyright: ignore
 
 
-try:
-    from memory_profiler import profile
-except ImportError as e:
-    print(f"failed to import dev package in {__file__}:\n\t{e}")
-    exit(2)
+if 0:
+    try:
+        from memory_profiler import profile  # pyright: ignore
+    except ImportError as e:
+        print(f"failed to import dev package in {__file__}:\n\t{e}")
+        exit(2)
 
 import internal.prelude as pre
 from internal.assets import Assets
@@ -337,8 +327,10 @@ class Game:
 
         # Edit level manually for quick feedback gameplay iterations
         ##############################################################################
-        self.level = 6  # 20240623122916UTC: level 3 has a lovely color palette
-        self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6}  # ^_^ so all levels??!!!
+
+        self.level = 7  # 20240623122916UTC: level 3 has a lovely color palette
+        self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
+
         ##############################################################################
 
         # NOTE(Lloyd): Possible to farm this by dying repeatedly but that's alright for now
@@ -401,9 +393,13 @@ class Game:
                 self.assets.tiles["granite"][i].fill(border_color)
                 rect_16_0 = tile.get_rect()
                 rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
-                self.assets.tiles["granite"][i].fill(color=color, rect=rect_15_9)
 
-        recolor_tiles(pre.hex_to_rgb("597119"), pre.hex_to_rgb("384510"))
+                if 0:  # With border
+                    self.assets.tiles["granite"][i].fill(color=color, rect=rect_15_9)
+                else:  # Without border
+                    self.assets.tiles["granite"][i].fill(color=color, rect=rect_16_0)
+
+        recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
 
         match self.level:
             case 0:
@@ -419,22 +415,12 @@ class Game:
             case 2:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
+                recolor_tiles(self.colorscheme_green4, pre.hex_to_rgb("384510"))
 
-            case 3:
+            case 3 | 4 | 5 | 6 | 7:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
-
-            case 4:
-                game_level_music_fname = "level_2.wav"
-                game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(self.colorscheme_green4, pre.hex_to_rgb("384510"))
-
-            case 5:
-                game_level_music_fname = "level_2.wav"
-                game_level_bg_color = pre.hex_to_rgb("121607")
-                recolor_tiles(pre.hex_to_rgb("597119"), pre.hex_to_rgb("384510"))
 
             case _:
                 # NOTE(lloyd): Use a prev variable to hold last level music played
@@ -444,7 +430,7 @@ class Game:
         pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / game_level_music_fname).__str__())
 
         # Set individual music volume
-        #
+        # ---------------------------------------------------------------------
         # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update().
         # We are not setting it here to avoid hassle of dynamic update via SettingsScreen in mid-gameplay,
         # maybe there is a better way??
@@ -454,20 +440,21 @@ class Game:
         # NOTE(lloyd): We could just pre-render audio files with similar LUFS using ay simple VU meter in a DAW.
         #
         if not self.settings_handler.music_muted:
-            pg.mixer.music.set_volume(0.2)
-            pg.mixer.music.play(-1)
+            pg.mixer.music.set_volume(0)
+            # pg.mixer.music.play(-1)
 
         if not self.settings_handler.sound_muted:
             self.sfx.playerspawn.play()
+        # ---------------------------------------------------------------------
 
-        # NOTE(Lloyd): On __init__ running is False. Ensure ..load(self,...)
-        # and ..reset(self,...) also set it to False
+        # On __init__ running is False. Ensure ..load(self,...) and ..reset(self,...) also set it to False
         self.running = True
 
         # gc.freeze()
 
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
+
             self.display.fill((0, 0, 0, 0))
 
             if self.level in self.levels_space_theme:
@@ -500,9 +487,8 @@ class Game:
                 if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keydown and manually reset if jump keyup did occur.
                     self.player.time_jump_keyup = None if self.player.time_jump_keyup else self.player.time_jump_keyup
                     self.player.time_jump_keydown = time.time()
-                    isjump = self.player.jump()
 
-                    if isjump:
+                    if (isjump := self.player.jump()) and isjump:
                         self.sfx.jump.play()
                 if event.key in (pg.K_x, pg.K_v):
                     self.player.dash()
@@ -2205,6 +2191,3 @@ class Launcher(Game):
     def start(self) -> None:
         startscreen = StartScreen(self)
         set_mainscreen(game=self, scr=startscreen)
-
-
-# BOT
