@@ -9,6 +9,7 @@
 
 # Constants
 #---------------------------------------------------------------
+BINARY = tiptoe
 PROG = src/tiptoe.py
 PROG_EDITOR = src/editor.py
 
@@ -22,16 +23,30 @@ test:
 	@echo "test"
 	@echo "unimplemented"
 
+# Ensure pyinstaller is installed or use inside nix-shell
+#
 # See also: ~
 #   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
 build:
- 	pyinstaller --onefile $(PROG)
+ 	$(shell pyinstaller --onefile $(PROG)) &
+
+build-copy-data:
+	time make build && echo
+	time make copy-data-to-dist && echo
+	time du -ch ./dist && echo 
+	time stat ./dist/$(BINARY) && echo
+
+copy-data-to-dist:
+	@echo "Copying data" && echo
+	mkdir -vp ./dist/src/data
+	cp -vr ./src/data ./dist/src/
+	cp -vr ./src/config ./dist/src
+	@echo "Finished build" && echo
 
 clean:
 	@echo "clean"
 	@echo "  - Starting"
 	@echo "  - Finished"
-
 
 edit:
 	@echo "edit"

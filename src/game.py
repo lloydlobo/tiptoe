@@ -2034,34 +2034,22 @@ class StartScreen:
                 self.running = False
                 quit_exit()
 
-            if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
+            if (event.type == pg.KEYDOWN) and (event.key == pg.K_RETURN):
                 match self.selected_menuitem:
-                    # FIXME: Ensure that on keydown ESCAPE during gameplay, we end up here and show the player the 'main menu'
                     case MenuItemType.PLAY:
                         pg.mixer.music.fadeout(1000)
-
-                        if self.game.level == 0:
-                            print(f"selected menuitem {self.game.level =}")
-                        elif self.game.level == 6:
-                            print(f"selected menuitem {self.game.level =}")
-
                         if not self.game.running:
                             set_mainscreen(game=self.game, scr=LoadingScreen(game=self.game, level=self.game.level))
                         else:
                             set_mainscreen(game=self.game, scr=self.game)
-
                     case MenuItemType.SETTINGS:
                         set_mainscreen(game=self.game, scr=SettingsScreen(game=self.game, level=self.game.level))
-                        pass  # TODO: [ DOING ] : 20240614090235UTC
-
                     case MenuItemType.CREDITS:
                         set_mainscreen(game=self.game, scr=CreditsScreen(game=self.game, level=self.game.level))
-
                     case MenuItemType.EXIT:
                         pg.mixer.music.fadeout(1000)
                         self.running = False
                         quit_exit()
-
                     case _:  # pyright: ignore [reportUnnecessaryComparison]
                         quit_exit("invalid MenuItemType selected to StartScreen events procedure")
 
