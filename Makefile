@@ -5,7 +5,7 @@
 #################################################################
 
 # Run this by default, when no targets are passed to `make`
-.PHONY: all clean summary test
+.PHONY: all build clean summary test
 
 # Constants
 #---------------------------------------------------------------
@@ -21,6 +21,11 @@ level = 0
 test: 
 	@echo "test"
 	@echo "unimplemented"
+
+# See also: ~
+#   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
+build:
+ 	pyinstaller --onefile $(PROG)
 
 clean:
 	@echo "clean"
