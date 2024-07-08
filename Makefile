@@ -4,10 +4,8 @@
 #
 #################################################################
 
-# TOP
-
 # Run this by default, when no targets are passed to `make`
-PHONY: summary
+.PHONY: all clean summary test
 
 # Constants
 #---------------------------------------------------------------
@@ -20,12 +18,15 @@ level = 0
 
 # Targets
 #---------------------------------------------------------------
-# TODO:
-#
+test: 
+	@echo "test"
+	@echo "unimplemented"
+
 clean:
 	@echo "clean"
 	@echo "  - Starting"
 	@echo "  - Finished"
+
 
 edit:
 	@echo "edit"
@@ -65,6 +66,20 @@ watch:
 	@echo "  - Send a `SIGTERM` to any previously spawned python subprocesses before executing 'python tiptoe.py':"
 	@echo "        (Tip: use spacebar to reload)"
 	fd --extension=py | entr -r python ${PROG}
+	@echo "  - Finished"
+
+# @Redundancy
+dump_all:
+	@echo "dump"
+	@echo "  - Starting"
+	@fd --extension py . | xargs -I _ cat _ | hexdump -C | cat
+	@echo "  - Finished"
+
+# @Redundancy
+od_all:
+	@echo "dump"
+	@echo "  - Starting"
+	@fd --extension py . | xargs -I _ cat _ | od | cat
 	@echo "  - Finished"
 
 # Notes
@@ -109,5 +124,3 @@ watch:
 # 	valgrind -s --leak-check=full ./build/gcredits
 # 	@echo "  - Finished"
 #
-
-# BOTTOM

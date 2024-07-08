@@ -301,6 +301,7 @@ class Game:
 
         self.screenshake = 0
         self.gameover = False
+        self.gamecompleted = False
 
         self._dead_lo: Final = 0
         self._dead_mid: Final = 10
@@ -329,7 +330,7 @@ class Game:
         # Edit level manually for quick feedback gameplay iterations
         ##############################################################################
 
-        self.level = 0  # 20240623122916UTC: level 3 has a lovely color palette
+        self.level = 7  # 20240623122916UTC: level 3 has a lovely color palette
         self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
 
         ##############################################################################
@@ -361,7 +362,7 @@ class Game:
             return AppState.GAMESTATE, GameState.NEXTLEVEL
 
     # @profile
-    def reset_state_on_gameover(self) -> None:
+    def reset_state_on_game_completion(self) -> None:
         self.camera.reset()
         self.movement = pre.Movement(False, False, False, False)
 
@@ -491,15 +492,16 @@ class Game:
 
                     if (isjump := self.player.jump()) and isjump:
                         self.sfx.jump.play()
-                if event.key in (pg.K_x, pg.K_v):
+                if event.key in (pg.K_v, pg.K_k):
                     self.player.dash()
-                # fmt: off
-                if event.key == pg.K_f: self.gcs_record_checkpoint()
-                if event.key == pg.K_g: self.gcs_rewind_recent_checkpoint()
-                if event.key == pg.K_h: self.gcs_rewind_checkpoint()
-                if event.key == pg.K_j: self.gcs_remove_recent_checkpoint()
-                if event.key == pg.K_y: self.gcs_remove_checkpoint()
-                # fmt: on
+                if event.key in (pg.K_x, pg.K_f):
+                    self.gcs_record_checkpoint()
+                if event.key in (pg.K_z, pg.K_g):
+                    self.gcs_rewind_recent_checkpoint()
+                # if event.key in( pg.K_h,pg.K_h,): self.gcs_rewind_checkpoint()
+                if event.key in (pg.K_b, pg.K_j):
+                    self.gcs_remove_recent_checkpoint()
+                # if event.key in( pg.K_y,pg.K_y,): self.gcs_remove_checkpoint()
             if event.type == pg.KEYUP:
                 if event.key in (pg.K_LEFT, pg.K_a):
                     self.movement.left = False
@@ -655,21 +657,34 @@ class Game:
 
         self.screenshake = max(0, self.screenshake - 1)
 
+        # {==========================================================================
+        # Fixes #6
+        # ===========================================================================
+
+        assert self._level_map_count == 8
+
         # Check for game level transitions
         if self.collected_enemies and self.touched_portal:  # Win condition
             self.transition += 1
 
             # Check if transition to the next level is required
             if self.transition > self._transition_hi:
-                if self.lvl_no_more_levels_left():
-                    # LoadingScreen will reset this later
-                    self.gameover = True
-                    self.reset_state_on_gameover()
+                lvl_no_more_levels_left: bool
+
+                lvl_no_more_levels_left = self.level + 1 >= self._level_map_count
+
+                if lvl_no_more_levels_left:
+                    self.gameover = True  # LoadingScreen will reset this later
+                    self.gamecompleted = True
+                    self.reset_state_on_game_completion()
                 else:
                     self.lvl_increment_level()
 
                 # Trigger loading screen
                 self.running = False
+
+        # ==========================================================================}
+
         if self.transition < self._transition_mid:
             self.transition += 1
         if self.dead:
@@ -1030,14 +1045,19 @@ class Game:
                 self.clock_dt_recent_values.pop()
         # ---------------------------------------------------------------------
 
-    def lvl_no_more_levels_left(self) -> bool:
-        return self.level + 1 >= self._level_map_count
-
     def lvl_increment_level(self):
         self.gcs_deque.clear()
         self.camera.reset()
+
         prev = self.level
-        self.level = min(self.level + 1, self._level_map_count - 1)
+
+        # Avoid game level reseting to (0+1) after player completes game and wants
+        # to start over again
+        if self.gamecompleted:
+            self.level, self.gamecompleted = 0, not self.gamecompleted
+        else:
+            self.level = min(self.level + 1, self._level_map_count - 1)
+
         return dict(prev=prev, next=self.level)
 
     def _lvl_load_level_map(self, map_id: int):
