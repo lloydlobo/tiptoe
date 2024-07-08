@@ -6,7 +6,8 @@
 #
 #
 #   $ nix-shell --show-trace
-#   $ make -j4 build && make -j4 copy-data-to-dist
+#   (nix-shell) make -j4 build && make -j4 copy-data-to-dist
+#   (nix-shell) tar czf tiptoe.tar.gz --directory=./dist .
 #
 #
 ###################################################################################################
