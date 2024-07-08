@@ -1,47 +1,47 @@
-#################################################################
+###################################################################################################
+# file: Makefile
+#
 #
 #   Makefile
 #
-#################################################################
+#
+#   $ nix-shell --show-trace
+#   $ make -j4 build && make -j4 copy-data-to-dist
+#
+#
+###################################################################################################
 
 # Run this by default, when no targets are passed to `make`
-.PHONY: all build clean summary test
+# .PHONY: all build clean summary test
 
 # Constants
-#---------------------------------------------------------------
+#------------------------------------------------------------------------------
 BINARY = tiptoe
 PROG = src/tiptoe.py
 PROG_EDITOR = src/editor.py
+#------------------------------------------------------------------------------
 
 # Variables
-#---------------------------------------------------------------
+#------------------------------------------------------------------------------
 level = 0
+#------------------------------------------------------------------------------
 
 # Targets
-#---------------------------------------------------------------
-test: 
-	@echo "test"
-	@echo "unimplemented"
-
+#------------------------------------------------------------------------------
 # Ensure pyinstaller is installed or use inside nix-shell
-#
 # See also: ~
 #   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
 build:
- 	$(shell pyinstaller --onefile $(PROG)) &
-
-build-copy-data:
-	time make build && echo
-	time make copy-data-to-dist && echo
-	time du -ch ./dist && echo 
-	time stat ./dist/$(BINARY) && echo
+	@echo "Starting build"
+	pyinstaller --onefile $(PROG)
+	@echo "Finished build"
 
 copy-data-to-dist:
 	@echo "Copying data" && echo
 	mkdir -vp ./dist/src/data
 	cp -vr ./src/data ./dist/src/
 	cp -vr ./src/config ./dist/src
-	@echo "Finished build" && echo
+	@echo "Copied data" && echo
 
 clean:
 	@echo "clean"
@@ -79,6 +79,10 @@ summary:
 	git log --oneline | head 
 	@echo "  - Finished"
 
+test:
+	@echo "test"
+	@echo "unimplemented"
+
 watch:
 	@echo "watch"
 	@echo "  - Starting"
@@ -88,22 +92,30 @@ watch:
 	fd --extension=py | entr -r python ${PROG}
 	@echo "  - Finished"
 
-# @Redundancy
+#
+#$ make build && make copy-data-to-dist && du -ch ./dist && stat ./dist/$(BINARY)
+#
+build-copy-data: build copy-data-to-dist
+	@du -ch ./dist 
+	@stat ./dist/$(BINARY)
+
+#@Redundancy
 dump_all:
 	@echo "dump"
 	@echo "  - Starting"
 	@fd --extension py . | xargs -I _ cat _ | hexdump -C | cat
 	@echo "  - Finished"
 
-# @Redundancy
+#@Redundancy
 od_all:
 	@echo "dump"
 	@echo "  - Starting"
 	@fd --extension py . | xargs -I _ cat _ | od | cat
 	@echo "  - Finished"
+#------------------------------------------------------------------------------
 
 # Notes
-#---------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 # Override a variable defined in the Makefile:
 #
@@ -144,3 +156,4 @@ od_all:
 # 	valgrind -s --leak-check=full ./build/gcredits
 # 	@echo "  - Finished"
 #
+#------------------------------------------------------------------------------

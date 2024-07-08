@@ -530,16 +530,20 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 #############
 # CONSTANTS #
 
+#
+# DFLAGS
+#
+#   flags for debugging, etc
+#
 
-# flags: debugging, etc
 DEBUG_EDITOR_ASSERTS = True
 DEBUG_EDITOR_HUD = True
 
-DEBUG_GAME_ASSERTS = True
+DEBUG_GAME_ASSERTS = False
 DEBUG_GAME_CACHEINFO = False
 DEBUG_GAME_CAMERA = False
 DEBUG_GAME_CPROFILE = False
-DEBUG_GAME_HUD = True
+DEBUG_GAME_HUD = False
 DEBUG_GAME_LOGGING = False
 DEBUG_GAME_PRINTLOG = False
 DEBUG_GAME_STRESSTEST = False
