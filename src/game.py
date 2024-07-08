@@ -407,22 +407,18 @@ class Game:
                 game_level_music_fname = "level_0.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
-
             case 1:
                 game_level_music_fname = "theme_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(pre.hex_to_rgb("425238"), pre.hex_to_rgb("597119"))
-
             case 2:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(self.colorscheme_green4, pre.hex_to_rgb("384510"))
-
             case 3 | 4 | 5 | 6 | 7:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
-
             case _:
                 # NOTE(lloyd): Use a prev variable to hold last level music played
                 # If we want to let it followthrough and avoid playing via pg.mixer.play()
@@ -442,8 +438,10 @@ class Game:
         #
         if not self.settings_handler.music_muted:
             pg.mixer.music.set_volume(0)
+            # FIXME(Lloyd): Is this the correct API? Want music.is_playing() or .is_loaded() etc
+            if pg.mixer.music.get_busy():
+                pg.mixer.music.stop()
             # pg.mixer.music.play(-1)
-
         if not self.settings_handler.sound_muted:
             self.sfx.playerspawn.play()
         # ---------------------------------------------------------------------
@@ -451,21 +449,14 @@ class Game:
         # On __init__ running is False. Ensure ..load(self,...) and ..reset(self,...) also set it to False
         self.running = True
 
-        # gc.freeze()
-
         while self.running:
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
-
             self.display.fill((0, 0, 0, 0))
-
             if self.level in self.levels_space_theme:
                 self.display_2.fill(game_level_bg_color)  # B.I.Y. theme
-
             self.events()
             self.update()
             self.render()
-
-        # gc.unfreeze()
 
     def events(self) -> None:
         for event in pg.event.get():
@@ -488,7 +479,6 @@ class Game:
                 if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keydown and manually reset if jump keyup did occur.
                     self.player.time_jump_keyup = None if self.player.time_jump_keyup else self.player.time_jump_keyup
                     self.player.time_jump_keydown = time.time()
-
                     if (isjump := self.player.jump()) and isjump:
                         self.sfx.jump.play()
                 if event.key in (pg.K_v, pg.K_k):
@@ -512,7 +502,6 @@ class Game:
                         self.player.deltatime_jump_keydownup = (
                             self.player.time_jump_keyup - self.player.time_jump_keydown
                         )
-
                         if (
                             self.player.deltatime_jump_keydownup < self.player.jump_buffer_interval
                             and self.player.air_timer <= 5 * self.player.max_air_time
@@ -530,7 +519,6 @@ class Game:
                             # Where 3 is jump force                                                                vvv
                             elif self.player.coyote_timer and (self.player.air_timer <= (self.player.max_air_time * 3)):
                                 self.player.velocity.y += 1.35
-
                                 if self.player.last_movement.x and (player_dir := (-1 if self.player.flip else 1)):
                                     self.player.velocity.x = player_dir * 2.25
                                     self.player.velocity.x *= (
@@ -632,7 +620,6 @@ class Game:
         self.bg_cloud.pos.x -= (
             math.floor(math.floor(uniform(2, 3) * 100 * self.bg_cloud.speed * self.bg_cloud.depth) / 10) / 10
         )
-
         if self.bg_cloud.pos.x < -self.bg_display_w:  # <- 480
             self.bg_cloud.pos.x = 0
 
@@ -641,7 +628,6 @@ class Game:
             * self.bg_mountain.depth
             * self.bg_mountain.speed
         )
-
         if self.bg_mountain.pos.x < -self.bg_display_w:
             self.bg_mountain.pos.x = 0
 
@@ -652,8 +638,7 @@ class Game:
         # ---------------------------------------------------------------------
         if self.collected_enemies and self.touched_portal:  # Win condition
             self.transition += 1
-            # Check if transition to the next level is required
-            if self.transition > self._transition_hi:
+            if self.transition > self._transition_hi:  # Check if transition to the next level is required
                 lvl_no_more_levels_left: bool = (self.level + 1) >= self._level_map_count
                 if lvl_no_more_levels_left:
                     self.gameover = True  # LoadingScreen will reset this later
@@ -661,14 +646,12 @@ class Game:
                     self.reset_state_on_game_completion()
                 else:
                     self.lvl_increment_level()
-                # Trigger loading screen
-                self.running = False
 
+                self.running = False  # Trigger loading screen
         if self.transition < self._transition_mid:
             self.transition += 1
         if self.dead:
             self._increment_player_dead_timer()  # Expands to `self.dead += 1`
-
             # Ease into incrementing for level change till _hi
             if self.dead >= self._dead_mid:
                 self.transition = min(self._transition_hi, self.transition + 1)
@@ -691,7 +674,7 @@ class Game:
         # Tilemap: render
         self.tilemap.render(self.display, render_scroll)
 
-        # Update and Draw drop-point location zones----------------------------
+        # Update and Draw drop-point location zones
         # ----------------------------------------------------------------------
         if not self.dead and (position_ := self.player_spawner_pos) and position_:
             surf = self.assets.tiles["portal"][1].copy()  # NOTE(Lloyd): Copying sanity check
@@ -721,21 +704,17 @@ class Game:
             # Flag win condition
             if enemy_count == 0:
                 self.collected_enemies = True
-
                 # Draw flag success sparks
                 # ---------------------------------------------------------------------
                 colors: Final = (pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167"))
                 offset_y_: Final = pre.TILE_SIZE / 8
                 radius: Final = 1
                 sparkcenter: Final = [(dest_position[0] + surf_w // 2), (dest_position[1] + surf_h)]
-
                 maxdy_: Final = surf_h // 1.618
                 dy_ = 0.0
-
                 for i in range(0, (surf_h * 2)):
                     if dy_ > maxdy_:
                         break
-
                     if random() < 0.8:
                         for j in range(0, surf_w // 4):
                             pg.draw.circle(
@@ -752,7 +731,6 @@ class Game:
                             pg.draw.circle(
                                 self.display, colors[1], (sparkcenter[0] - (4 * j), sparkcenter[1] - dy_), radius
                             )
-
                     dy_ += offset_y_
                 # --------------------------------------------------------------
 
@@ -768,10 +746,8 @@ class Game:
             for i, portal in enumerate(self.portal_spawners):
                 if self.collected_enemies and self.player.rect.colliderect(portal.rect()):
                     self.touched_portal = True
-
                     if self.level != self._level_map_count:
                         self.sfx.portaltouch.play()
-
                 self.display.blit(portal.assets[i], portal.pos - render_scroll)
         # ---------------------------------------------------------------------
 
@@ -780,7 +756,6 @@ class Game:
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
             enemy.render(self.display, render_scroll)
-
             if kill_animation:
                 self.enemies.remove(enemy)
         # ---------------------------------------------------------------------
@@ -802,7 +777,6 @@ class Game:
             for enemy in self.enemies:
                 if enemy.rect.colliderect(rect_bp):
                     enemy.velocity.y -= 3
-
                     # HACK(Lloyd): Avoid infinite jump at the same spot
                     if enemy.rect.left < rect_bp.left:
                         enemy.velocity.x -= 2.0
@@ -822,14 +796,13 @@ class Game:
                 int(state.player_position[0] - render_scroll[0]),
                 int(state.player_position[1] - render_scroll[1]),
             )
-
             pg.draw.circle(self.display, pre.GREENGLOW, checkpoint_center, radius=(_r + 1))
             pg.draw.circle(self.display, pre.GREENBLURB, checkpoint_center, radius=_r)
-
-            # fmt: off
-            if 1:  # debugging
-                self.draw_text(int(state.player_position[0] - render_scroll[0]), int(state.player_position[1] - render_scroll[1]), self.font_xs, pre.COLOR.FLAMEGLOW, f"{i+1}")
-            # fmt: on
+            # if 0:  # debugging
+            #     self.draw_text(int(state.player_position[0] -
+            #         render_scroll[0]), int(state.player_position[1] -
+            #                    render_scroll[1]), self.font_xs,
+            #                    pre.COLOR.FLAMEGLOW, f"{i+1}")
         # ---------------------------------------------------------------------
 
         # Player: update and render--------------------------------------------
@@ -850,11 +823,9 @@ class Game:
                 projectile.pos[1] - (img.get_height() // 2) - render_scroll[1],
             )
             self.display.blit(img, dest)
-
             # Projectile post render: update
             # NOTE(Lloyd): int -> precision for grid system
             projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])
-
             if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
                 # Wall sparks bounce opposite to projectile's direction
                 self.projectiles.remove(projectile)
@@ -863,10 +834,7 @@ class Game:
                 self.sparks.extend(
                     Spark(projectile.pos, angle, speed)
                     for _ in range(4)
-                    if (
-                        angle := (random() - spark_speed + spark_direction),
-                        speed := (2 + random()),
-                    )
+                    if (angle := (random() - spark_speed + spark_direction), speed := (2 + random()))
                 )
                 self.sfx.hitwall.play()
             elif projectile.timer > 360:
@@ -918,7 +886,6 @@ class Game:
                                 frame := randint(0, 7),
                             )
                         )
-
                         self.sfx.hit.play()
 
                         # NOTE(Lloyd): Next iteration, when counter is 0 player pos is
@@ -936,7 +903,6 @@ class Game:
         for spark in self.sparks.copy():
             kill_animation: bool = spark.update()
             spark.render(self.display, offset=render_scroll)
-
             if kill_animation:
                 self.sparks.remove(spark)
         # ---------------------------------------------------------------------
@@ -946,7 +912,6 @@ class Game:
         for particle in self.particles.copy():
             kill_animation: bool = particle.update()
             particle.render(self.display, render_scroll)
-
             if not kill_animation:
                 continue
 
@@ -972,25 +937,18 @@ class Game:
 
         # Update(and HACK: Draw) Game Stats HUD
         # ---------------------------------------------------------------------
-
-        # Draw enemy icons.
-        enemy_icon_surf: Final[pg.SurfaceType] = self.assets.entity["enemy"].copy()
-        accumulator_offset_x: Final[int] = math.ceil(1.618 * pre.TILE_SIZE)  # Icon spacing
-
+        hud_dest: Final = pg.Vector2(0, 0)
         icon_offset_x: Final[int] = 8
         icon_offset_y: Final[int] = 4
         icon_status_radius: Final[float] = 0.618 * (pre.TILE_SIZE / math.pi)
-
-        hud_dest: Final = pg.Vector2(0, 0)
-
+        # Draw enemy icons.
+        accumulator_offset_x: Final[int] = math.ceil(1.618 * pre.TILE_SIZE)  # Icon spacing
         accumulator_x: int = 0
-
         for enemy in self.enemies:
             # Draw icons.
             # -----------------------------------------------------------------
-            icon_rect: pg.Rect = self.hud_surf.blit(
-                source=enemy_icon_surf,
-                dest=(hud_dest + ((icon_offset_x + accumulator_x), icon_offset_y)),
+            icon_rect = self.hud_surf.blit(
+                source=self.hud_enemy_icon_surf, dest=(hud_dest + ((icon_offset_x + accumulator_x), icon_offset_y))
             )
             accumulator_x += accumulator_offset_x
             # -----------------------------------------------------------------
@@ -998,7 +956,6 @@ class Game:
             # Draw status indicator.
             # -----------------------------------------------------------------
             status_center: Tuple[int, int] = (icon_rect.x, (icon_rect.y + (icon_rect.h // 2) + int(icon_status_radius)))
-
             if enemy.is_collected_by_player:
                 pg.draw.circle(self.hud_surf, self.colorscheme_green5, status_center, icon_status_radius, 0)
             else:
@@ -1017,10 +974,8 @@ class Game:
             mouse_pos_ints := (math.floor(mouse_position.x), math.floor(mouse_position.y)),
         ):
             render_debug_hud(self, self.display, render_scroll, mouse_pos_ints)
-
             # Update clock values.
             self.clock_dt_recent_values.appendleft(self.dt)
-
             if len(self.clock_dt_recent_values) == pre.FPS_CAP:
                 self.clock_dt_recent_values.pop()
         # ---------------------------------------------------------------------
@@ -1067,6 +1022,7 @@ class Game:
         # Create HUD surface.
         self.hud_size: Tuple[int, int] = (256, 48)
         self.hud_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
+        self.hud_enemy_icon_surf: pg.SurfaceType = self.assets.entity["enemy"].copy()
 
         # Add semi-transparent background.
         self.hud_bg_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
@@ -1510,12 +1466,9 @@ class CreditsScreen:
             (1140, "GAME LIBRARY * BY PYGAME", pg.Color("cyan")),
         ]
 
-        # TODO: If time permits work on animating start and end times # declaratively
-        # `worse is better`
-        self.credits_marque = [
-            (0, 3000, "TIP TOE"),
-            (3000, 6000, "CREATED BY LLOYD LOBO"),
-        ]
+        # FUTURE(Lloyd): If time permits work on animating start and end times
+        # declaratively. Remember `worse is better`!!!
+        self.credits_marque = [(0, 3000, "TIP TOE"), (3000, 6000, "CREATED BY LLOYD LOBO")]
 
         self.MAX_CREDITS_COUNT = len(self.credits)
         self.daw_timer = self.credits[0][0]
@@ -1585,7 +1538,6 @@ class CreditsScreen:
 
             if self.daw_timer > cur_time_marker:
                 self.daw_timer_markers_offset = next_time_marker - cur_time_marker
-
         # FIXME: Stop manually overriding this branch
         elif 1 and self.current_credit > 0:
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
@@ -1598,7 +1550,6 @@ class CreditsScreen:
                                 self.can_switch_to_next_credit = True
                 else:
                     self.can_switch_to_next_credit = False
-
         else:  # simplest version
             if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
                 if self.current_credit < (self.MAX_CREDITS_COUNT - 1):
@@ -1621,7 +1572,6 @@ class CreditsScreen:
         for i, credit in enumerate(self.credits):
             if i > self.current_credit:
                 continue
-
             if i > 0:
                 offset_y = self.credits[i][0] - self.credits[i - 1][0]
 
@@ -1646,10 +1596,7 @@ class CreditsScreen:
         # Render display
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(
-            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
-            (0, 0),
-        )
+        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
         pg.display.flip()
         # ---------------------------------------------------------------------
 
@@ -1678,11 +1625,7 @@ class SettingsScreen:
 
         # Update key events on navigation buttons
         # ---------------------------------------------------------------------
-        self.FONT_TYPES = [
-            self.game.font_xs,
-            self.game.font_sm,
-            self.game.font,
-        ]
+        self.FONT_TYPES = [self.game.font_xs, self.game.font_sm, self.game.font]
         font = FontType.SM
 
         position_x, position_y = self.w // 2, self.h // 2
@@ -1693,30 +1636,33 @@ class SettingsScreen:
             ((position_x + offset_x), (position_y + (1 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[1]),
             ((position_x + offset_x), (position_y + (2 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[2]),
             # NOTE(lloyd): This must always be at the end. Please adjust index accordingly.
-            (position_x, (position_y + (3 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[3])
-        ]  # fmt: skip
+            (position_x, (position_y + (3 * offset_y)), font, pg.Color("white"), SETTINGS_NAVITEMS[3]),
+        ]
 
-        assert (
-            (want := MAX_SETTINGS_NAVITEMS, got := len(self.settings))
-            and (want == got)
-            and f"want settings array length to be {repr(want)}. got {repr(got)}"
-        )
-        assert (
-            (want := "GO BACK", got := self.settings[-1][4])
-            and (want == got)
-            and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
-        )
+        if pre.DEBUG_GAME_ASSERTS:
+            assert (
+                (want := MAX_SETTINGS_NAVITEMS, got := len(self.settings))
+                and (want == got)
+                and f"want settings array length to be {repr(want)}. got {repr(got)}"
+            )
+            assert (
+                (want := "GO BACK", got := self.settings[-1][4])
+                and (want == got)
+                and f"want the last SettingsScreen navitem to have text {repr(want)}. got {repr(got)}"
+            )
 
         self.movement = pre.Movement(False, False, False, False)
         self.is_key_pressed_key_enter = False
 
         self.navitem_offset = 0
         self.selected_navitem = SettingsNavitemType.MUTE_MUSIC
-        assert (
-            (want := 0, got := self.selected_navitem)
-            and (got == want)
-            and f"want selected_navitem to be initialized with the zero value enumeration. got {repr(got)}"
-        )
+
+        if pre.DEBUG_GAME_ASSERTS:
+            assert (
+                (want := 0, got := self.selected_navitem)
+                and (got == want)
+                and f"want selected_navitem to be initialized with the zero value enumeration. got {repr(got)}"
+            )
         # ---------------------------------------------------------------------
 
     def run(self) -> None:
@@ -1815,7 +1761,7 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
         if self.is_key_pressed_key_enter:
             match self.selected_navitem:
-                case SettingsNavitemType.MUTE_MUSIC:  # TODO:
+                case SettingsNavitemType.MUTE_MUSIC:
                     self.game.settings_handler.music_muted = not self.game.settings_handler.music_muted
 
                     if self.game.settings_handler.music_muted:
@@ -1823,7 +1769,7 @@ class SettingsScreen:
                     else:
                         pg.mixer.music.set_volume(0.4)
 
-                case SettingsNavitemType.MUTE_SOUND:  # TODO:
+                case SettingsNavitemType.MUTE_SOUND:
                     self.game.settings_handler.sound_muted = not self.game.settings_handler.sound_muted
 
                     if self.game.settings_handler.sound_muted:
@@ -1855,7 +1801,7 @@ class SettingsScreen:
                         self.game.sfx.shootmiss.set_volume(0.2)
                         self.game.sfx.teleport.set_volume(0.2)
 
-                case SettingsNavitemType.DISABLE_SCREENSHAKE:  # TODO:
+                case SettingsNavitemType.DISABLE_SCREENSHAKE:
                     self.game.settings_handler.screenshake = not self.game.settings_handler.screenshake
 
                 case SettingsNavitemType.GO_BACK:
