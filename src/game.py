@@ -327,13 +327,12 @@ class Game:
         level_map_path: Path = pre.MAP_PATH
         self._level_map_count: Final[int] = len(listdir(level_map_path))
 
-        # Edit level manually for quick feedback gameplay iterations
-        ##############################################################################
+        ## Edit level manually for quick feedback gameplay iterations
+        ##{ ############################################################################
+        self.level = 0
 
-        self.level = 7  # 20240623122916UTC: level 3 has a lovely color palette
         self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
-
-        ##############################################################################
+        ############################################################################## }
 
         # NOTE(Lloyd): Possible to farm this by dying repeatedly but that's alright for now
         self.player_dash_enemy_collision_count = 0
@@ -563,11 +562,9 @@ class Game:
             displaysize := self.display.get_size(),
             surf := pg.Surface(displaysize).convert(),
             # Declare and Initialize Variables
-            # -----------------------------------------------------------------
             speed := 16 + 1 / self.transition,
             radius := (tilesize - 1 - transition) * speed,
             center := (displaysize[0] // 2, displaysize[1] // 2),
-            # -----------------------------------------------------------------
         ):
             # Update Surface
             if not self.gcs_deque and not self.dead:
@@ -578,16 +575,13 @@ class Game:
                 speed /= 2.0
 
             # Draw Surface
-            # -----------------------------------------------------------------
             pg.draw.circle(surf, (255, 255, 255), center, radius)  # White color on screen acts as transparent mask
             surf.set_colorkey((255, 255, 255))  # And now anything outside of mask is opaque black
             self.display.blit(surf, (0, 0))
-            # -----------------------------------------------------------------
         # ---------------------------------------------------------------------
 
         # Final buffer swap 3-stage rendering
         # ---------------------------------------------------------------------
-
         # Display Mask: Drop Shadow Trick
         display_mask = pg.mask.from_surface(self.display)
         display_silhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
@@ -596,48 +590,44 @@ class Game:
             self.display_2.blit(display_silhouette, offset)
 
         self.display_2.blit(self.display, (0, 0))
-        #
         # TODO(Lloyd):  - Enable toggling from Gameplay to Menu screen with Esc.
         #               - Rename setting items to present the state. e.g. `SCREENSHAKE: OFF`
         # MAYBE(Lloyd): - Assign precedence to this
         #               - Or, preset settings_handler members from config_handler
         #                 at load player config file
         #                 and (self.config_handler.screenshake or self.settings_handler.screenshake)
-        #
         dest = (
             ((shake * random()) - halfshake, (shake * random()) - halfshake)
             if (shake := self.screenshake, halfshake := (shake * 0.5)) and self.settings_handler.screenshake
             else (0.0, 0.0)
         )
-
         self.screen.blit(pg.transform.scale(self.display_2, self.screen.get_size()), dest)
-
         pg.display.flip()
         # ---------------------------------------------------------------------
 
     def _increment_player_dead_timer(self):
         if pre.DEBUG_GAME_PRINTLOG:
-            print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.dead = }")
-
+            print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.dead = }")  # fmt: skip
         self.dead += 1
 
     def update(self) -> None:
         # Camera: Update and Parallax
+        # ---------------------------------------------------------------------
         plyr_rect = self.player.rect
         snapy = plyr_rect.centery % self.level_map_dimension[1]
 
         # Either snap camera to top floor of map area
         # Or snap camera to ground floor of map area
         if snapy < self.camerasize[1]:
-            snapy = plyr_rect.centery // 4
+            snapy = plyr_rect.centery // 4  # fmt: skip
         elif snapy > (self.level_map_dimension[1] - self.camerasize[1]) + (self.player.size.y * 2):
-            snapy = plyr_rect.centery + self.camerasize[1] // 2
+            snapy = plyr_rect.centery + self.camerasize[1] // 2  # fmt: skip
 
         self.camera.update((plyr_rect.centerx, snapy), self.level_map_dimension, self.dt)
         render_scroll: tuple[Literal[0], Literal[0]] | tuple[int, int] = self.camera.render_scroll
 
         if pre.DEBUG_GAME_CAMERA:
-            self.camera.debug(surf=self.display, target_pos=(int(plyr_rect.x), int(plyr_rect.y)))
+            self.camera.debug(surf=self.display, target_pos=(int(plyr_rect.x), int(plyr_rect.y)))  # fmt: skip
 
         self.bg_cloud.pos.x -= (
             math.floor(math.floor(uniform(2, 3) * 100 * self.bg_cloud.speed * self.bg_cloud.depth) / 10) / 10
@@ -656,34 +646,23 @@ class Game:
             self.bg_mountain.pos.x = 0
 
         self.screenshake = max(0, self.screenshake - 1)
-
-        # {==========================================================================
-        # Fixes #6
-        # ===========================================================================
-
-        assert self._level_map_count == 8
+        # ---------------------------------------------------------------------
 
         # Check for game level transitions
+        # ---------------------------------------------------------------------
         if self.collected_enemies and self.touched_portal:  # Win condition
             self.transition += 1
-
             # Check if transition to the next level is required
             if self.transition > self._transition_hi:
-                lvl_no_more_levels_left: bool
-
-                lvl_no_more_levels_left = self.level + 1 >= self._level_map_count
-
+                lvl_no_more_levels_left: bool = (self.level + 1) >= self._level_map_count
                 if lvl_no_more_levels_left:
                     self.gameover = True  # LoadingScreen will reset this later
                     self.gamecompleted = True
                     self.reset_state_on_game_completion()
                 else:
                     self.lvl_increment_level()
-
                 # Trigger loading screen
                 self.running = False
-
-        # ==========================================================================}
 
         if self.transition < self._transition_mid:
             self.transition += 1
@@ -695,6 +674,7 @@ class Game:
                 self.transition = min(self._transition_hi, self.transition + 1)
             if self.dead >= self._dead_hi:
                 self.lvl_load_level(self.level)
+        # ---------------------------------------------------------------------
 
         # Replenish health and revert to last checkpoint instead of "death"
         if self.dead_hit_skipped_counter == 0 and self.respawn_death_last_checkpoint:
