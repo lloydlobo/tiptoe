@@ -12,7 +12,14 @@ if TYPE_CHECKING:
 
 
 class Particle:
-    def __init__(self, game: Game, p_kind: pre.ParticleKind, pos: pg.Vector2, velocity: pg.Vector2 = pg.Vector2(0, 0), frame: int = 0) -> None:
+    def __init__(
+        self,
+        game: Game,
+        p_kind: pre.ParticleKind,
+        pos: pg.Vector2,
+        velocity: pg.Vector2 = pg.Vector2(0, 0),
+        frame: int = 0,
+    ) -> None:
         self.game = game
         self.kind = p_kind
         self.pos = pos

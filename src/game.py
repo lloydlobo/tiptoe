@@ -18,7 +18,7 @@ from pathlib import Path
 from random import randint, random, uniform
 from typing import Final, List, Literal, NoReturn, Optional, Set, Tuple
 
-import pygame as pg  # pyright: ignore
+import pygame as pg
 
 
 if 0:
@@ -46,32 +46,23 @@ if pre.DEBUG_GAME_TRACEMALLOC:
 # ------------------------------------------------------------------------------
 # GLOBAL CONSTANTS (module)
 # ------------------------------------------------------------------------------
-
-# PERF: Can just use an array initialized
-MENU_ITEMS: List[str] = [
-    "PLAY",
-    "SETTINGS",
-    "CREDITS",
-    "EXIT",
-]
-
+MENU_ITEMS: List[str] = ["PLAY", "SETTINGS", "CREDITS", "EXIT"]
 MAX_MENU_ITEMS = len(MENU_ITEMS)  # MenuItemType enumerations
-
-
-# PERF(Lloyd): Can just use an array initialized
-SETTINGS_NAVITEMS: List[str] = [
-    "MUSIC",  # .. " OFF" or + " ON"
-    "SOUND",  # .. " OFF" or + " ON"
-    "SCREENSHAKE",  # .. " OFF" or + " ON"
-    "GO BACK",  # .. " OFF" or + " ON"
-]
-
+SETTINGS_NAVITEMS: List[str] = ["MUSIC", "SOUND", "SCREENSHAKE", "GO BACK"]
 MAX_SETTINGS_NAVITEMS = len(SETTINGS_NAVITEMS)
-
 
 # ------------------------------------------------------------------------------
 # DATA STRUCTURES, TYPES AND ENUMS
 # ------------------------------------------------------------------------------
+
+
+@dataclass
+class GameLevelTimer:
+    levelid: Optional[int]
+    start: Optional[float]
+    end: Optional[float]
+    elapsed: Optional[float]
+    current: Optional[float]
 
 
 @dataclass
@@ -153,7 +144,6 @@ def quit_exit(context: str = "") -> NoReturn:
         snapshot: tracemalloc.Snapshot = tracemalloc.take_snapshot()
         stat_key_type = ("traceback", "filename", "lineno")
         top_stats: List[tracemalloc.Statistic] = snapshot.statistics(stat_key_type[0])
-
         print("Top memory allocations:")
         for stat in top_stats[:30]:
             print(stat)
@@ -167,11 +157,9 @@ def quit_exit(context: str = "") -> NoReturn:
 
 def get_user_config(filepath: Path) -> pre.UserConfig:
     config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
-
     if not config:
         print("error while reading configuration file at", repr(filepath))
         return pre.UserConfig.from_dict({})
-
     return pre.UserConfig.from_dict(config)
 
 
@@ -190,7 +178,6 @@ def set_mainscreen(
 
     if game.mainscreen != None:
         game.mainscreen.run()
-
     if game.gameover:
         return AppState.MENUSTATE, GameState.EXIT
     elif not game.running:
@@ -209,11 +196,10 @@ class Game:
         pg.init()
 
         self.mainscreen = None  # Choices: StartScreen, Game, LoadingScreen, CreditsScreen, SettingsScreen, None
-
         # More choices: SCLAED | FULLSCREEN
         #   HWSURFACE flag does nothing in pygameg ver2.0+, DOUBLEBUF has some use, but not a magic speed up flag.
         #   See https://www.pygame.org/docs/tut/newbieguide.html
-        display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE
+        display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # BITFLAGS
 
         self.screen = pg.display.set_mode(pre.DIMENSIONS, display_flag)
 
@@ -230,14 +216,12 @@ class Game:
         self.font = pg.font.Font(self.fontface_path, 18)
         self.font_sm = pg.font.Font(self.fontface_path, 12)
         self.font_xs = pg.font.Font(self.fontface_path, 9)
-
         if pre.DEBUG_GAME_HUD:
             self.font_hud = pg.font.SysFont(name=("Julia Mono"), size=7, bold=False)
         # ---------------------------------------------------------------------
 
         self.clock = pg.time.Clock()
         self.dt: float = 0.0
-
         if pre.DEBUG_GAME_HUD:
             self.clock_dt_recent_values: deque[pre.Number] = deque([self.dt, self.dt])
 
@@ -302,6 +286,7 @@ class Game:
         self.screenshake = 0
         self.gameover = False
         self.gamecompleted = False
+        self.gameleveltimer = GameLevelTimer(None, None, None, None, None)
 
         self._dead_lo: Final = 0
         self._dead_mid: Final = 10
@@ -328,11 +313,10 @@ class Game:
         self._level_map_count: Final[int] = len(listdir(level_map_path))
 
         ## Edit level manually for quick feedback gameplay iterations
-        ##{ ############################################################################
+        ##{#############################################################################
         self.level = 0
-
         self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
-        ############################################################################## }
+        ###############################################################################}
 
         # NOTE(Lloyd): Possible to farm this by dying repeatedly but that's alright for now
         self.player_dash_enemy_collision_count = 0
@@ -354,7 +338,6 @@ class Game:
 
         if self.mainscreen != None:
             self.mainscreen.run()
-
         if self.gameover:
             return AppState.MENUSTATE, GameState.EXIT
         elif not self.running:  # NOTE(Lloyd): Can just set gamestate form key-event/update loop
@@ -392,15 +375,9 @@ class Game:
         def recolor_tiles(color: pre.ColorValue, border_color: pre.ColorValue):
             for i, tile in enumerate(self.assets.tiles["granite"].copy()):
                 self.assets.tiles["granite"][i].fill(border_color)
-                rect_16_0 = tile.get_rect()
-                rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
+                self.assets.tiles["granite"][i].fill(color=color, rect=tile.get_rect())
 
-                if 0:  # With border
-                    self.assets.tiles["granite"][i].fill(color=color, rect=rect_15_9)
-                else:  # Without border
-                    self.assets.tiles["granite"][i].fill(color=color, rect=rect_16_0)
-
-        recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
+        recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this color ^_^
 
         match self.level:
             case 0:
@@ -419,23 +396,25 @@ class Game:
                 game_level_music_fname = "level_2.wav"
                 game_level_bg_color = pre.hex_to_rgb("121607")
                 recolor_tiles(self.colorscheme_green3, pre.hex_to_rgb("384510"))  # Love this ^_^
+            # NOTE(lloyd): Use a prev variable to hold last level music played
+            # If we want to let it followthrough and avoid playing via pg.mixer.play()
             case _:
-                # NOTE(lloyd): Use a prev variable to hold last level music played
-                # If we want to let it followthrough and avoid playing via pg.mixer.play()
                 assert (game_level_music_fname == "intro_loop.wav") and "expected default level music filename"
 
-        pg.mixer.music.load((pre.SRC_DATA_PATH / "music" / game_level_music_fname).__str__())
+        if (
+            (music_path := (pre.SRC_DATA_PATH / "music" / game_level_music_fname))
+            and music_path.exists()
+            and not music_path.is_dir()
+        ):
+            pg.mixer.music.load(music_path.__str__())
 
         # Set individual music volume
         # ---------------------------------------------------------------------
         # NOTE(lloyd): SettingsScreen is setting volume to 0 @ location of "MUTE_MUSIC" case in update().
         # We are not setting it here to avoid hassle of dynamic update via SettingsScreen in mid-gameplay,
         # maybe there is a better way??
-        #
         # NOTE(lloyd): Also is mute different from music-disabled? (In that case, avoid playing music???)
-        #
         # NOTE(lloyd): We could just pre-render audio files with similar LUFS using ay simple VU meter in a DAW.
-        #
         if not self.settings_handler.music_muted:
             pg.mixer.music.set_volume(0)
             # FIXME(Lloyd): Is this the correct API? Want music.is_playing() or .is_loaded() etc
@@ -446,10 +425,12 @@ class Game:
             self.sfx.playerspawn.play()
         # ---------------------------------------------------------------------
 
-        # On __init__ running is False. Ensure ..load(self,...) and ..reset(self,...) also set it to False
+        # On __init__ running is False. Ensure ..load(self,...) and
+        # ..reset(self,...) also set it to False
         self.running = True
 
         while self.running:
+
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
             self.display.fill((0, 0, 0, 0))
             if self.level in self.levels_space_theme:
@@ -599,6 +580,8 @@ class Game:
         self.dead += 1
 
     def update(self) -> None:
+        self.gameleveltimer.current = time.perf_counter()
+
         # Camera: Update and Parallax
         # ---------------------------------------------------------------------
         plyr_rect = self.player.rect
@@ -613,7 +596,6 @@ class Game:
 
         self.camera.update((plyr_rect.centerx, snapy), self.level_map_dimension, self.dt)
         render_scroll: tuple[Literal[0], Literal[0]] | tuple[int, int] = self.camera.render_scroll
-
         if pre.DEBUG_GAME_CAMERA:
             self.camera.debug(surf=self.display, target_pos=(int(plyr_rect.x), int(plyr_rect.y)))  # fmt: skip
 
@@ -647,13 +629,17 @@ class Game:
                 else:
                     self.lvl_increment_level()
 
+                self.gameleveltimer.end = time.perf_counter()
+                assert (
+                    self.gameleveltimer.start is not None
+                ), "expected game level timer start time to be initialized before calculating elapsed"
+                self.gameleveltimer.elapsed = self.gameleveltimer.end - self.gameleveltimer.start
                 self.running = False  # Trigger loading screen
         if self.transition < self._transition_mid:
             self.transition += 1
         if self.dead:
             self._increment_player_dead_timer()  # Expands to `self.dead += 1`
-            # Ease into incrementing for level change till _hi
-            if self.dead >= self._dead_mid:
+            if self.dead >= self._dead_mid:  # Ease into incrementing for level change till _hi
                 self.transition = min(self._transition_hi, self.transition + 1)
             if self.dead >= self._dead_hi:
                 self.lvl_load_level(self.level)
@@ -823,14 +809,13 @@ class Game:
                 projectile.pos[1] - (img.get_height() // 2) - render_scroll[1],
             )
             self.display.blit(img, dest)
-            # Projectile post render: update
-            # NOTE(Lloyd): int -> precision for grid system
+            # Projectile post render: update. int -> precision for grid system
             projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])
             if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
-                # Wall sparks bounce opposite to projectile's direction
-                self.projectiles.remove(projectile)
-                # NOTE(Lloyd): unit circle direction (0 left, right math.pi)
-                spark_speed, spark_direction = 0.5, (math.pi if (projectile.velocity > 0) else 0)
+                self.projectiles.remove(projectile)  # Wall sparks bounce opposite to projectile's direction
+                spark_speed, spark_direction = 0.5, (
+                    math.pi if (projectile.velocity > 0) else 0
+                )  # NOTE(Lloyd): unit circle direction (0 left, right math.pi)
                 self.sparks.extend(
                     Spark(projectile.pos, angle, speed)
                     for _ in range(4)
@@ -840,44 +825,36 @@ class Game:
             elif projectile.timer > 360:
                 self.projectiles.remove(projectile)
             elif abs(self.player.dash_timer) < self.player.dash_burst_2:
-                # Player is vulnerable
-                if self.player.rect.collidepoint(projectile_x, projectile_y):
-                    # Player looses health but still alive if idle or still
+                if self.player.rect.collidepoint(projectile_x, projectile_y):  # Player is vulnerable
                     if (
                         self.player.action == Action.IDLE
                         and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter
-                    ):
+                    ):  # Player looses health but still alive if idle or still
                         self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
                         self.projectiles.remove(projectile)
-
                         self.sparks.extend(
                             Spark(pg.Vector2(self.player.rect.center), angle, speed)
                             for _ in range(30)
                             if (angle := random() * math.pi * 2, speed := 2 + random())
                         )
-
                         self.sfx.hitmisc.play()
-                        # NOTE(Lloyd): Should reset this if players action
-                        # state changes from idle to something else
-                        self.dead_hit_skipped_counter += 1
-                    else:
-                        # Player death OR send back in time(checkpoint)
+                        self.dead_hit_skipped_counter += 1  # NOTE(Lloyd): Should reset this if players action state changes from idle to something else
+                    else:  # Player death OR send back in time(checkpoint)
                         self.screenshake = max(self._max_screenshake, self.screenshake - 1)
                         self.projectiles.remove(projectile)
-
                         self.sparks.extend(
                             Spark(pg.Vector2(self.player.rect.center), angle, speed, pg.Color("cyan"))
                             for _ in range(30)
                             if (angle := random() * math.pi * 2, speed := 2 + random())
                         )
-
                         self.particles.extend(
-                            # fmt: off
                             Particle(
                                 self,  # pyright: ignore [reportArgumentType]
-                                pre.ParticleKind.PARTICLE, pg.Vector2(self.player.rect.center), velocity, frame,
+                                pre.ParticleKind.PARTICLE,
+                                pg.Vector2(self.player.rect.center),
+                                velocity,
+                                frame,
                             )
-                            # fmt: on
                             for _ in range(30)
                             if (
                                 angle := (random() * math.pi * 2),
@@ -887,13 +864,11 @@ class Game:
                             )
                         )
                         self.sfx.hit.play()
-
                         # NOTE(Lloyd): Next iteration, when counter is 0 player pos is
                         # reverted to last checkpoint instead of death.
                         if (_death_by_projectile_enabled := 0) and _death_by_projectile_enabled:
                             self._increment_player_dead_timer()
-                        else:
-                            # Replenish health
+                        else:  # Replenish health
                             self.dead_hit_skipped_counter = 0
                             self.respawn_death_last_checkpoint = True
         # ---------------------------------------------------------------------
@@ -936,31 +911,46 @@ class Game:
         # ---------------------------------------------------------------------
 
         # Update(and HACK: Draw) Game Stats HUD
+        # TODO: <<<< MOVE RENDERING INSTRUCTIONS TO `render()` >>>>
         # ---------------------------------------------------------------------
-        hud_dest: Final = pg.Vector2(0, 0)
+        hud_dest: Final[Tuple[int, int]] = (self.bg_display_w // 2 - pre.TILE_SIZE, 0)
+
+        # Draw enemy icons.
         icon_offset_x: Final[int] = 8
         icon_offset_y: Final[int] = 4
         icon_status_radius: Final[float] = 0.618 * (pre.TILE_SIZE / math.pi)
-        # Draw enemy icons.
-        accumulator_offset_x: Final[int] = math.ceil(1.618 * pre.TILE_SIZE)  # Icon spacing
-        accumulator_x: int = 0
+        accum_offset_x: Final[int] = math.ceil(1.618 * pre.TILE_SIZE)  # Icon spacing
+        accum_x: int = 0
         for enemy in self.enemies:
             # Draw icons.
-            # -----------------------------------------------------------------
-            icon_rect = self.hud_surf.blit(
-                source=self.hud_enemy_icon_surf, dest=(hud_dest + ((icon_offset_x + accumulator_x), icon_offset_y))
-            )
-            accumulator_x += accumulator_offset_x
-            # -----------------------------------------------------------------
-
+            icon_dest: Final[Tuple[int, int]] = (hud_dest[0] + icon_offset_x + accum_x, hud_dest[1] + icon_offset_y)
+            rec = self.hud_surf.blit(self.hud_enemy_icon_surf, icon_dest)
+            accum_x -= accum_offset_x
             # Draw status indicator.
-            # -----------------------------------------------------------------
-            status_center: Tuple[int, int] = (icon_rect.x, (icon_rect.y + (icon_rect.h // 2) + int(icon_status_radius)))
+            status_center: Tuple[int, int] = (rec.x, (rec.y + (rec.h // 2) + int(icon_status_radius)))
             if enemy.is_collected_by_player:
-                pg.draw.circle(self.hud_surf, self.colorscheme_green5, status_center, icon_status_radius, 0)
+                pg.draw.circle(self.hud_surf, (222, 222, 222), status_center, icon_status_radius, 0)
             else:
-                pg.draw.circle(self.hud_surf, self.colorscheme_green4, status_center, icon_status_radius, 1)
-            # -----------------------------------------------------------------
+                pg.draw.circle(self.hud_surf, (255, 255, 255), status_center, icon_status_radius, 1)
+
+        # Draw timer
+        if (
+            self.gameleveltimer.start
+            and (
+                telapsed := math.floor(self.gameleveltimer.current - self.gameleveltimer.start),
+                tperiod := 10,
+            )
+            and (
+                ((telapsed + 3) % tperiod == 0)
+                or ((telapsed + 2) % tperiod == 0)
+                or ((telapsed + 1) % tperiod == 0)
+                or (telapsed % tperiod == 0)
+            )
+        ):
+            tlabel = f"{telapsed}"
+            self.draw_text(
+                int(hud_dest[0] + self.bg_display_w // 2), int(hud_dest[1] + 32), self.font_xs, (255, 255, 255), tlabel
+            )
 
         # Draw HUD with pre-rendered buffer on display.
         self.display.blit(self.hud_surf, hud_dest, special_flags=pg.BLEND_ALPHA_SDL2)
@@ -1001,7 +991,6 @@ class Game:
     # @profile
     def lvl_load_level(self, map_id: int, progressbar: Optional[queue.Queue[int]] = None) -> None:
         progress = 0
-
         if progressbar:
             progressbar.put(progress)
 
@@ -1012,7 +1001,6 @@ class Game:
             print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.level_map_dimension = }")
 
         progress += 5
-
         if progressbar:
             progressbar.put(progress)
 
@@ -1024,12 +1012,13 @@ class Game:
         self.hud_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
         self.hud_enemy_icon_surf: pg.SurfaceType = self.assets.entity["enemy"].copy()
 
-        # Add semi-transparent background.
-        self.hud_bg_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
-        self.hud_bg_surf.set_colorkey(pg.Color("black"))
-        self.hud_bg_surf.fill(pre.CHARCOAL)
-        self.hud_bg_surf.set_alpha(127)
-        self.hud_surf.blit(self.hud_bg_surf, (0, 0))
+        # Add semi-transparent background to HUD.
+        if 0:
+            self.hud_bg_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
+            self.hud_bg_surf.set_colorkey(pg.Color("black"))
+            self.hud_bg_surf.fill(pre.CHARCOAL)
+            self.hud_bg_surf.set_alpha(127)
+            self.hud_surf.blit(self.hud_bg_surf, (0, 0))
 
         bg_blue_sky_surf = self.assets.misc_surf["bg1"]
         bg_blue_sky_surf_yflipped = pg.transform.flip(bg_blue_sky_surf.copy(), 0, 1)
@@ -1046,30 +1035,24 @@ class Game:
             self.grid_surf = pre.create_surface(
                 self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)
             ).convert()
-
             grid_surf_pixels = (  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
                 pg.surfarray.pixels3d(  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
                     self.grid_surf
                 )
             )
-
             for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
                 grid_surf_pixels[x, :] = (26, 27, 26)
-
             for y in range(0, pre.DIMENSIONS_HALF[1], self.tilemap.tilesize):
                 grid_surf_pixels[:, y] = (26, 27, 26)
-
             # Convert the pixel array back to a surface
             del grid_surf_pixels  # Unlock the pixel array
 
         self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
         self.bg_cloud = Background(depth=0.1 or 0.2, pos=pg.Vector2(0, 0), speed=0.5)
-        self.bg_mountain = Background(
-            depth=0.6, pos=pg.Vector2(0, 0), speed=0.4
-        )  # NOTE(Lloyd): Higher speed causes janky wrapping of bg due to render scroll ease by 1 or 2 tilesize
+        # NOTE(Lloyd): Higher speed causes janky wrapping of bg due to render scroll ease by 1 or 2 tilesize
+        self.bg_mountain = Background(depth=0.6, pos=pg.Vector2(0, 0), speed=0.4)
 
         progress += 10
-
         if progressbar:
             progressbar.put(progress)
 
@@ -1097,7 +1080,6 @@ class Game:
         )
 
         progress += 10
-
         if progressbar:
             progressbar.put(progress)
 
@@ -1114,18 +1096,13 @@ class Game:
             False,
         ):
             match pre.SpawnerKind(spawner.variant):
-                case pre.SpawnerKind.PLAYER:
-                    # Coerce to a mutable list if pos is a tuple
+                case pre.SpawnerKind.PLAYER:  # Coerce to a mutable list if pos is a tuple
                     self.player_spawner_pos = spawner.pos.copy()
-
                     if self.gcs_deque:
                         self.gcs_rewind_recent_checkpoint(record_current=False)
                     else:
                         self.player.pos = spawner.pos.copy()
-
-                    # Reset time to avoid multiple spawns during fall
-                    self.player.air_timer = 0
-
+                    self.player.air_timer = 0  # Reset time to avoid multiple spawns during fall
                 case pre.SpawnerKind.ENEMY:
                     self.enemies.append(
                         Enemy(
@@ -1134,7 +1111,6 @@ class Game:
                             size=pg.Vector2(pre.SIZE.ENEMY),
                         )
                     )
-
                 case pre.SpawnerKind.PORTAL:
                     self.portal_spawners.append(
                         Portal(
@@ -1146,7 +1122,6 @@ class Game:
                     )
 
             progress += progress_increment
-
             if progressbar:
                 progressbar.put(progress)
         # ---------------------------------------------------------------------
@@ -1158,18 +1133,17 @@ class Game:
 
         self.particles: list[Particle] = []
 
-        # NOTE(Lloyd): This seems redundant now after adding self.camera that
-        # handles scroll and render_scroll.
-        self.scroll = pg.Vector2(0.0, 0.0)
+        self.scroll = pg.Vector2(
+            0.0, 0.0
+        )  # NOTE(Lloyd): This seems redundant now after adding self.camera that handles scroll and render_scroll.
 
-        # Tracks if the player died -> 'reloads level'
-        self.dead = 0
+        self.dead = 0  # Tracks if the player died -> 'reloads level'
 
         self.respawn_death_last_checkpoint = False
 
-        # If player is invincible while idle and hit.
-        # Also count amount of shield that is being hit on.
-        self.dead_hit_skipped_counter = 0
+        self.dead_hit_skipped_counter = (
+            0  # If player is invincible while idle and hit. Also count amount of shield that is being hit on.
+        )
 
         # Win Condition Checkers
         # ---------------------------------------------------------------------
@@ -1181,35 +1155,45 @@ class Game:
         # ---------------------------------------------------------------------
 
         self.transition = self._transition_lo
-        progress = 100  # Done
 
+        if pre.DEBUG_GAME_ASSERTS:
+            if (tlevel_id := self.gameleveltimer.levelid) and self.level != 0 and tlevel_id:
+                assert tlevel_id == (self.level - 1)
+        self.gameleveltimer.levelid = self.level
+        self.gameleveltimer.start = time.perf_counter()
+        self.gameleveltimer.end = None  # Cleanup old data
+        self.gameleveltimer.elapsed = None  # Cleanup old data
+
+        progress = 100  # Done
         if progressbar:
             progressbar.put(progress)
 
-        if 1:  # HACK(Lloyd): emulate loading heavy resources
-            time.sleep(uniform(0.100, 0.250))
+        if 1:  # HACK(Lloyd): Emulate loading heavy resources.
+            # Context: Players may not like sudden level changes.
+            time.sleep(uniform(0.500, 0.750))
 
     def draw_text(
-        self, x: int, y: int, font: pg.font.Font, color: pre.ColorValue, text: str, antialias: bool = True
+        self,
+        x: int,
+        y: int,
+        font: pg.font.Font,
+        color: pre.ColorValue,
+        text: str,
+        antialias: bool = True,
     ) -> pg.Rect:
         surf = font.render(text, antialias, color)
-
         rect: pg.Rect = surf.get_rect()
-
         rect.midtop = (x, y)
-
         return self.display.blit(surf, rect)
 
     def gcs_remove_recent_checkpoint(self) -> None:
         if not self.gcs_deque:
             return
-
         self.gcs_deque.popleft()
 
     def gcs_remove_checkpoint(self) -> None:
         if not self.gcs_deque:
             return
-
         self.gcs_deque.pop()
 
     def gcs_record_checkpoint(self, max_checkpoints: int = 3) -> None:
@@ -1219,7 +1203,6 @@ class Game:
                 enemy_positions=list((e.pos.x, e.pos.y) for e in self.enemies),
             )
         )
-
         match self.level:
             case 2 | 3:
                 if self.gcs_deque.__len__() > 5:
@@ -1236,12 +1219,10 @@ class Game:
                     enemy_positions=list((e.pos.x, e.pos.y) for e in self.enemies),
                 )
             )
-
         if not self.gcs_deque:
             return
 
         prev_gts = self.gcs_deque.pop()
-
         if record_current:
             self.gcs_record_checkpoint()
 
@@ -1252,8 +1233,7 @@ class Game:
             if player_rect.colliderect(enemy.rect):
                 enemy.pos = next_pos.copy()
                 enemy.sleep_timer = enemy.max_sleep_time
-                # NOTE(Lloyd): If enemy was sleeping already, this may not work
-                enemy.set_action(Action.SLEEPING)
+                enemy.set_action(Action.SLEEPING)  # NOTE(Lloyd): If enemy was sleeping already, this may not work
 
         self.player.pos = next_pos.copy()
         self.sfx.teleport.play()
@@ -1266,12 +1246,9 @@ class Game:
                     enemy_positions=list((e.pos.x, e.pos.y) for e in self.enemies),
                 )
             )
-
         if not self.gcs_deque:
             return
-
         prev_gcs = self.gcs_deque.popleft()
-
         if record_current:
             self.gcs_record_checkpoint()
 
@@ -1324,24 +1301,18 @@ class LoadingScreen:
 
             match self.level:
                 case _:
-                    loading_thread = threading.Thread(
-                        target=self.game.lvl_load_level,
-                        args=(self.level, self.queue),
-                    )
+                    loading_thread = threading.Thread(target=self.game.lvl_load_level, args=(self.level, self.queue))
                     loading_thread.start()
 
             while True:
                 # NOTE(Lloyd): Do not tick to avoid slow loading time??
                 # self.clock.tick(pre.FPS_CAP)
-
                 self.events()
                 self.update()
                 self.render()
-
                 if loading_thread and not loading_thread.is_alive():
                     # NOTE(Lloyd): THIS IS CRAZY CODE UGHH!! -_-
                     _ = set_mainscreen(game=self.game, scr=self.game)
-
                     if not self.game.running:
                         break
 
@@ -1352,7 +1323,6 @@ class LoadingScreen:
 
                 if self.game.gameover:
                     running = False
-                    # NOTE: Placeholder to impl a GameoverScreen
                     # NOTE(Lloyd): I don't know what is going on here anymore -_-
                     self.game.gameover = False
 
@@ -1361,7 +1331,6 @@ class LoadingScreen:
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.QUIT:
                 self.running = False
                 quit_exit()
@@ -1381,7 +1350,6 @@ class LoadingScreen:
         y = self.h / 2
 
         pcounter = self.progress / 100
-
         if pcounter >= 1:
             pcounter = 1
 
@@ -1404,15 +1372,11 @@ class LoadingScreen:
 
         dispmask: pg.Mask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             self.game.display_2.blit(dispsilhouette, offset)
 
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(
-            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
-            (0, 0),
-        )
+        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
         pg.display.flip()  # This *flip*s the display
 
 
@@ -1429,7 +1393,6 @@ class CreditsScreen:
         # NOTE(lloyd): using this as Game.set_screen(screen: 'CreditsScreen |
         # Game | ...') requires each args passed to __init__ to have game and
         # level. doing this via manual inheritance. sigh OOP -_-
-        #
         self.w, self.h = pre.DIMENSIONS_HALF
 
         self.start_font = self.game.font_sm
@@ -1473,7 +1436,6 @@ class CreditsScreen:
         self.MAX_CREDITS_COUNT = len(self.credits)
         self.daw_timer = self.credits[0][0]
         self.daw_timer_markers_offset = self.daw_timer - self.prev_daw_timer
-
         assert self.daw_timer_markers_offset > 0
 
     def run(self) -> None:
@@ -1486,13 +1448,10 @@ class CreditsScreen:
             if loop_counter >= MAX_LOOP_COUNTER:
                 self.running = False
                 break
-
             self.clock.tick(pre.FPS_CAP // 2)  # Play at half-speed
-
             self.events()
             self.update()
             self.render()
-
             loop_counter += 1
 
     def events(self):
@@ -1500,11 +1459,9 @@ class CreditsScreen:
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.QUIT:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 self.running = False
 
@@ -1515,9 +1472,7 @@ class CreditsScreen:
         if self.current_credit == (self.MAX_CREDITS_COUNT - 1):
             last_position = self.creditroll_y + self.current_credit * self.credit_item_offset_y
             last_item_is_above_fold = last_position <= (-1 * (self.h // 4)) + self.credit_item_offset_y
-
-            # Exit current screen
-            if last_item_is_above_fold:
+            if last_item_is_above_fold:  # Exit current screen
                 self.running = False
 
         self.fps = self.clock.get_fps()
@@ -1535,7 +1490,6 @@ class CreditsScreen:
             cur_time_marker = self.credits[self.current_credit][0]
             next_time_marker = self.credits[self.current_credit + 1][0]
             assert next_time_marker > cur_time_marker
-
             if self.daw_timer > cur_time_marker:
                 self.daw_timer_markers_offset = next_time_marker - cur_time_marker
         # FIXME: Stop manually overriding this branch
@@ -1574,7 +1528,6 @@ class CreditsScreen:
                 continue
             if i > 0:
                 offset_y = self.credits[i][0] - self.credits[i - 1][0]
-
             self.game.draw_text(
                 (self.w // 2),
                 (pos_y + (i * offset_y)),
@@ -1588,7 +1541,6 @@ class CreditsScreen:
         # ---------------------------------------------------------------------
         dispmask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             self.game.display_2.blit(dispsilhouette, offset)
         # ---------------------------------------------------------------------
@@ -1656,7 +1608,6 @@ class SettingsScreen:
 
         self.navitem_offset = 0
         self.selected_navitem = SettingsNavitemType.MUTE_MUSIC
-
         if pre.DEBUG_GAME_ASSERTS:
             assert (
                 (want := 0, got := self.selected_navitem)
@@ -1674,7 +1625,6 @@ class SettingsScreen:
         while self.running:
             if loop_counter >= MAX_LOOP_COUNTER:
                 self.running = False
-
             self.clock.tick(pre.FPS_CAP // 2)  # Play at half-speed
             self.events()  # Process events this frame
             self.update()  # Update data this frame
@@ -1687,7 +1637,6 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
         # Reset self.movement each frame to avoid navigating on key down at 60fps 0_0
         self.movement = pre.Movement(False, False, False, False)
-
         self.is_key_pressed_key_enter = False
         # ---------------------------------------------------------------------
 
@@ -1695,15 +1644,12 @@ class SettingsScreen:
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.QUIT:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 # NOTE(Lloyd): See if we need to de-init or unload assets/flags/variables etc
                 self.running = False  # Go back to main menu
-
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_UP, pg.K_w):
                     self.movement.top = True
@@ -1713,7 +1659,6 @@ class SettingsScreen:
                     self.movement.left = True
                 elif event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = True
-
             elif event.type == pg.KEYUP:
                 if event.key in (pg.K_UP, pg.K_w):
                     self.movement.top = False
@@ -1723,7 +1668,6 @@ class SettingsScreen:
                     self.movement.left = False
                 elif event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = False
-
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                 self.is_key_pressed_key_enter = True
             elif event.type == pg.KEYUP and event.key == pg.K_RETURN:
@@ -1743,7 +1687,6 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
         if self.navitem_offset < 0:
             self.navitem_offset = MAX_MENU_ITEMS - 1  # Set to last item
-
         if self.navitem_offset >= MAX_MENU_ITEMS:
             self.navitem_offset = 0  # Set to first item
 
@@ -1755,23 +1698,18 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
 
         # Handle settings screen navigation button on press/enter
-        #
         # PERF: use left/right for incr/decr music/sound levels
-        #
         # ---------------------------------------------------------------------
         if self.is_key_pressed_key_enter:
             match self.selected_navitem:
                 case SettingsNavitemType.MUTE_MUSIC:
                     self.game.settings_handler.music_muted = not self.game.settings_handler.music_muted
-
                     if self.game.settings_handler.music_muted:
                         pg.mixer.music.set_volume(0.0)
                     else:
                         pg.mixer.music.set_volume(0.4)
-
                 case SettingsNavitemType.MUTE_SOUND:
                     self.game.settings_handler.sound_muted = not self.game.settings_handler.sound_muted
-
                     if self.game.settings_handler.sound_muted:
                         self.game.sfx.ambienceheartbeatloop.set_volume(0)
                         self.game.sfx.dash.set_volume(0)
@@ -1800,28 +1738,11 @@ class SettingsScreen:
                         self.game.sfx.shoot.set_volume(0.1)
                         self.game.sfx.shootmiss.set_volume(0.2)
                         self.game.sfx.teleport.set_volume(0.2)
-
                 case SettingsNavitemType.DISABLE_SCREENSHAKE:
                     self.game.settings_handler.screenshake = not self.game.settings_handler.screenshake
-
                 case SettingsNavitemType.GO_BACK:
-                    # Exit SettingsScreen and return to caller i.e. StartScreen
-                    self.running = False
-
+                    self.running = False  # Exit SettingsScreen and return to caller i.e. StartScreen
                 case _:  # pyright: ignore [reportUnnecessaryComparison]
-                    """# If using left and right. for sound music level fine controls
-                    match (self.movement.left, self.movement.right, self.movement.top, self.movement.bottom):
-                        case (True, _, _, _):
-                            pass
-                        case (_, True, _, _):
-                            pass
-                        case (_, _, True, _):
-                            pass
-                        case (_, _, _, True):
-                            pass
-                        case _:  # pyright: ignore [reportUnnecessaryComparison]
-                            pass
-                    """
                     pass
         # ---------------------------------------------------------------------
 
@@ -1834,14 +1755,7 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
         text_xpos: int = int((self.w // 2) + shake_x)
         text_ypos: int = int(69 - shake_y)
-
-        self.game.draw_text(
-            text_xpos,
-            text_ypos,
-            self.FONT_TYPES[FontType.BASE],
-            pg.Color("maroon"),
-            "SETTINGS",
-        )
+        self.game.draw_text(text_xpos, text_ypos, self.FONT_TYPES[FontType.BASE], pg.Color("maroon"), "SETTINGS")
         # ---------------------------------------------------------------------
 
         # Draw navigation items
@@ -1854,28 +1768,20 @@ class SettingsScreen:
                 (0 <= self.navitem_offset < MAX_SETTINGS_NAVITEMS)
                 and f"want valid navitem offset ranging from {repr(0)}..={repr(MAX_SETTINGS_NAVITEMS-1)}. got {repr( self.navitem_offset )}"
             )
-
             is_active = (self.navitem_offset == i)  # fmt: skip
-
             pos_x = (option[0] - shake_x) if is_active else option[0]
             pos_y = (option[1] - shake_y) if is_active else option[1]
             color = pg.Color("maroon")    if is_active else option[3]  # fmt: skip
-
             text: str
-
             match SettingsNavitemType(i):
                 case SettingsNavitemType.MUTE_MUSIC:
                     text = (option[4] + " OFF") if self.game.settings_handler.music_muted else (option[4] + " ON")
-
                 case SettingsNavitemType.MUTE_SOUND:
                     text = (option[4] + " OFF") if self.game.settings_handler.sound_muted else (option[4] + " ON")
-
                 case SettingsNavitemType.DISABLE_SCREENSHAKE:
                     text = (option[4] + " OFF") if not self.game.settings_handler.screenshake else (option[4] + " ON")
-
                 case SettingsNavitemType.GO_BACK:
                     text = option[4]
-
                 case _:  # pyright: ignore [reportUnnecessaryComparison]
                     msg = f"want valid SettingsNavitemType while drawing text in SettingsScreen. got {repr(SettingsNavitemType(i))} while iterating over item at index {repr(i)}."
                     raise ValueError(msg)
@@ -1909,7 +1815,6 @@ class SettingsScreen:
         # ---------------------------------------------------------------------
         dispmask = pg.mask.from_surface(self.game.display)
         dispsilhouette = dispmask.to_surface(setcolor=(0, 0, 0, 180), unsetcolor=(0, 0, 0, 0))
-
         for offset in ((-1, 0), (1, 0), (0, -1), (0, 1)):
             self.game.display_2.blit(dispsilhouette, offset)
         # ---------------------------------------------------------------------
@@ -1917,10 +1822,7 @@ class SettingsScreen:
         # Render display
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
-        self.game.screen.blit(
-            pg.transform.scale(self.game.display_2, self.game.screen.get_size()),
-            (0, 0),
-        )
+        self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
         pg.display.flip()
 
 
@@ -1953,16 +1855,12 @@ class StartScreen:
 
     # @profile
     def run(self) -> None:
-        # play background music
-        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "level_2.wav")
+        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "level_2.wav")  # play background music
         pg.mixer.music.set_volume(0.3)  # NOTE: Player can toggle this in SettingsScreen
         pg.mixer.music.play(loops=-1)
-
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
-
         while self.running:
             self.clock.tick(pre.FPS_CAP)
-
             self.events()
             self.update()
             self.render()
@@ -1975,11 +1873,9 @@ class StartScreen:
             if event.type == pg.KEYDOWN and event.key == pg.K_q:
                 self.running = False
                 quit_exit()
-
             if event.type == pg.QUIT:
                 self.running = False
                 quit_exit()
-
             if (event.type == pg.KEYDOWN) and (event.key == pg.K_RETURN):
                 match self.selected_menuitem:
                     case MenuItemType.PLAY:
@@ -1998,7 +1894,6 @@ class StartScreen:
                         quit_exit()
                     case _:  # pyright: ignore [reportUnnecessaryComparison]
                         quit_exit("invalid MenuItemType selected to StartScreen events procedure")
-
             if event.type == pg.KEYDOWN:
                 if event.key in (pg.K_UP, pg.K_w):
                     self.movement.top = True
@@ -2026,13 +1921,13 @@ class StartScreen:
         # ---------------------------------------------------------------------
         if self.menuitem_offset < 0:
             self.menuitem_offset = MAX_MENU_ITEMS - 1  # set to last item
-
         if self.menuitem_offset >= MAX_MENU_ITEMS:
             self.menuitem_offset = 0  # set to first item
 
         assert (
             self.menuitem_offset in range(0, MAX_MENU_ITEMS)
         ) and f"expected valid offset for menu items while navigating in StartScreen"
+
         self.selected_menuitem = MenuItemType(self.menuitem_offset)
         # ---------------------------------------------------------------------
 
@@ -2056,11 +1951,10 @@ class StartScreen:
             self.game.draw_text(100, 100, self.font_sm, pg.Color("purple"), f"{self.movement}")
         # ---------------------------------------------------------------------
 
-        # draw game logo
+        # Draw game logo
         # ---------------------------------------------------------------------
         shake_x = math.floor(0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0
         shake_y = math.floor(0.85 * uniform(-0.618, 0.618)) if random() < 0.1 else 0
-
         self.game.draw_text((self.w // 2) + shake_x, 50 - shake_y, self.font_base, pg.Color("maroon"), "TIP")
         self.game.draw_text((self.w // 2) - shake_x, 69 + shake_y, self.font_base, pre.WHITE, "TOE")
         # ---------------------------------------------------------------------
@@ -2068,17 +1962,14 @@ class StartScreen:
         # Draw menu items instructions
         # ---------------------------------------------------------------------
         offset_y = 24
-
         pos_x = self.w // 2
         pos_y = math.floor((self.h // 2) - (offset_y * 0.618))
 
         for i, val in enumerate(MENU_ITEMS):
             if i == MenuItemType(0):  # PLAY
                 assert MENU_ITEMS[i] == "PLAY"
-
                 if self.game.running:
                     val = "RESUME"
-
             if i == self.selected_menuitem:
                 assert (
                     (i == self.menuitem_offset)
@@ -2087,7 +1978,6 @@ class StartScreen:
                 self.game.draw_text((pos_x - shake_x), (pos_y - shake_y), self.font_sm, pg.Color("maroon"), val)
             else:
                 self.game.draw_text(pos_x, pos_y, self.font_sm, pre.WHITE, f"{val}")
-
             pos_y += offset_y
         # ---------------------------------------------------------------------
 
@@ -2110,7 +2000,6 @@ class StartScreen:
         # ---------------------------------------------------------------------
         self.game.display_2.blit(self.game.display, (0, 0))
         self.game.screen.blit(pg.transform.scale(self.game.display_2, self.game.screen.get_size()), (0, 0))
-
         pg.display.flip()
         # ---------------------------------------------------------------------
 

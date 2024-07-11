@@ -56,7 +56,9 @@ class Assets:
         spritesheet_large_decor = Spritesheet(sheets_path / "large_decor.png", sheets_path / "large_decor.json")
         spritesheet_player = Spritesheet(sheets_path / "player.png", sheets_path / "player.json")
         spritesheet_tileset = Spritesheet(sheets_path / "tileset.png", sheets_path / "tileset.json")
-        spritesheet_tileset_greenvalley = Spritesheet(sheets_path / "tilesetmapdecorations.png", sheets_path / "tilesetmapdecorations.json")
+        spritesheet_tileset_greenvalley = Spritesheet(
+            sheets_path / "tilesetmapdecorations.png", sheets_path / "tilesetmapdecorations.json"
+        )
 
         large_decor = [
             # ===-----------=== #
@@ -67,22 +69,26 @@ class Assets:
         large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
         granites = spritesheet_tileset.load_sprites("tiles", "granite")
 
-        if 0 :granite_color=pre.hex_to_rgb("35d450")  # helix starlight green or bright2
-        granite_color=pre.hex_to_rgb("597119"or"425238")  # helix starlight green or bright2
+        if 0:
+            granite_color = pre.hex_to_rgb("35d450")  # helix starlight green or bright2
+        granite_color = pre.hex_to_rgb("597119" or "425238")  # helix starlight green or bright2
 
-        if 0:granite_grid_border_color = pre.hex_to_rgb("616161")
-        granite_grid_border_color =pre.hex_to_rgb("384510"or"18260f"or"4c5c1d")
+        if 0:
+            granite_grid_border_color = pre.hex_to_rgb("616161")
+        granite_grid_border_color = pre.hex_to_rgb("384510" or "18260f" or "4c5c1d")
 
         for i, granite in enumerate(granites.copy()):
             # Grid line illusion
-            granites[i].fill(granite_grid_border_color) 
+            granites[i].fill(granite_grid_border_color)
 
             rect_16_0 = granite.get_rect()
 
             rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
 
-            if 0: granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9) 
-            else: granites[i].fill(color=granite_color, rect=rect_15_9)
+            if 0:
+                granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9)
+            else:
+                granites[i].fill(color=granite_color, rect=rect_15_9)
 
         return cls(
             entity=dict(
@@ -114,7 +120,7 @@ class Assets:
                 portal=[
                     pre.load_img(pre.IMGS_PATH / "tiles" / "spawners" / "flag.png", colorkey=pre.BLACK),
                     pre.load_img(pre.IMGS_PATH / "tiles" / "spawners" / "flag_start.png", colorkey=pre.BLACK),
-                    # pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2), # previously 20240623104030UTC 
+                    # pre.create_surface_partialfn(size=pre.SIZE.PORTAL, fill_color=pre.COLOR.PORTAL2), # previously 20240623104030UTC
                 ],
                 spike=pre.load_imgs(str(pre.IMGS_PATH / "tiles" / "spikes"), colorkey=pre.BLACK),
                 # offgrid decoration
@@ -143,13 +149,27 @@ class Assets:
             animations_misc=cls.AnimationMisc(
                 particle=dict(
                     flame=pre.Animation(
-                        [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME) for _ in range(pre.COUNT.FLAMEPARTICLE)], img_dur=12, loop=False
+                        [
+                            pre.create_circle_surf_partialfn(pre.SIZE.FLAMEPARTICLE, pre.COLOR.FLAME)
+                            for _ in range(pre.COUNT.FLAMEPARTICLE)
+                        ],
+                        img_dur=12,
+                        loop=False,
                     ),
                     flameglow=pre.Animation(
-                        [pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW) for _ in range(pre.COUNT.FLAMEGLOW)], img_dur=24, loop=False
+                        [
+                            pre.create_circle_surf_partialfn(pre.SIZE.FLAMEGLOWPARTICLE, pre.COLOR.FLAMEGLOW)
+                            for _ in range(pre.COUNT.FLAMEGLOW)
+                        ],
+                        img_dur=24,
+                        loop=False,
                     ),
                     # particle=pre.Animation(list(pre.create_surfaces_partialfn(4, pre.COLOR.PLAYERSTAR, (2, 2))), img_dur=6, loop=False),
-                    particle=pre.Animation(pre.load_imgs(pre.IMGS_PATH / "particles" / "particle", colorkey=pre.BLACK), img_dur=6, loop=False),
+                    particle=pre.Animation(
+                        pre.load_imgs(pre.IMGS_PATH / "particles" / "particle", colorkey=pre.BLACK),
+                        img_dur=6,
+                        loop=False,
+                    ),
                 ),
             ),
         )
@@ -162,7 +182,7 @@ class Assets:
             self.tiles["portal"][0],
             self.tiles["portal"][1],
             # TODO: asf
-            #TODO(lloyd): create collection zone spawner
+            # TODO(lloyd): create collection zone spawner
         ]
         return self
 

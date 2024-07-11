@@ -28,14 +28,22 @@ class Star:
             base: Final = 0.618
             self.rot = 0.0
             self._angles = tuple(map(lambda x: x * 45, range(0, 9)))
-            self._rot_reset_cycle: Final[it.cycle[int]] = it.cycle(tuple(it.starmap(pow, ((1, base), (2, base), (3, base), (5, base), (8, base), (13, base), (21, base), (34, base)))))
+            self._rot_reset_cycle: Final[it.cycle[int]] = it.cycle(
+                tuple(
+                    it.starmap(
+                        pow, ((1, base), (2, base), (3, base), (5, base), (8, base), (13, base), (21, base), (34, base))
+                    )
+                )
+            )
 
     def update(self) -> None:
         self.pos.y -= self._speed
 
         if pre.DEBUG_GAME_STRESSTEST:
             if 350 <= self.rot <= 360:
-                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (1 - rot_function(self.pos.x, self.pos.y))
+                self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1) % (
+                    1 - rot_function(self.pos.x, self.pos.y)
+                )
             else:
                 self.rot += round(abs(0.3 + math.atan2(self._speed, self.pos.y)), 1)
         if 0:
@@ -47,7 +55,10 @@ class Star:
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int]) -> None:
         dest = self.pos - pg.Vector2(offset) * self._depth  # parallax FX
-        dest_wrapped = (dest.x % (surf.get_width() + self._img_w) - self._img_w, dest.y % (surf.get_height() + self._img_h) - self._img_h)
+        dest_wrapped = (
+            dest.x % (surf.get_width() + self._img_w) - self._img_w,
+            dest.y % (surf.get_height() + self._img_h) - self._img_h,
+        )
 
         if pre.DEBUG_GAME_STRESSTEST:
             surf.blit(pg.transform.rotate(self._img, self.rot), dest_wrapped)  # loop around the screen width
