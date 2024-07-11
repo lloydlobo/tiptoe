@@ -6,9 +6,8 @@
 #   Makefile
 #
 #
-#
 #   $ nix-shell --show-trace
-#   (nix-shell) make -B -j4 build && make -B -j4 copy-data-to-dist
+#   (nix-shell) make -B -j4 build && make -j4 copy-data-to-dist
 #   (nix-shell) tar czf tiptoe.tar.gz --directory=./dist .
 #
 #
@@ -17,8 +16,10 @@
 # Run this by default, when no targets are passed to `make`
 # .PHONY: all build clean summary test
 
+#------------------------------------------------------------------------------------
 # Constants
-#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
+
 BINARY = tiptoe
 
 SRCDIR = ./src
@@ -26,40 +27,48 @@ DISTDIR = ./dist
 
 PROG = $(SRCDIR)/tiptoe.py
 PROG_EDITOR = $(SRCDIR)/editor.py
-#------------------------------------------------------------------------------
 
+#------------------------------------------------------------------------------------
 # Variables
-#------------------------------------------------------------------------------
-LEVEL = 0
-#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
 
+LEVEL = 0
+
+#------------------------------------------------------------------------------------
 # Targets
-#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
+
 # Ensure pyinstaller is installed or use inside nix-shell
 # See also: ~
 #   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
 build:
 	@echo "Starting build"
 	@pyinstaller --onefile $(PROG) && echo "[info] exit code: $$?"
+
 	@stat $(DISTDIR)/$(BINARY)
 	@echo "Finished build"
 
-
-# make -B -j4 build && make -B -j4 copy-data-to-dist
 copy-data-to-dist:
 	@echo "copy-data-to-dist"
 	@echo "  - Starting: Copying data"
+
 	mkdir -p $(DISTDIR)/src/data
 	@echo "[info] exit code: $$?"
+
 	cp -r $(SRCDIR)/data $(DISTDIR)/src/ 
 	@echo "[info] exit code: $$?"
+
 	cp -r $(SRCDIR)/config $(DISTDIR)/src 
 	@echo "[info] exit code: $$?"
+
 	@echo "  - Finished: Copied data"
 
 clean:
 	@echo "clean"
+	@stat $(DISTDIR)
+
 	@echo "  - Starting"
+	trash --verbose $(DISTDIR)
 	@echo "  - Finished"
 
 edit:
@@ -100,7 +109,6 @@ test:
 	@echo "test"
 	@echo "unimplemented"
 
-
 strace-binary:
 	@echo "strace-binary"
 	strace -c ./dist/$(BINARY)
@@ -120,9 +128,9 @@ targzip:
 	@tar czvf tiptoe.tar.gz --directory=./dist .
 	@echo "  - Finished" && echo "Finished: tar saved many files together into a single tape or disk archive, that can be restored to individual files from the archive"
 	@stat tiptoe.tar.gz
-#
-#$ make build && make copy-data-to-dist && du -ch ./dist && stat ./dist/$(BINARY)
-#
+
+#@Redundancy
+# make build && make copy-data-to-dist && du -ch ./dist && stat ./dist/$(BINARY)
 build-copy-data: build copy-data-to-dist
 	@du -ch ./dist 
 	@stat ./dist/$(BINARY)
@@ -140,10 +148,10 @@ od_all:
 	@echo "  - Starting"
 	@fd --extension py . | xargs -I _ cat _ | od | cat
 	@echo "  - Finished"
-#------------------------------------------------------------------------------
 
+#------------------------------------------------------------------------------------
 # Notes
-#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
 
 # Override a variable defined in the Makefile:
 #
@@ -153,25 +161,6 @@ od_all:
 #
 # 	make --always-make target
 
-#################################################################
-# Archive
-#################################################################
-
-# build-credits:
-# 	@echo "build-credits"
-# 	@echo "  - Starting"
-# 	@echo "  - build"
-# 	clang++ -g -std=c++11 gcredits.cpp -o build/gcredits -DLAB_SLOW=1 
-# 	@echo "  - Finished"
-#
-# build-run-credits:
-# 	@echo "buildruncredits"
-# 	@echo "  - Starting"
-# 	@echo "  - build"
-# 	clang++ -g -std=c++11 gcredits.cpp -o build/gcredits -DLAB_SLOW=1 
-# 	@echo "  - run"
-# 	valgrind -s --leak-check=full ./build/gcredits
-# 	@echo "  - Finished"
 # #
 # # $ ls *.cpp | entr -r make memcheck-build-run-credits
 # #
