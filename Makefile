@@ -1,12 +1,14 @@
-###################################################################################################
 # file: Makefile
+
+###################################################################################################
 #
 #
 #   Makefile
 #
 #
+#
 #   $ nix-shell --show-trace
-#   (nix-shell) make -j4 build && make -j4 copy-data-to-dist
+#   (nix-shell) make -B -j4 build && make -B -j4 copy-data-to-dist
 #   (nix-shell) tar czf tiptoe.tar.gz --directory=./dist .
 #
 #
@@ -18,13 +20,17 @@
 # Constants
 #------------------------------------------------------------------------------
 BINARY = tiptoe
-PROG = src/tiptoe.py
-PROG_EDITOR = src/editor.py
+
+SRCDIR = ./src
+DISTDIR = ./dist
+
+PROG = $(SRCDIR)/tiptoe.py
+PROG_EDITOR = $(SRCDIR)/editor.py
 #------------------------------------------------------------------------------
 
 # Variables
 #------------------------------------------------------------------------------
-level = 0
+LEVEL = 0
 #------------------------------------------------------------------------------
 
 # Targets
@@ -34,15 +40,22 @@ level = 0
 #   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
 build:
 	@echo "Starting build"
-	pyinstaller --onefile $(PROG)
+	@pyinstaller --onefile $(PROG) && echo "[info] exit code: $$?"
+	@stat $(DISTDIR)/$(BINARY)
 	@echo "Finished build"
 
+
+# make -B -j4 build && make -B -j4 copy-data-to-dist
 copy-data-to-dist:
-	@echo "Copying data" && echo
-	mkdir -vp ./dist/src/data
-	cp -vr ./src/data ./dist/src/
-	cp -vr ./src/config ./dist/src
-	@echo "Copied data" && echo
+	@echo "copy-data-to-dist"
+	@echo "  - Starting: Copying data"
+	mkdir -p $(DISTDIR)/src/data
+	@echo "[info] exit code: $$?"
+	cp -r $(SRCDIR)/data $(DISTDIR)/src/ 
+	@echo "[info] exit code: $$?"
+	cp -r $(SRCDIR)/config $(DISTDIR)/src 
+	@echo "[info] exit code: $$?"
+	@echo "  - Finished: Copied data"
 
 clean:
 	@echo "clean"
@@ -54,9 +67,12 @@ edit:
 	@echo "  - Starting"
 
 	@echo "  - Start the editor at level 0:"
-	@echo "       (Tip: make edit level=1)"
-	python ${PROG_EDITOR} ${level}
+	@echo "       (Tip: make edit LEVEL=1)"
+	python ${PROG_EDITOR} ${LEVEL}
 	@echo "  - Finished"
+
+format:
+	black --quiet $(SRCDIR)
 
 run:
 	@echo "run"
@@ -84,6 +100,11 @@ test:
 	@echo "test"
 	@echo "unimplemented"
 
+
+strace-binary:
+	@echo "strace-binary"
+	strace -c ./dist/$(BINARY)
+
 watch:
 	@echo "watch"
 	@echo "  - Starting"
@@ -93,6 +114,12 @@ watch:
 	fd --extension=py | entr -r python ${PROG}
 	@echo "  - Finished"
 
+targzip:
+	@echo "tarzip" && echo "[info] $$(date +%s) [c]reating a g[z]ipped archive from a directory using relative paths"
+	@echo "  - Starting"
+	@tar czvf tiptoe.tar.gz --directory=./dist .
+	@echo "  - Finished" && echo "Finished: tar saved many files together into a single tape or disk archive, that can be restored to individual files from the archive"
+	@stat tiptoe.tar.gz
 #
 #$ make build && make copy-data-to-dist && du -ch ./dist && stat ./dist/$(BINARY)
 #
