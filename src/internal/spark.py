@@ -18,7 +18,9 @@ import internal.prelude as pre
 
 
 class Spark:
-    def __init__(self, pos: pg.Vector2, angle: pre.Number, speed: pre.Number, color: pre.ColorValue = pre.WHITE) -> None:
+    def __init__(
+        self, pos: pg.Vector2, angle: pre.Number, speed: pre.Number, color: pre.ColorValue = pre.WHITE
+    ) -> None:
         self.pos = pos
         self.angle = angle
         self.speed = speed

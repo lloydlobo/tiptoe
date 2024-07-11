@@ -308,7 +308,9 @@ def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorVa
     return img
 
 
-def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
+def load_imgs(
+    path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None
+) -> list[pg.Surface]:
     """Lists all image filenames in path directory and loads_img over each and
     returns list of pg.Surfaces.
 
@@ -318,7 +320,11 @@ def load_imgs(path: str, with_alpha: bool = False, colorkey: Union[tuple[int, in
         load_imgs(path=os.path.join(IMAGES_PATH, "tiles", "grass"), with_alpha=True, colorkey=BLACK)
         ```
     """
-    return [load_img(f"{path}/{img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path)) if img_name.endswith(".png")]
+    return [
+        load_img(f"{path}/{img_name}", with_alpha, colorkey)
+        for img_name in sorted(os.listdir(path))
+        if img_name.endswith(".png")
+    ]
 
 
 @dataclass
@@ -419,7 +425,9 @@ class UserConfig:
             print(f"reading configuration file at {repr(filepath)}")
 
         with open(filepath, "r") as f:
-            return {k: v for line in f if (l := line.strip()) and not l.startswith("#") for k, v in [l.split(maxsplit=1)]}
+            return {
+                k: v for line in f if (l := line.strip()) and not l.startswith("#") for k, v in [l.split(maxsplit=1)]
+            }
 
 
 ##########
@@ -659,6 +667,7 @@ class Palette:
     COLOR6 = 57, 57, 57  # 393939
     COLOR7 = 32, 32, 32  # 202020
 
+
 # https://lospec.com/palette-list/baba-is-you-default-color
 # 080808
 # 0b0a0f
@@ -690,6 +699,7 @@ class Palette:
 # 91673f
 # c29e46
 #
+
 
 @dataclass
 class COLOR:
@@ -988,7 +998,9 @@ class Math:
 ################################################################################
 
 
-def surfaces_get_outline_mask_from_surf(surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]):
+def surfaces_get_outline_mask_from_surf(
+    surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]
+):
     """Create thick outer outlines for surface using masks."""
     m = pg.mask.from_surface(surf)
     m_outline: list[tuple[int, int]] = m.outline()
@@ -1012,7 +1024,11 @@ def surfaces_vfx_outline_offsets_animation_frames(
     """Returns a Generator for a sequence of surfaces snake chasing it's tail
     effect in clockwise motion.
     """
-    return (surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst)) for _ in range(iterations) for ofst in offsets)
+    return (
+        surfaces_get_outline_mask_from_surf(surf=surf, color=color, width=width, loc=(ofst))
+        for _ in range(iterations)
+        for ofst in offsets
+    )
 
 
 def surfaces_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.SurfaceType]):
@@ -1029,7 +1045,9 @@ def rects_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.Rect]):
     return (s for s in sprites if s.collidepoint(pos))
 
 
-def create_surface(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue) -> pg.SurfaceType:
+def create_surface(
+    size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue
+) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -1057,7 +1075,12 @@ Returns:
 """
 
 
-def create_surface_withalpha(size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue, alpha: int) -> pg.SurfaceType:
+def create_surface_withalpha(
+    size: tuple[int, int],
+    colorkey: tuple[int, int, int] | ColorValue,
+    fill_color: tuple[int, int, int] | ColorValue,
+    alpha: int,
+) -> pg.SurfaceType:
     surf = pg.Surface(size).convert_alpha()
     surf.set_colorkey(colorkey)
     surf.fill(fill_color)
@@ -1076,7 +1099,10 @@ New create_surface_withalpha function with partial application of colorkey argum
 
 
 def create_surfaces(
-    count: int, fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK, size: tuple[int, int] = (TILE_SIZE, TILE_SIZE), colorkey: ColorValue = BLACK
+    count: int,
+    fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK,
+    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
+    colorkey: ColorValue = BLACK,
 ) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
         return (create_surface(size, colorkey, fill_color) for _ in range(count))
@@ -1084,7 +1110,9 @@ def create_surfaces(
 
 
 create_surfaces_partialfn = partial(create_surfaces, colorkey=BLACK)
-create_surfaces_partialfn.__doc__ = """New create_surfaces function with partial application of colorkey argument and or other keywords."""
+create_surfaces_partialfn.__doc__ = (
+    """New create_surfaces function with partial application of colorkey argument and or other keywords."""
+)
 
 
 def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
@@ -1101,4 +1129,6 @@ def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: 
 
 
 create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
-create_circle_surf_partialfn.__doc__ = """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
+create_circle_surf_partialfn.__doc__ = (
+    """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
+)

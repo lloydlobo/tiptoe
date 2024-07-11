@@ -12,7 +12,9 @@ if TYPE_CHECKING:
 
 
 class Spawner:
-    def __init__(self, game: Game, skind: pre.SpawnerKind, ekind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2) -> None:
+    def __init__(
+        self, game: Game, skind: pre.SpawnerKind, ekind: pre.EntityKind, pos: pg.Vector2, size: pg.Vector2
+    ) -> None:
         if pre.DEBUG_GAME_ASSERTS:
             assert skind.as_entity(ekind) == skind, f"want similar spawner and entity kind. got {skind, ekind}"
 

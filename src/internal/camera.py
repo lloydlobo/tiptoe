@@ -42,7 +42,9 @@ class SimpleCamera:
         self._tmp_target_xy = (0, 0)
 
     # map_size: (476, 312)
-    def update(self, target_pos: tuple[int, int], map_size: Optional[tuple[int, int]] = None, dt: Optional[float] = None) -> None:
+    def update(
+        self, target_pos: tuple[int, int], map_size: Optional[tuple[int, int]] = None, dt: Optional[float] = None
+    ) -> None:
         """Update the camera's position based on the target position.
 
         Args:
@@ -94,15 +96,41 @@ class SimpleCamera:
         pg.draw.rect(surf, pre.GREEN, rect, width=1)
 
         # self._draw_text(surf, int(tx), int(ty), self._camera_font, pre.RED, f"Offset {tx,ty}")
-        self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 4, self._camera_font, pre.RED, f"{self._tmp_target_xy=}")
-        self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 3, self._camera_font, pre.RED, f"{self.render_scroll=}")
-        self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 2, self._camera_font, pre.GREEN, f"{rect}")
-        self._draw_text(surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 1, self._camera_font, pre.BLUE, f"{tx,ty=}")
+        self._draw_text(
+            surf,
+            int(self.size.x // 2),
+            int(self.size.y // 2) - 16 * 4,
+            self._camera_font,
+            pre.RED,
+            f"{self._tmp_target_xy=}",
+        )
+        self._draw_text(
+            surf,
+            int(self.size.x // 2),
+            int(self.size.y // 2) - 16 * 3,
+            self._camera_font,
+            pre.RED,
+            f"{self.render_scroll=}",
+        )
+        self._draw_text(
+            surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 2, self._camera_font, pre.GREEN, f"{rect}"
+        )
+        self._draw_text(
+            surf, int(self.size.x // 2), int(self.size.y // 2) - 16 * 1, self._camera_font, pre.BLUE, f"{tx,ty=}"
+        )
 
         # draw target focus point
         pg.draw.circle(surf, pre.GREEN, (tx, ty), 4)
 
-    def _draw_text(self, surf: pg.SurfaceType, x: int, y: int, font: pg.font.Font, color: pg.Color | pre.ColorValue | pre.ColorKind, text: str):
+    def _draw_text(
+        self,
+        surf: pg.SurfaceType,
+        x: int,
+        y: int,
+        font: pg.font.Font,
+        color: pg.Color | pre.ColorValue | pre.ColorKind,
+        text: str,
+    ):
         surface = font.render(text, True, color)
         rect = surface.get_rect()
         rect.midtop = (x, y)
