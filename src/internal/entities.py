@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # Requisite for: TYPE_CHECKING
 
 import math
 import time
@@ -6,15 +6,7 @@ from collections import deque
 from enum import Enum
 from functools import partial
 from random import randint, random, uniform
-from typing import (
-    TYPE_CHECKING,
-    Dict,
-    Final,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-)
+from typing import Dict, Final, List, Literal, Optional, Tuple
 
 import pygame as pg
 
@@ -24,8 +16,11 @@ from internal.spark import Spark
 from internal.tilemap import Tilemap
 
 
-if TYPE_CHECKING:
-    from game import Game
+if 1:  # Locality of Behavior hack
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:  # Prerequisites: from __future__ import annotations
+        from game import Game
 
 
 # TOP

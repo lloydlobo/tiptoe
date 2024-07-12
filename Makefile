@@ -28,6 +28,8 @@ DISTDIR = ./dist
 PROG = $(SRCDIR)/tiptoe.py
 PROG_EDITOR = $(SRCDIR)/editor.py
 
+DFLAGS=
+
 #------------------------------------------------------------------------------------
 # Variables
 #------------------------------------------------------------------------------------
@@ -113,13 +115,20 @@ strace-binary:
 	@echo "strace-binary"
 	strace -c ./dist/$(BINARY)
 
+# ✦ ❯ make -j4  watch DFLAGS=--debug
+# watch
+#   - Starting
+# sh: line 1: SIGTERM: command not found
+#   - Send a  to any previously spawned python subprocesses before executing 'python tiptoe.py':
+#         (Tip: use spacebar to reload)
+# fd --extension=py | entr -r python ./src/tiptoe.py --debug
 watch:
 	@echo "watch"
 	@echo "  - Starting"
 
 	@echo "  - Send a `SIGTERM` to any previously spawned python subprocesses before executing 'python tiptoe.py':"
-	@echo "        (Tip: use spacebar to reload)"
-	fd --extension=py | entr -r python ${PROG}
+	@echo "        (TIP: reload: <Space>, exit: <q>)"
+	fd --extension=py | entr -r python ${PROG} $(DFLAGS)
 	@echo "  - Finished"
 
 targzip:

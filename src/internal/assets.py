@@ -90,6 +90,7 @@ class Assets:
             else:
                 granites[i].fill(color=granite_color, rect=rect_15_9)
 
+        background = pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK)
         return cls(
             entity=dict(
                 # enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
@@ -98,8 +99,8 @@ class Assets:
                 # player=pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER),
             ),
             misc_surf=dict(
-                background=pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK),
-                bg1=pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK),
+                background=background,
+                bg1=background.copy(),
                 bg2=pre.load_img(bg_path / f"bg2_{resolution}.png", colorkey=pre.BLACK),
                 bg3=pre.load_img(bg_path / f"bg3_{resolution}.png", colorkey=pre.BLACK),
                 gun=pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN),

@@ -1,6 +1,6 @@
 # file: game.py
 
-from __future__ import annotations
+# from __future__ import annotations
 
 import itertools as it
 import math
@@ -16,7 +16,18 @@ from enum import Enum, IntEnum, auto
 from os import listdir, path
 from pathlib import Path
 from random import randint, random, uniform
-from typing import Final, List, Literal, NoReturn, Optional, Set, Tuple
+from typing import (
+    Counter,
+    Final,
+    Generator,
+    Iterable,
+    List,
+    Literal,
+    NoReturn,
+    Optional,
+    Set,
+    Tuple,
+)
 
 import pygame as pg
 
@@ -42,6 +53,13 @@ from internal.tilemap import Tilemap
 
 if pre.DEBUG_GAME_TRACEMALLOC:
     tracemalloc.start()
+
+if pre.DDEBUG:
+    __import__('pprint').pprint(
+        dict(
+            debug_mode=pre.DDEBUG,
+        )
+    )
 
 # ------------------------------------------------------------------------------
 # GLOBAL CONSTANTS (module)
@@ -232,23 +250,23 @@ class Game:
 
         self.assets = Assets.initialize_assets()
 
-        _sfxpath = pre.SFX_PATH
-        _sound = pg.mixer.Sound
+        _sfx_path = pre.SFX_PATH
+        _load_sound = pre.load_sound
 
         self.sfx = SFX(
-            ambienceheartbeatloop=_sound(_sfxpath / "ambienceheartbeatloop.wav"),
-            dash=_sound(_sfxpath / "dash.wav"),
-            dashbassy=_sound(_sfxpath / "dash.wav"),
-            hit=_sound(_sfxpath / "hit.wav"),
-            hitmisc=_sound(_sfxpath / "hitmisc.wav"),
-            hitwall=_sound(_sfxpath / "hitwall.wav"),
-            jump=_sound(_sfxpath / "jump.wav"),
-            jumplanding=_sound(_sfxpath / "jumplanding.wav"),
-            playerspawn=_sound(_sfxpath / "playerspawn.wav"),
-            portaltouch=_sound(_sfxpath / "portaltouch.wav"),
-            shoot=_sound(_sfxpath / "shoot.wav"),
-            shootmiss=_sound(_sfxpath / "shootmiss.wav"),
-            teleport=_sound(_sfxpath / "teleport.wav"),
+            ambienceheartbeatloop=_load_sound(_sfx_path / "ambienceheartbeatloop.wav"),
+            dash=_load_sound(_sfx_path / "dash.wav"),
+            dashbassy=_load_sound(_sfx_path / "dashbassy.wav"),
+            hit=_load_sound(_sfx_path / "hit.wav"),
+            hitmisc=_load_sound(_sfx_path / "hitmisc.wav"),
+            hitwall=_load_sound(_sfx_path / "hitwall.wav"),
+            jump=_load_sound(_sfx_path / "jump.wav"),
+            jumplanding=_load_sound(_sfx_path / "jumplanding.wav"),
+            playerspawn=_load_sound(_sfx_path / "playerspawn.wav"),
+            portaltouch=_load_sound(_sfx_path / "portaltouch.wav"),
+            shoot=_load_sound(_sfx_path / "shoot.wav"),
+            shootmiss=_load_sound(_sfx_path / "shootmiss.wav"),
+            teleport=_load_sound(_sfx_path / "teleport.wav"),
         )
 
         self.sfx.ambienceheartbeatloop.set_volume(0.1)
@@ -406,7 +424,7 @@ class Game:
             and music_path.exists()
             and not music_path.is_dir()
         ):
-            pg.mixer.music.load(music_path.__str__())
+            pre.load_music_to_mixer(music_path)
 
         # Set individual music volume
         # ---------------------------------------------------------------------
@@ -424,6 +442,44 @@ class Game:
         if not self.settings_handler.sound_muted:
             self.sfx.playerspawn.play()
         # ---------------------------------------------------------------------
+
+        if pre.DDEBUG:
+            __import__('pprint').pprint(sorted(list(pre.global_files_visited.items())), compact=True)
+
+            paths_: Generator[str | Path, None, None] = (values[1] for values in pre.global_files_visited.values())
+            cntr_ = Counter(paths_)
+            __import__('pprint').pprint(cntr_)
+            """
+            Counter({PosixPath('src/config'): 1,
+                     PosixPath('src/data/images/tiles/large_decor/0.png'): 1,
+                     PosixPath('src/data/images/background/bg1_480x315.png'): 1,
+                     PosixPath('src/data/images/background/bg2_480x315.png'): 1,
+                     PosixPath('src/data/images/background/bg3_480x315.png'): 1,
+                     PosixPath('src/data/images/tiles/spawners/flag.png'): 1,
+                     PosixPath('src/data/images/tiles/spawners/flag_start.png'): 1,
+                     PosixPath('src/data/images/tiles/spikes/0.png'): 1,
+                     PosixPath('src/data/images/tiles/spikes/1.png'): 1,
+                     PosixPath('src/data/images/particles/particle/0.png'): 1,
+                     PosixPath('src/data/images/particles/particle/1.png'): 1,
+                     PosixPath('src/data/images/particles/particle/2.png'): 1,
+                     PosixPath('src/data/images/particles/particle/3.png'): 1,
+                     PosixPath('src/data/sfx/ambienceheartbeatloop.wav'): 1,
+                     PosixPath('src/data/sfx/dash.wav'): 1,
+                     PosixPath('src/data/sfx/dashbassy.wav'): 1,
+                     PosixPath('src/data/sfx/hit.wav'): 1,
+                     PosixPath('src/data/sfx/hitmisc.wav'): 1,
+                     PosixPath('src/data/sfx/hitwall.wav'): 1,
+                     PosixPath('src/data/sfx/jump.wav'): 1,
+                     PosixPath('src/data/sfx/jumplanding.wav'): 1,
+                     PosixPath('src/data/sfx/playerspawn.wav'): 1,
+                     PosixPath('src/data/sfx/portaltouch.wav'): 1,
+                     PosixPath('src/data/sfx/shoot.wav'): 1,
+                     PosixPath('src/data/sfx/shootmiss.wav'): 1,
+                     PosixPath('src/data/sfx/teleport.wav'): 1,
+                     PosixPath('src/data/music/level_2.wav'): 1,
+                     PosixPath('src/data/maps/0.json'): 1,
+                     PosixPath('src/data/music/level_0.wav'): 1})
+            """
 
         # On __init__ running is False. Ensure ..load(self,...) and
         # ..reset(self,...) also set it to False
@@ -737,7 +793,7 @@ class Game:
                 self.display.blit(portal.assets[i], portal.pos - render_scroll)
         # ---------------------------------------------------------------------
 
-        # Enemy: update and render0--------------------------------------------
+        # Enemy: update and render
         # ---------------------------------------------------------------------
         for enemy in self.enemies.copy():
             kill_animation = enemy.update(self.tilemap, pg.Vector2(0, 0))
@@ -746,7 +802,7 @@ class Game:
                 self.enemies.remove(enemy)
         # ---------------------------------------------------------------------
 
-        # Update Interactive Spawners------------------------------------------
+        # Update Interactive Spawners
         # ---------------------------------------------------------------------
         for rect_spike in self.spike_spawners:
             if self.player.rect.colliderect(rect_spike):
@@ -986,7 +1042,9 @@ class Game:
         return dict(prev=prev, next=self.level)
 
     def _lvl_load_level_map(self, map_id: int):
-        self.tilemap.load(path=path.join(pre.MAP_PATH, f"{map_id}.json"))
+        map_path = pre.MAP_PATH / f"{map_id}.json"  # map_path: str = path.join(pre.MAP_PATH, f"{map_id}.json")
+        pre.global_files_visited_update(map_path, opts=dict(file_=__file__, line_=pre.get_current_line()))
+        self.tilemap.load(path=map_path)
 
     # @profile
     def lvl_load_level(self, map_id: int, progressbar: Optional[queue.Queue[int]] = None) -> None:
@@ -1855,7 +1913,11 @@ class StartScreen:
 
     # @profile
     def run(self) -> None:
-        pg.mixer.music.load(pre.SRC_DATA_PATH / "music" / "level_2.wav")  # play background music
+        music_filename = pre.SRC_DATA_PATH / "music" / "level_2.wav"
+        # pg.mixer.music.load(music_filename)  # play background music
+        pre.load_music_to_mixer(
+            music_filename, opts=dict(file_=__file__, line_=pre.get_current_line())
+        )  # play background music
         pg.mixer.music.set_volume(0.3)  # NOTE: Player can toggle this in SettingsScreen
         pg.mixer.music.play(loops=-1)
         self.movement = pre.Movement(left=False, right=False, top=False, bottom=False)
