@@ -16,11 +16,11 @@ from enum import Enum, IntEnum, auto
 from os import listdir, path
 from pathlib import Path
 from random import randint, random, uniform
+from typing import Iterable  # pyright: ignore
 from typing import (
     Counter,
     Final,
     Generator,
-    Iterable,
     List,
     Literal,
     NoReturn,
@@ -157,7 +157,6 @@ class SettingsNavitemType(IntEnum):
 def quit_exit(context: str = "") -> NoReturn:
     if pre.DEBUG_GAME_CACHEINFO:  # lrucache etc...
         print(f"{pre.hsl_to_rgb.cache_info() = }")
-
     if pre.DEBUG_GAME_TRACEMALLOC:
         snapshot: tracemalloc.Snapshot = tracemalloc.take_snapshot()
         stat_key_type = ("traceback", "filename", "lineno")
@@ -165,10 +164,15 @@ def quit_exit(context: str = "") -> NoReturn:
         print("Top memory allocations:")
         for stat in top_stats[:30]:
             print(stat)
-
+    if not pg.get_init():
+        if pre.DDEBUG:
+            __import__('logging').error(
+                "cannot quit pygame as it is not initialized.  Did you forget to call pygame.init()?",
+                (pg, __file__, pre.get_current_line()),
+            )
+        raise RuntimeError("pygame.error: pygame is not initialized")
     if context:
         print(f"{context}")
-
     pg.quit()
     sys.exit()
 
