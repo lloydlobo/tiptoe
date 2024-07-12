@@ -143,6 +143,13 @@ Number = int | float
 
 
 class ColorKind(NamedTuple):
+    """
+    Examples::
+
+        >>> ColorKind(255, 255, 255)
+        ColorKind(r=255, g=255, b=255)
+    """
+
     r: int
     g: int
     b: int
@@ -150,6 +157,13 @@ class ColorKind(NamedTuple):
 
 @dataclass
 class Projectile:
+    """
+    Examples::
+
+        >>> Projectile((0, 0), 2, 12)
+        Projectile(pos=(0, 0), velocity=2, timer=12)
+    """
+
     pos: pg.Vector2  # [x, y]
     velocity: Number  # directional velocity : left (-ve) : right (+ve)
     timer: int  # frame timer
@@ -191,10 +205,19 @@ class TileKind(Enum):
 class SpawnerKind(Enum):
     """Enumerates the spawners that are used in the level editor.
 
-    NOTE: ideally start with 1 (as 0 may be assumed as False) but we used 0,1,2
+    Note ideally start with 1 (as 0 may be assumed as False) but we used 0,1,2
     as variants for spawner 'tiles' while drawing the map.json via level editor
     in src/editor.py for the sake of the wrapping around all spawner variants,
     e.g. 0 1 2 0 1 2 ..... or it.cycle(...)
+
+    Examples::
+        >>> SpawnerKind.PLAYER.value
+        0
+        >>> SpawnerKind.PLAYER
+        <SpawnerKind.PLAYER: 0>
+
+        >>> SpawnerKind.as_entity(SpawnerKind, EntityKind.PLAYER)
+        <SpawnerKind.PLAYER: 0>
     """
 
     PLAYER = 0
@@ -216,12 +239,12 @@ class SpawnerKind(Enum):
 @dataclass
 class Movement:
     """Movement is a dataclass of 4 booleans for each of the 4 cardinal
-    directions where movement is possible.
-    Note: False == 0 and True == 1
+    directions where movement is possible. Note: False == 0 and True == 1
 
-    Example::
+    Examples::
 
-        left, right, top, bottom = Movement(True, False, True, False)
+        >>> Movement(True, False, True, False)
+        Movement(left=True, right=False, top=True, bottom=False)
     """
 
     left: bool
@@ -233,12 +256,12 @@ class Movement:
 @dataclass
 class Collisions:
     """Collisions is a dataclass of 4 booleans for each of the 4 cardinal
-    directions where collisions are possible.
-    Note: False == 0 and True == 1
+    directions where collisions are possible. Note: False == 0 and True == 1
 
-    Example::
+    Examples::
 
-        left, right, top, bottom = Collisions(True, False, True, False)
+        >>> Collisions(True, False, True, False)
+        Collisions(left=True, right=False, up=True, down=False)
     """
 
     left: bool
@@ -253,6 +276,15 @@ class Collisions:
 
 
 def clamp(value: int | float, lo: int | float, hi: int | float) -> int | float:
+    """
+    Examples::
+
+        >>> (clamp(15, 3, 11), clamp(5, 3, 11), clamp(-15, 3, 11))
+        (11, 5, 3)
+
+        >>> (clamp(float("-inf"), 3, 11), clamp(float("inf"), 3, 11))
+        (3, 11)
+    """
     return min(max(value, lo), hi)
 
 
@@ -263,12 +295,31 @@ def clamp(value: int | float, lo: int | float, hi: int | float) -> int | float:
 
 class Motion:
     @staticmethod
-    def lerp(a: int | float, b: int | float, t: float) -> float:
+    def lerp(a: Number, b: Number, t: float) -> float:
+        """
+        Examples::
+
+            >>> Motion.lerp(0, 10, 0.5)
+            5.0
+            >>> Motion.lerp(-20, 20, 0.25)
+            -10.0
+        """
         return a + t * (b - a)
 
     @lru_cache
     @staticmethod
     def pan_smooth(value: int | float, target: int, smoothness: int | float = 1) -> int | float:
+        """
+        Examples::
+
+            >>> value, target, smoothness = 123, 321, 0.5
+            >>> Motion.pan_smooth(value, target, smoothness)
+            123.0
+            >>> value
+            123
+
+        """
+        smoothness = 1 if (smoothness == 0) else smoothness
         value += (target - value) / smoothness * min(pg.time.get_ticks() * 0.001, smoothness)
         return value
 
@@ -514,12 +565,11 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
 
     Examples::
 
-        assert hex_to_rgb("#ff0000") == (255, 0, 0)
-        assert hex_to_rgb("#00ff00") == (0, 255, 0)
-        assert hex_to_rgb("#0000ff") == (0, 0, 255)
+        >>> assert hex_to_rgb("#ff0000") == (255, 0, 0)
+        >>> assert hex_to_rgb("#00ff00") == (0, 255, 0)
+        >>> assert hex_to_rgb("#0000ff") == (0, 0, 255)
     """
     base: Final = 16
-
     if (n := len(s)) == 7:
         if s[0] == "#":
             s = s[1:]
@@ -527,7 +577,6 @@ def hex_to_rgb(s: str) -> tuple[int, int, int]:
                 assert len(s) == (n - 1), "invalid hexadecimal format"  # Lua: assert(hex_string:sub(2):find("^%x+$"),
         else:
             raise ValueError(f"want valid hex format string. got {s}")
-
     return (int(s[0:2], base), int(s[2:4], base), int(s[4:6], base))
 
 
@@ -553,37 +602,34 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
     Examples::
 
-        assert hsl_to_rgb(0, 0, 0) == (0, 0, 0)             # black
-        assert hsl_to_rgb(0, 0, 1) == (255, 255, 255)       # white
-        assert hsl_to_rgb(0, 1, 0.5) == (255, 0, 0)         # red
-        assert hsl_to_rgb(120, 1, 0.5) == (0, 255, 0)       # lime green
-        assert hsl_to_rgb(240, 1, 0.5) == (0, 0, 255)       # blue
-        assert hsl_to_rgb(60, 1, 0.5) == (255, 255, 0)      # yellow
-        assert hsl_to_rgb(180, 1, 0.5) == (0, 255, 255)     # cyan
-        assert hsl_to_rgb(300, 1, 0.5) == (255, 0, 255)     # magenta
-        assert hsl_to_rgb(0, 0, 0.75) == (191, 191, 191)    # silver
-        assert hsl_to_rgb(0, 0, 0.5) == (128, 128, 128)     # gray
-        assert hsl_to_rgb(0, 1, 0.25) == (128, 0, 0)        # maroon
-        assert hsl_to_rgb(60, 1, 0.25) == (128, 128, 0)     # olive
-        assert hsl_to_rgb(120, 1, 0.25) == (0, 128, 0)      # green
-        assert hsl_to_rgb(300, 1, 0.25) == (128, 0, 128)    # purple
-        assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
-        assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
+        >>> assert hsl_to_rgb(0, 0, 0) == (0, 0, 0)             # black
+        >>> assert hsl_to_rgb(0, 0, 1) == (255, 255, 255)       # white
+        >>> assert hsl_to_rgb(0, 1, 0.5) == (255, 0, 0)         # red
+        >>> assert hsl_to_rgb(120, 1, 0.5) == (0, 255, 0)       # lime green
+        >>> assert hsl_to_rgb(240, 1, 0.5) == (0, 0, 255)       # blue
+        >>> assert hsl_to_rgb(60, 1, 0.5) == (255, 255, 0)      # yellow
+        >>> assert hsl_to_rgb(180, 1, 0.5) == (0, 255, 255)     # cyan
+        >>> assert hsl_to_rgb(300, 1, 0.5) == (255, 0, 255)     # magenta
+        >>> assert hsl_to_rgb(0, 0, 0.75) == (191, 191, 191)    # silver
+        >>> assert hsl_to_rgb(0, 0, 0.5) == (128, 128, 128)     # gray
+        >>> assert hsl_to_rgb(0, 1, 0.25) == (128, 0, 0)        # maroon
+        >>> assert hsl_to_rgb(60, 1, 0.25) == (128, 128, 0)     # olive
+        >>> assert hsl_to_rgb(120, 1, 0.25) == (0, 128, 0)      # green
+        >>> assert hsl_to_rgb(300, 1, 0.25) == (128, 0, 128)    # purple
+        >>> assert hsl_to_rgb(180, 1, 0.25) == (0, 128, 128)    # teal
+        >>> assert hsl_to_rgb(240, 1, 0.25) == (0, 0, 128)      # navy
     """
     if DEBUG_GAME_ASSERTS:
         assert 0 <= h <= 360
         assert 0 <= s <= 1
         assert 0 <= l <= 1
-
     # calculate C, X, and m
     c: Final[float] = (1 - abs((2 * l) - 1)) * s
     x: Final[float] = c * (1 - abs(((h / 60) % 2) - 1))
     m: Final[float] = l - (c / 2)
-
     r_prime: float
     g_prime: float
     b_prime: float
-
     # sector mapping: determine which sector of the hue circle the color is in
     match (h // 60) % 6:
         case 0:
@@ -598,7 +644,6 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
             r_prime, g_prime, b_prime = x, 0.0, c
         case _:  # default
             r_prime, g_prime, b_prime = c, 0.0, x
-
     # convert to 0-255 scale, note: round() instead of int() helps in precision. e.g. gray 127 -> 128
     return ColorKind(round((r_prime + m) * 255), round((g_prime + m) * 255), round((b_prime + m) * 255))
 
@@ -674,7 +719,6 @@ MAP_PATH = SRC_DATA_MAP_PATH
 SFX_PATH = SRC_DATA_PATH / "sfx"
 SPRITESHEET_PATH = None
 
-
 # colors:
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -744,7 +788,6 @@ class Palette:
 # 503f25
 # 91673f
 # c29e46
-#
 
 
 @dataclass
@@ -947,96 +990,16 @@ class Math:
             amount: The distance to move the vector along the specified angle.
 
         This function modifies the `vec2` object in-place and returns None.
+
+        Examples::
+
+            >>> import pygame
+            >>> vec2, angle, amount = pygame.Vector2(2, 4), 0, 10
+            >>> assert Math.advance_vec2_ip(vec2, angle, amount) is None
+            >>> vec2
+            <Vector2(12, 4)>
         """
         vec2 += (math.cos(angle) * amount, math.sin(angle) * amount)
-
-    # @dataclass
-    # class UnitState:
-    #     pos: Vec2Type  # pyright: ignore
-    #     max_distance: float
-    #
-    # @staticmethod
-    # def move_to_unitstate(unit: UnitState, next_pos: UnitState, max_dist: Number):
-    #     x1, y1 = unit.pos
-    #     x2, y2 = next_pos.pos
-    #     dx, dy = x2 - x1, y2 - y1
-    #     dist_squared = dx * dx + dy * dy
-    #     if dist_squared <= max_dist * max_dist:
-    #         unit.pos = next_pos.pos
-    #     else:
-    #         dist = float(math.sqrt(float(dist_squared)))
-    #         ratio = max_dist / dist
-    #         unit.pos = (x1 + dx * ratio, y1 + dy * ratio)
-    #
-    # @staticmethod
-    # def move_to_vec2(unit: pg.Vector2, next_pos: pg.Vector2, max_dist: Number):
-    #     x1, y1 = iter(unit)
-    #     x2, y2 = iter(next_pos)
-    #     dx, dy = x2 - x1, y2 - y1
-    #     dist_squared = dx * dx + dy * dy
-    #     if dist_squared <= max_dist * max_dist:
-    #         unit = next_pos
-    #     else:
-    #         dist = float(math.sqrt(float(dist_squared)))
-    #         ratio = max_dist / dist
-    #         unit = pg.Vector2(x1 + dx * ratio, y1 + dy * ratio)
-    #
-    # @staticmethod
-    # def move_to(unit: tuple[Number, Number], next_pos: tuple[Number, Number], max_dist: Number):
-    #     x1, y1 = iter(unit)
-    #     x2, y2 = iter(next_pos)
-    #     dx, dy = x2 - x1, y2 - y1
-    #     dist_squared = dx * dx + dy * dy
-    #     if dist_squared <= max_dist * max_dist:
-    #         unit = next_pos
-    #     else:
-    #         dist = float(math.sqrt(float(dist_squared)))
-    #         ratio = max_dist / dist
-    #         unit = (x1 + dx * ratio, y1 + dy * ratio)
-    #
-    #
-    # @staticmethod
-    # def advance_float2_ip(point2: list[float], angle: SupportsFloatOrIndex, amount: Number) -> None:
-    #     """Advances a 2D point represented by a list of floats by a given angle and amount in place.
-    #
-    #     Args:
-    #         point2: A list of two floats representing the x and y coordinates of the 2D point.
-    #         angle: The angle in radians to move the point.
-    #         amount: The distance to move the point along the specified angle.
-    #
-    #     This function modifies the `point2` list in-place and returns None.
-    #
-    #     Raises:
-    #         AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
-    #     """
-    #     if DEBUG_GAME_ASSERTS:
-    #         assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-    #
-    #     point2[0] += math.cos(angle) * amount
-    #     point2[1] += math.sin(angle) * amount
-    #
-    # @staticmethod
-    # def advance_int2_ip(point2: list[int], angle: SupportsFloatOrIndex, amount: Number) -> None:
-    #     """Advances a 2D point represented by a list of integers by a given angle and amount.
-    #
-    #     **Important:** This function uses floor division (`//`) to convert potentially floating-point
-    #                   calculations to integers before assigning them to the list elements.
-    #
-    #     Args:
-    #         point2: A list of two integers representing the x and y coordinates of the 2D point.
-    #         angle: The angle in radians to move the point.
-    #         amount: The distance to move the point along the specified angle.
-    #
-    #     This function modifies the `point2` list in-place and returns None.
-    #
-    #     Raises:
-    #         AssertionError: If the length of `point2` is not 2 (assuming x and y coordinates).
-    #     """
-    #     if DEBUG_GAME_ASSERTS:
-    #         assert len(point2) == 2, f"want a vector like list of x and y items. got: {point2}"
-    #
-    #     point2[0] += math.floor(100 * (math.cos(angle) * amount) // 100)
-    #     point2[1] += math.floor(100 * (math.sin(angle) * amount) // 100)
 
 
 ################################################################################
@@ -1178,3 +1141,8 @@ create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
 create_circle_surf_partialfn.__doc__ = (
     """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
 )
+
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod()
