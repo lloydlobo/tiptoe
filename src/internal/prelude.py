@@ -1,81 +1,88 @@
-"""This module contains all the classes, functions and constants used in the
-game.
+# file: tiptoe/src/internal/prelude.py
 
-## Classes
-
-* Animation
-* AutotileID
-* COLOR
-* COUNT
-* COUNTRANDOMFRAMES
-* Collisions
-* EntityKind
-* Math
-* Movement
-* Palette
-* ParticleKind
-* Projectile
-* SpawnerKind
-* TileKind
-* UserConfig
-
-## Functions
-
-* create_circle_surf
-* create_surface
-* create_surface_withalpha
-* create_surfaces
-* hex_to_rgb
-* hsl_to_rgb
-* load_img
-* load_imgs
-* rects_collidepoint
-* surfaces_collidepoint
-* surfaces_get_outline_mask_from_surf
-* surfaces_vfx_outline_offsets_animation_frames
-"""
-
-__all__ = [
-    # class
-    "Animation",
-    "AutotileMatrixID",
-    "COLOR",
-    "COUNT",
-    "COUNTRANDOMFRAMES",
-    "Collisions",
-    "EntityKind",
-    "Math",
-    "Movement",
-    "Palette",
-    "ParticleKind",
-    "Projectile",
-    "SpawnerKind",
-    "TileKind",
-    "UserConfig",
-    # function
-    "create_circle_surf",
-    "create_surface",
-    "create_surface_withalpha",
-    "create_surfaces",
-    "hex_to_rgb",
-    "hsl_to_rgb",
-    "load_img",
-    "load_imgs",
-    "rects_collidepoint",
-    "surfaces_collidepoint",
-    "surfaces_get_outline_mask_from_surf",
-    "surfaces_vfx_outline_offsets_animation_frames",
-]
+### """This module contains all the classes, functions and constants used in the
+### game.
+###
+### ## Classes
+###
+### * Animation
+### * AutotileID
+### * COLOR
+### * COUNT
+### * COUNTRANDOMFRAMES
+### * Collisions
+### * EntityKind
+### * Math
+### * Movement
+### * Palette
+### * ParticleKind
+### * Projectile
+### * SpawnerKind
+### * TileKind
+### * UserConfig
+###
+### ## Functions
+###
+### * create_circle_surf
+### * create_surface
+### * create_surface_withalpha
+### * create_surfaces
+### * hex_to_rgb
+### * hsl_to_rgb
+### * load_img
+### * load_imgs
+### * rects_collidepoint
+### * surfaces_collidepoint
+### * surfaces_get_outline_mask_from_surf
+### * surfaces_vfx_outline_offsets_animation_frames
+### """
+###
+### __all__ = [
+###     # class
+###     "Animation",
+###     "AutotileMatrixID",
+###     "COLOR",
+###     "COUNT",
+###     "COUNTRANDOMFRAMES",
+###     "Collisions",
+###     "EntityKind",
+###     "Math",
+###     "Movement",
+###     "Palette",
+###     "ParticleKind",
+###     "Projectile",
+###     "SpawnerKind",
+###     "TileKind",
+###     "UserConfig",
+###     # function
+###     "create_circle_surf",
+###     "create_surface",
+###     "create_surface_withalpha",
+###     "create_surfaces",
+###     "hex_to_rgb",
+###     "hsl_to_rgb",
+###     "load_img",
+###     "load_imgs",
+###     "rects_collidepoint",
+###     "surfaces_collidepoint",
+###     "surfaces_get_outline_mask_from_surf",
+###     "surfaces_vfx_outline_offsets_animation_frames",
+### ]
 
 
 import math
 import os
+import sys
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, partial
 from pathlib import Path
 from random import randint
+from time import time
+from typing import DefaultDict  # pyright: ignore[reportUnusedImport]
 from typing import (
+    Any,
+    Dict,
     Final,
     Generator,
     NamedTuple,
@@ -91,7 +98,27 @@ from typing import (
 import pygame as pg
 
 
-# import toml
+################################################################################
+### DFLAGS
+################################################################################
+
+DDEBUG: Final[bool] = "--debug" in sys.argv
+
+# flags for debugging, etc
+DEBUG_EDITOR_ASSERTS = True
+DEBUG_EDITOR_HUD = True
+
+DEBUG_GAME_ASSERTS = False
+DEBUG_GAME_CACHEINFO = False
+DEBUG_GAME_CAMERA = False
+DEBUG_GAME_CPROFILE = False
+DEBUG_GAME_HUD = False
+DEBUG_GAME_LOGGING = False
+DEBUG_GAME_PRINTLOG = False
+DEBUG_GAME_STRESSTEST = False
+DEBUG_GAME_TRACEMALLOC = False
+DEBUG_GAME_TRANSITION = False
+DEBUG_GAME_UNITTEST = False
 
 
 ################################################################################
@@ -182,6 +209,8 @@ class SpawnerKind(Enum):
                 return self.ENEMY
             case EntityKind.PORTAL:
                 return self.PORTAL
+            case _:  # pyright: ignore[reportUnnecessaryComparison]
+                raise ValueError('not implemented yet or invalid entity kind')
 
 
 @dataclass
@@ -294,17 +323,55 @@ class Animation:
 ################################################################################
 
 
+TFilesVisitedOpts = Dict[str, (int | Any | None)]
+TFilesVisitedDict = Dict[int, Tuple[float, (str | Path), str]]
+
+global_files_visited: TFilesVisitedDict = dict()
+
+
+import inspect
+
+
+def get_current_line() -> int | Any | None:
+    if (caller_frame := inspect.currentframe()) and caller_frame:
+        if (f_back := caller_frame.f_back) and f_back:
+            return f_back.f_lineno
+    return None
+
+
+def global_files_visited_update(path: str | Path, opts: Optional[TFilesVisitedOpts] = None) -> int | None:
+    if "--debug" in sys.argv:
+        count = len(global_files_visited.items())
+        global_files_visited.update({count: (time(), path, f"{opts}" if opts else f"{opts=}")})
+        return count + 1
+    return None
+
+
+_callable_sound = pg.mixer.Sound
+
+
+def load_sound(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> pg.mixer.Sound:
+    global_files_visited_update(path, opts=(opts if opts else dict(file_=__file__, line_=get_current_line())))
+    return _callable_sound(path)  # > Callable[Sound]
+
+
+_callable_music_load = pg.mixer.music.load
+
+
+def load_music_to_mixer(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> None:
+    global_files_visited_update(path, (opts if opts else dict(file_=__file__, line_=get_current_line())))
+    return _callable_music_load(path)  # > None
+
+
 def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image.
-
     Note: Ported from DaFluffyPotato's pygpen lib
     """
     path = Path(path)
+    global_files_visited_update(path, opts=dict(file_=__file__, line_=get_current_line()))
     img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
-
     if colorkey is not None:
         img.set_colorkey(colorkey)
-
     return img
 
 
@@ -424,6 +491,7 @@ class UserConfig:
         if DEBUG_GAME_PRINTLOG:
             print(f"reading configuration file at {repr(filepath)}")
 
+        global_files_visited_update(filepath, opts=dict(file_=__file__, line_=get_current_line()))
         with open(filepath, "r") as f:
             return {
                 k: v for line in f if (l := line.strip()) and not l.startswith("#") for k, v in [l.split(maxsplit=1)]
@@ -537,28 +605,6 @@ def hsl_to_rgb(h: int, s: float, l: float) -> ColorKind:
 
 #############
 # CONSTANTS #
-
-#
-# DFLAGS
-#
-#   flags for debugging, etc
-#
-
-DEBUG_EDITOR_ASSERTS = True
-DEBUG_EDITOR_HUD = True
-
-DEBUG_GAME_ASSERTS = False
-DEBUG_GAME_CACHEINFO = False
-DEBUG_GAME_CAMERA = False
-DEBUG_GAME_CPROFILE = False
-DEBUG_GAME_HUD = False
-DEBUG_GAME_LOGGING = False
-DEBUG_GAME_PRINTLOG = False
-DEBUG_GAME_STRESSTEST = False
-DEBUG_GAME_TRACEMALLOC = False
-DEBUG_GAME_TRANSITION = False
-DEBUG_GAME_UNITTEST = False
-
 
 FPS_CAP = 60
 """Frames per seconds.
