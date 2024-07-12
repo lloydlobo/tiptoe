@@ -28,6 +28,8 @@ DISTDIR = ./dist
 PROG = $(SRCDIR)/tiptoe.py
 PROG_EDITOR = $(SRCDIR)/editor.py
 
+TESTSRCS = $(SRCDIR)/test_editor.py $(SRCDIR)/test_game.py
+
 DFLAGS=
 
 #------------------------------------------------------------------------------------
@@ -108,8 +110,10 @@ summary:
 	@echo "  - Finished"
 
 test:
-	@echo "test"
-	@echo "unimplemented"
+	@echo "test" && echo "[info] $$(date +%s) Testing via unittest"
+	@echo "  - Starting"
+	time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
+	@echo "  - Finished"
 
 strace-binary:
 	@echo "strace-binary"
