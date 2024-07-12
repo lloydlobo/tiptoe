@@ -716,27 +716,24 @@ class Game:
         # Tilemap: render
         self.tilemap.render(self.display, render_scroll)
 
-        # Update and Draw drop-point location zones
+        # Update(HACK: ...and Draw) drop-point location zones
         # ----------------------------------------------------------------------
         if not self.dead and (position_ := self.player_spawner_pos) and position_:
             surf = self.assets.tiles["portal"][1].copy()  # NOTE(Lloyd): Copying sanity check
             surf_w = surf.get_width()
             surf_h = surf.get_height()
             anim_offset_y: Final = 3
-            dest_position = (
+            dest_position: Final[Tuple[float, float]] = (
                 (position_.x - (surf.get_width() / 2) - render_scroll[0]),
                 (position_.y - (surf.get_height() / 2) + anim_offset_y - render_scroll[1]),
             )
-
-            # This is on victory.. sparks around flags to signify SUCCESS state.
-            # And signal player to go to flag_end
+            # On victory, draw spark lines around flags to signify SUCCESS state.
+            # This lets the player realize to go to flag_end
             # ---------------------------------------------------------------------
             enemy_count = len(self.enemies)
-
             for enemy in self.enemies:
                 if abs(enemy.pos.y - self.player_spawner_pos.y) < 32:
                     enemy_count -= 1
-
                     if enemy not in self.collected_enemies_seen:
                         self.collected_enemies_counter += 1
                         self.collected_enemies_seen.add(enemy)
@@ -746,42 +743,30 @@ class Game:
             # Flag win condition
             if enemy_count == 0:
                 self.collected_enemies = True
+
                 # Draw flag success sparks
-                # ---------------------------------------------------------------------
-                colors: Final = (pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167"))
-                offset_y_: Final = pre.TILE_SIZE / 8
-                radius: Final = 1
-                sparkcenter: Final = [(dest_position[0] + surf_w // 2), (dest_position[1] + surf_h)]
-                maxdy_: Final = surf_h // 1.618
-                dy_ = 0.0
-                for i in range(0, (surf_h * 2)):
-                    if dy_ > maxdy_:
-                        break
-                    if random() < 0.8:
+                if pre.DDEBUG:
+                    MAX_DY = math.ceil(surf_h // 1.618)
+                    CLR0, CLR1 = pre.hex_to_rgb("cac063"), pre.hex_to_rgb("acc167")
+                    _ssurf: pg.SurfaceType = self.display
+                    _scenter: Tuple[float, float] = ((dest_position[0] + surf_w // 2), (dest_position[1] + surf_h))
+                    color = None
+                    _dy = 0.0
+                    for i in range(0, (surf_h * 2)):
+                        if _dy > MAX_DY:
+                            break
+                        color = CLR0 if random() < 0.8 else CLR1
                         for j in range(0, surf_w // 4):
-                            pg.draw.circle(
-                                self.display, colors[0], (sparkcenter[0] + (4 * j), sparkcenter[1] - dy_), radius
-                            )
-                            pg.draw.circle(
-                                self.display, colors[0], (sparkcenter[0] - (4 * j), sparkcenter[1] - dy_), radius
-                            )
-                    else:
-                        for j in range(0, surf_w // 4):
-                            pg.draw.circle(
-                                self.display, colors[1], (sparkcenter[0] + (4 * j), sparkcenter[1] - dy_), radius
-                            )
-                            pg.draw.circle(
-                                self.display, colors[1], (sparkcenter[0] - (4 * j), sparkcenter[1] - dy_), radius
-                            )
-                    dy_ += offset_y_
-                # --------------------------------------------------------------
+                            pg.draw.circle(_ssurf, color, (_scenter[0] + (4 * j), (_scenter[1] - _dy)), 1)
+                            pg.draw.circle(_ssurf, color, (_scenter[0] - (4 * j), (_scenter[1] - _dy)), 1)
+                        _dy += pre.TILE_SIZE / 8
 
             # Draw start drop location
             self.display.blit(surf, dest_position)
             # ------------------------------------------------------------------
         # ----------------------------------------------------------------------
 
-        # Portal: Detect and Render---------------------------------------------
+        # Portal: Detect and Render
         # ----------------------------------------------------------------------
         if not self.touched_portal:
             # NOTE(Lloyd): This disappears very fast
@@ -830,41 +815,47 @@ class Game:
                     self.sfx.jump.play()
         # ---------------------------------------------------------------------
 
-        # Update and Draw GameCheckpoints -------------------------------------
+        # Update and Draw GameCheckpoints
         # ---------------------------------------------------------------------
         for i, state in enumerate(self.gcs_deque):
-            _r = 2 * (1 + 1 / (1 + i))  # radius -> 2
-            checkpoint_center = (
-                int(state.player_position[0] - render_scroll[0]),
-                int(state.player_position[1] - render_scroll[1]),
+            radius_: int = math.ceil(2 * (1 + 1 / (1 + i)))  # radius -> 2
+            checkpoint_center: Tuple[int, int] = (
+                math.ceil(state.player_position[0] - render_scroll[0]),
+                math.ceil(state.player_position[1] - render_scroll[1]),
             )
-            pg.draw.circle(self.display, pre.GREENGLOW, checkpoint_center, radius=(_r + 1))
-            pg.draw.circle(self.display, pre.GREENBLURB, checkpoint_center, radius=_r)
-            # if 0:  # debugging
-            #     self.draw_text(int(state.player_position[0] -
-            #         render_scroll[0]), int(state.player_position[1] -
-            #                    render_scroll[1]), self.font_xs,
-            #                    pre.COLOR.FLAMEGLOW, f"{i+1}")
+            pg.draw.circle(self.display, self.colorscheme_green3, checkpoint_center, radius=(radius_ + 2))
+            pg.draw.circle(self.display, self.colorscheme_green5, checkpoint_center, radius=radius_)
+            if pre.DDEBUG:
+                self.draw_text(
+                    checkpoint_center[0],
+                    (checkpoint_center[1] - math.floor(2 * math.pi * radius_)),
+                    self.font_xs,
+                    self.colorscheme_green3,
+                    f"{i+1}",
+                )
         # ---------------------------------------------------------------------
 
-        # Player: update and render--------------------------------------------
+        # Player: update and render
         # ---------------------------------------------------------------------
         if not self.dead:
             self.player.update(self.tilemap, pg.Vector2(self.movement.right - self.movement.left, 0))
             self.player.render(self.display, render_scroll)
         # ---------------------------------------------------------------------
 
-        # Gun: projectiles and sparks------------------------------------------
+        # Gun: projectiles and sparks
         # ---------------------------------------------------------------------
         for projectile in self.projectiles:
             projectile.pos[0] += projectile.velocity
             projectile.timer += 1
-            img = self.assets.misc_surf["projectile"]
+
+            img: pg.SurfaceType = self.assets.misc_surf["projectile"]
+            img_offset_w: Final[int] = img.get_width() // 2
             dest = (
-                projectile.pos[0] - (img.get_width() // 2) - render_scroll[0],
-                projectile.pos[1] - (img.get_height() // 2) - render_scroll[1],
+                projectile.pos[0] - img_offset_w - render_scroll[0],
+                projectile.pos[1] - img_offset_w - render_scroll[1],
             )
             self.display.blit(img, dest)
+
             # Projectile post render: update. int -> precision for grid system
             projectile_x, projectile_y = int(projectile.pos[0]), int(projectile.pos[1])
             if self.tilemap.maybe_solid_gridtile_bool(pg.Vector2(projectile_x, projectile_y)):
@@ -882,10 +873,10 @@ class Game:
                 self.projectiles.remove(projectile)
             elif abs(self.player.dash_timer) < self.player.dash_burst_2:
                 if self.player.rect.collidepoint(projectile_x, projectile_y):  # Player is vulnerable
-                    if (
-                        self.player.action == Action.IDLE
-                        and self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter
-                    ):  # Player looses health but still alive if idle or still
+                    # Player looses health but still alive if idle or still
+                    if (self.player.action == Action.IDLE) and (
+                        self.dead_hit_skipped_counter < self.player.max_dead_hit_skipped_counter
+                    ):
                         self.screenshake = max(self._max_screenshake, self.screenshake - 0.5)
                         self.projectiles.remove(projectile)
                         self.sparks.extend(
@@ -894,8 +885,11 @@ class Game:
                             if (angle := random() * math.pi * 2, speed := 2 + random())
                         )
                         self.sfx.hitmisc.play()
-                        self.dead_hit_skipped_counter += 1  # NOTE(Lloyd): Should reset this if players action state changes from idle to something else
-                    else:  # Player death OR send back in time(checkpoint)
+                        # NOTE(Lloyd): Should reset this if players action
+                        # state changes from idle to something else
+                        self.dead_hit_skipped_counter += 1
+                    # Player death OR send back in time(checkpoint)
+                    else:
                         self.screenshake = max(self._max_screenshake, self.screenshake - 1)
                         self.projectiles.remove(projectile)
                         self.sparks.extend(
@@ -920,16 +914,17 @@ class Game:
                             )
                         )
                         self.sfx.hit.play()
-                        # NOTE(Lloyd): Next iteration, when counter is 0 player pos is
-                        # reverted to last checkpoint instead of death.
+                        # NOTE(Lloyd): Next iteration, when counter is 0 player
+                        # pos is reverted to last checkpoint instead of death.
                         if (_death_by_projectile_enabled := 0) and _death_by_projectile_enabled:
                             self._increment_player_dead_timer()
-                        else:  # Replenish health
+                        # Replenish health
+                        else:
                             self.dead_hit_skipped_counter = 0
                             self.respawn_death_last_checkpoint = True
         # ---------------------------------------------------------------------
 
-        # Update Sparks--------------------------------------------------------
+        # Update Sparks
         # ---------------------------------------------------------------------
         for spark in self.sparks.copy():
             kill_animation: bool = spark.update()
@@ -938,7 +933,7 @@ class Game:
                 self.sparks.remove(spark)
         # ---------------------------------------------------------------------
 
-        # Update particles-----------------------------------------------------
+        # Update particles
         # ---------------------------------------------------------------------
         for particle in self.particles.copy():
             kill_animation: bool = particle.update()
