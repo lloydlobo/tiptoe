@@ -75,6 +75,14 @@ clean:
 	trash --verbose $(DISTDIR)
 	@echo "  - Finished"
 
+# ❯ find . -name 'prelude.py' | entr -cprs 'make -j4 doctest'
+doctest:
+	@echo "doctest"
+	@echo "  - Starting"
+	# find . -name '*.py' | xargs -I _ python -m doctest _
+	python -m doctest ./src/internal/prelude.py
+	@echo "  - Finished"
+
 edit:
 	@echo "edit"
 	@echo "  - Starting"
@@ -109,30 +117,34 @@ summary:
 	git log --oneline | head 
 	@echo "  - Finished"
 
+# time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
 test:
 	@echo "test" && echo "[info] $$(date +%s) Testing via unittest"
 	@echo "  - Starting"
-	time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
+	@find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
+	@echo "  - Finished"
+
+# -s starting directory
+# -p pattern
+test-discover:
+	@echo "test" && echo "[info] $$(date +%s) Testing via python -m unittest discover"
+	@echo "  - Starting"
+	@python -m unittest discover -s src -p "test*.py"
 	@echo "  - Finished"
 
 strace-binary:
 	@echo "strace-binary"
-	strace -c ./dist/$(BINARY)
+	@strace -c ./dist/$(BINARY)
 
-# ✦ ❯ make -j4  watch DFLAGS=--debug
-# watch
-#   - Starting
-# sh: line 1: SIGTERM: command not found
-#   - Send a  to any previously spawned python subprocesses before executing 'python tiptoe.py':
-#         (Tip: use spacebar to reload)
+# make -j4  watch DFLAGS=--debug
 # fd --extension=py | entr -r python ./src/tiptoe.py --debug
 watch:
 	@echo "watch"
 	@echo "  - Starting"
-
 	@echo "  - Send a `SIGTERM` to any previously spawned python subprocesses before executing 'python tiptoe.py':"
 	@echo "        (TIP: reload: <Space>, exit: <q>)"
-	fd --extension=py | entr -r python ${PROG} $(DFLAGS)
+
+	@fd --extension=py | entr -r python ${PROG} $(DFLAGS)
 	@echo "  - Finished"
 
 targzip:

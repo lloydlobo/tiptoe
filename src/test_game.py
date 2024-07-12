@@ -115,12 +115,12 @@ def mock_quit_exit(*kwargs: Any):
 
 
 class TestGameSetMainScreen(unittest.TestCase):
+    """FIXME: This passes but is not what we want.... So, screen is none is possible when:
+    - Player quits the game
+    - While initial Launcher loading??
+    - At any assertions or exceiptions.. not implemented yet
+    """
     def test_game_set_main_screen_to_none(self):
-        """FIXME: This passes but is not what we want.... So, screen is none is possible when:
-        - Player quits the game
-        - While initial Launcher loading??
-        - At any assertions or exceiptions.. not implemented yet
-        """
         g = game.Game()
         screen = None
         if got := game.set_mainscreen(g, scr=screen):
