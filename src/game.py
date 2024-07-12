@@ -1904,7 +1904,6 @@ class StartScreen:
         self._title_textz_offy = 4 * pre.TILE_SIZE
 
         self.selected_menuitem = MenuItemType.PLAY  # current item
-        self.event_selected_menuitem: Optional[MenuItemType] = None  # current item
         self.menuitem_offset = 0
 
         self.clock = pg.time.Clock()  # or use game's clock?

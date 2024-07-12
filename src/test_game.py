@@ -4,16 +4,20 @@
 #   fd -e py . | entr -cprs 'python src/test_game.py'
 
 import inspect
+import logging
 import time
 import unittest
-from pathlib import Path
+from typing import Any, Never, NoReturn
+from unittest.mock import patch
 
 import game
 from internal.prelude import CONFIG_PATH, UserConfig
 
 
-FILENAME: str = Path(__file__).name
-TRACELOG: bool = True
+glogger = logging.getLogger("test_game")
+
+FLAG_OPEN_WINDOW: bool = False  # Suppress tests that opens pygame display screen
+TRACELOG: bool = False
 
 
 def lineno() -> int:
@@ -45,12 +49,12 @@ class TestWarmup(unittest.TestCase):
 class TestGameEnums(unittest.TestCase):
     def setUp(self) -> None:
         if TRACELOG:
-            print(f"\n{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
+            print(f"\n{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
         return super().setUp()
 
     def tearDown(self) -> None:
         if TRACELOG:
-            print(f"{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
+            print(f"{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
         return super().tearDown()
 
     def test_game_enums(self):
@@ -66,12 +70,12 @@ class TestGameEnums(unittest.TestCase):
 class TestGameFileIO(unittest.TestCase):
     def setUp(self) -> None:
         if TRACELOG:
-            print(f"\n{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
+            print(f"\n{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
         return super().setUp()
 
     def tearDown(self) -> None:
         if TRACELOG:
-            print(f"{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
+            print(f"{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
         return super().tearDown()
 
     def test_game_get_user_config(self):
@@ -87,17 +91,18 @@ class TestGameFileIO(unittest.TestCase):
 class TestGameSyscalls(unittest.TestCase):
     def setUp(self) -> None:
         if TRACELOG:
-            print(f"\n{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
+            print(f"\n{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Starting: ', self)
         return super().setUp()
 
     def tearDown(self) -> None:
         if TRACELOG:
-            print(f"{time.process_time():.5f}", f'[debug] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
+            print(f"{time.process_time():.5f}", f'[info] in {FILENAME}: line {lineno()}:', 'Finished: ', self)
         return super().tearDown()
 
     def test_game_quit_exit(self):
         import pygame
 
+        pygame.quit()  # HACK: Cleanup any initialized test side-effects
         self.assertFalse(pygame.get_init())
         pygame.init()
         self.assertTrue(pygame.get_init())
@@ -108,13 +113,102 @@ class TestGameSyscalls(unittest.TestCase):
         import pygame
 
         self.assertFalse(pygame.get_init())
-        # NOTE(Lloyd): Assume we forget to initialize pygame before quit call
-        #   pygame.init()
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError):  # Assume we forgot to initialize pygame before quitting
             game.quit_exit()
 
 
-if __name__ == "__main__":
-    print(f"{time.process_time():.5f}", "[debug]", time.monotonic_ns(), time.ctime())
-    unittest.main()
+def quit_exit(*kwargs: Any):
+    glogger.debug("@patch('game.quit_exit', quit_exit)")
+    print(
+        f"{time.process_time():.5f}",
+        f"[info] patched Callable game.quit_exit in {FILENAME} on line {lineno()} while testing: {kwargs}",
+    )
 
+
+class TestGameSetMainScreen(unittest.TestCase):
+    def test_game_set_main_screen_to_none(self):
+        """FIXME: This passes but is not what we want.... So, screen is none is possible when:
+        - Player quits the game
+        - While initial Launcher loading??
+        - At any assertions or exceiptions.. not implemented yet
+        """
+        g = game.Game()
+        screen = None
+        if got := game.set_mainscreen(g, scr=screen):
+            want = (game.AppState.GAMESTATE, game.GameState.NEXTLEVEL)
+            self.assertTupleEqual(got, want)
+        self.assertIs(g.mainscreen, None)
+
+    def test_game_set_main_screen_to_startscreen_with_manual_sigkill(self):
+        g = game.Game()
+        screen = game.StartScreen(g)
+        self.assertTupleEqual((screen.w, screen.h), game.pre.DIMENSIONS_HALF)
+        self.assertIs(screen.menuitem_offset, 0)
+        self.assertIs(screen.selected_menuitem, game.MenuItemType.PLAY)
+        self.assertTrue(screen.running)
+        if FLAG_OPEN_WINDOW:
+            with self.assertRaises(SystemExit):
+                assert 1, "reachable"
+                got = game.set_mainscreen(g, scr=screen)
+                self.assertTrue(False, "unreachable since, internally quit_exit() calls sys.exit()")
+                self.assertIs(g.mainscreen, screen)
+                if got:
+                    want = (game.AppState.GAMESTATE, game.GameState.NEXTLEVEL)
+                    self.assertTupleEqual(got, want)
+
+    def test_set_main_screen_exits_after_gameover(self):
+        g = game.Game()
+        g.gameover = True
+        screen = game.StartScreen(g)
+
+        if FLAG_OPEN_WINDOW:
+            got: Any = None
+            with self.assertRaises(SystemExit):
+                try:
+                    got = game.set_mainscreen(g, scr=screen)
+                    self.assertTrue(False, "unreachable since, internally quit_exit() calls sys.exit()")
+                except SystemExit as e:
+                    self.assertIs(g.mainscreen, screen)
+                    self.assertIsNone(got)
+                    raise e
+
+    @patch('game.quit_exit', quit_exit)
+    def test_set_main_screen_patch_quit_exit(self):
+        g = game.Game()
+        g.gameover = True
+        screen = game.StartScreen(g)
+        try:
+            with self.assertLogs(logger=glogger, level=logging.DEBUG):
+                ret = game.quit_exit()
+                self.assertIsNone(ret, f"expected game.quit_exit(...) patched in {self}")
+                self.assertNotEqual(ret, NoReturn, f"expected game.quit_exit(...) patched in {self}")
+                self.assertNotEqual(ret, Never, f"expected game.quit_exit(...) patched in {self}")
+            assert 1, "reachable"
+        except Exception as e:
+            self.fail(f"unreachable: {e}")
+            assert 0, "unreachable"
+        finally:
+            # NOTE: Using finally as `try..else..` block honors the `NoReturn`
+            # return type of game.quit_exit()
+            assert 1, "reachable"
+            if not FLAG_OPEN_WINDOW:
+                self.assertIs(g.mainscreen, None)
+            else:
+                got = game.set_mainscreen(g, scr=screen)
+                self.assertIs(g.mainscreen, screen)
+                print(
+                    f"{time.process_time():.5f}",
+                    f"[info] bypassed game.quit_exit in {FILENAME} while testing by: \n\t{repr(self)}: \n\t",
+                    "to test Game.mainscreen without calling sys.exit()",
+                )
+                if got:
+                    want = (game.AppState.MENUSTATE, game.GameState.EXIT)
+                    self.assertTupleEqual(got, want)
+                    return
+                self.assertIsNone(got)
+
+
+if __name__ == "__main__":
+    FILENAME: str = __import__('pathlib').Path(__file__).name
+    print(f"{time.process_time():.5f}", "[info]", time.monotonic_ns(), time.ctime(), f"in {FILENAME}")
+    unittest.main()
