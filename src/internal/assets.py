@@ -1,4 +1,4 @@
-import itertools as it
+import itertools as it  # pyright: ignore[reportUnusedImport]
 import logging
 import math
 from dataclasses import dataclass
@@ -9,6 +9,13 @@ import pygame as pg
 
 import internal.prelude as pre
 from internal.spritesheet import Spritesheet
+
+
+# if 1:  # Locality of Behavior hack
+#     from typing import TYPE_CHECKING
+#
+#     if TYPE_CHECKING:  # Prerequisites: from __future__ import annotations
+#         from game import Game
 
 
 @dataclass(slots=True)
