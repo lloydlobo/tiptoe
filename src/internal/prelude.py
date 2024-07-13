@@ -1,73 +1,8 @@
 # file: tiptoe/src/internal/prelude.py
 
-### """This module contains all the classes, functions and constants used in the
-### game.
-###
-### ## Classes
-###
-### * Animation
-### * AutotileID
-### * COLOR
-### * COUNT
-### * COUNTRANDOMFRAMES
-### * Collisions
-### * EntityKind
-### * Math
-### * Movement
-### * Palette
-### * ParticleKind
-### * Projectile
-### * SpawnerKind
-### * TileKind
-### * UserConfig
-###
-### ## Functions
-###
-### * create_circle_surf
-### * create_surface
-### * create_surface_withalpha
-### * create_surfaces
-### * hex_to_rgb
-### * hsl_to_rgb
-### * load_img
-### * load_imgs
-### * rects_collidepoint
-### * surfaces_collidepoint
-### * surfaces_get_outline_mask_from_surf
-### * surfaces_vfx_outline_offsets_animation_frames
-### """
-###
-### __all__ = [
-###     # class
-###     "Animation",
-###     "AutotileMatrixID",
-###     "COLOR",
-###     "COUNT",
-###     "COUNTRANDOMFRAMES",
-###     "Collisions",
-###     "EntityKind",
-###     "Math",
-###     "Movement",
-###     "Palette",
-###     "ParticleKind",
-###     "Projectile",
-###     "SpawnerKind",
-###     "TileKind",
-###     "UserConfig",
-###     # function
-###     "create_circle_surf",
-###     "create_surface",
-###     "create_surface_withalpha",
-###     "create_surfaces",
-###     "hex_to_rgb",
-###     "hsl_to_rgb",
-###     "load_img",
-###     "load_imgs",
-###     "rects_collidepoint",
-###     "surfaces_collidepoint",
-###     "surfaces_get_outline_mask_from_surf",
-###     "surfaces_vfx_outline_offsets_animation_frames",
-### ]
+"""This module contains all the classes, functions and constants used in the
+game.
+"""
 
 
 import math
@@ -414,9 +349,22 @@ def load_music_to_mixer(path: Path, opts: Optional[TFilesVisitedOpts] = None) ->
     return _callable_music_load(path)  # > None
 
 
+# FIXME: Cannot test it due to error:
+#   pygame.error: No video mode has been set
+# CANFIX: Add a param flag to avoid converting the image after load....
 def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
     """Load and return a pygame Surface image.
     Note: Ported from DaFluffyPotato's pygpen lib
+
+    Errors::
+        Throws if No video mode has been set before calling this function.
+        Ensure the following is called prior load_img(...)
+
+        >>> import pygame as pg
+        >>> display_flag = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # BITFLAGS
+        >>> screen = pg.display.set_mode(size=(960, 630), flags=display_flag)
+        >>> isinstance(screen, pg.SurfaceType)
+        True
     """
     path = Path(path)
     global_files_visited_update(path, opts=dict(file_=__file__, line_=get_current_line()))
