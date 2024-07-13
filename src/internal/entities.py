@@ -616,22 +616,18 @@ class Player(PhysicalEntity):
 
         return dash
 
-    def calculate_bezier_particle_radius(self) -> float:
-        """Example:: 0.68 1.37 2.08 2.80 3.52 4 4 4 4 4"""
-        pstar_radius: Final = pre.SIZE.PLAYERSTARDASHRADIUS[0]
-        dash_amount: Final = abs(self.dash_timer)
-        t = 1.0 - (dash_amount / self._max_dash_time)  # Calculate the Bezier curve parameter t
-
-        # Calculate the radius based on the Bezier curve quadratic formula
-        radius = ((1 - t) ** 2 * 0) + (2 * t * (1 - t) * 1) + (t**2 * 3)
-
-        radius *= pstar_radius * 0.5  # Scale the radius based on the maximum dash time and the playersstar dash size
-        radius = min(pstar_radius, 2 * math.pi * (radius * 1.618))  # Keep radius in bounds
-
-        if radius >= pstar_radius:  # shrink
-            radius = radius * 0.618 / ((1 + dash_amount) * math.pi)
-
-        return radius
+    # def calculate_bezier_particle_radius(self) -> float:
+    #     """Example:: 0.68 1.37 2.08 2.80 3.52 4 4 4 4 4"""
+    #     pstar_radius: Final = pre.SIZE.PLAYERSTARDASHRADIUS[0]
+    #     dash_amount: Final = abs(self.dash_timer)
+    #     t = 1.0 - (dash_amount / self._max_dash_time)  # Calculate the Bezier curve parameter t
+    #     # Calculate the radius based on the Bezier curve quadratic formula
+    #     radius = ((1 - t) ** 2 * 0) + (2 * t * (1 - t) * 1) + (t**2 * 3)
+    #     radius *= pstar_radius * 0.5  # Scale the radius based on the maximum dash time and the playersstar dash size
+    #     radius = min(pstar_radius, 2 * math.pi * (radius * 1.618))  # Keep radius in bounds
+    #     if radius >= pstar_radius:  # shrink
+    #         radius = radius * 0.618 / ((1 + dash_amount) * math.pi)
+    #     return radius
 
     def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
         """Render player sprite or star particle based on game conditions.

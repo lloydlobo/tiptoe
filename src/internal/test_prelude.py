@@ -29,33 +29,40 @@
             global_files_visited_update(path, opts=(opts if opts else dict(file_=__file__, line_=get_current_line())))
             return _callable_sound(path)  # > Callable[Sound]
 
+    FIXME: !!!!!!!!!
     _callable_music_load = pg.mixer.music.load
     def load_music_to_mixer(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> None:
         global_files_visited_update(path, (opts if opts else dict(file_=__file__, line_=get_current_line())))
         return _callable_music_load(path)  # > None
 
-    def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
-        path = Path(path)
-        global_files_visited_update(path, opts=dict(file_=__file__, line_=get_current_line()))
-        img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
-        if colorkey is not None: img.set_colorkey(colorkey)
-        return img
+    DONE:
+        def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
+            path = Path(path)
+            global_files_visited_update(path, opts=dict(file_=__file__, line_=get_current_line()))
+            img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
+            if colorkey is not None: img.set_colorkey(colorkey)
+            return img
 
-    def load_imgs( path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
-        return [ load_img(f"{path}/{img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path)) if img_name.endswith(".png")
-    ]
+    DONE:
+        def load_imgs( path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
+            return [ load_img(f"{path}/{img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path)) if img_name.endswith(".png")
+        ]
 """
 
+import sys
 import unittest
 import wave  # Stuff to parse WAVE files.
 from pathlib import Path
-from typing import IO, Final, List, TypeAlias
+from typing import IO, Dict, Final, List, TypeAlias
 
 import numpy as np
 import pygame as pg
 
 from src.internal.prelude import (
     DIMENSIONS,
+    UserConfig,
+    global_files_visited,
+    global_files_visited_update,
     load_img,
     load_imgs,
     load_music_to_mixer,
@@ -159,6 +166,59 @@ class TestFileIO(unittest.TestCase):
         with self.assertRaises(Exception):  # > pygame.error: music_drmp3: corrupt mp3 file (bad stream).
             ret: None = load_music_to_mixer(music_path)
             self.fail(f'unreachable: {repr(ret)}')
+
+    @unittest.skip("unimplemented")
+    def test_user_config_from_dict(self):
+        pass
+
+    def test_user_config_read_user_config(self):
+        config_content = """
+        window_width        800
+        window_height       600
+        #-------------------------
+        #player_dash        8
+        #player_jump        3
+        #player_speed       5
+        #enemy_jump         3
+        #enemy_speed        5
+        star_count          18
+        ####
+        #drop_shadow        true
+        #shadow_range       1
+        #col_shadow         000000
+        blur_enabled        true
+        blur_size           5
+        blur_passes         2
+        blur_vibrancy       0.5
+        screenshake         false
+        #@@@
+        sound_muted         true
+        sound_volume        0.7
+        music_muted         false
+        music_volume        0.6
+        """
+        config_path = self.test_dir / 'config'
+        config_path.write_text(config_content); self.assertTrue(config_path.is_file())  # fmt: skip
+        config_dict = UserConfig.read_user_config(config_path); self.assertIsNotNone(config_dict)  # fmt: skip
+        if not config_dict:
+            self.fail('unreachable')
+        self.assertIsInstance(config_dict, Dict)
+        self.assertEqual(config_dict['music_volume'], '0.6')
+        self.assertEqual(config_dict['star_count'], '18')
+        self.assertEqual(config_dict['screenshake'], 'false'); self.assertEqual(config_dict['sound_muted'], 'true');  # fmt: skip
+        self.assertEqual(config_dict['window_height'], '600'); self.assertEqual(config_dict['window_width'], '800');  # fmt: skip
+        with self.assertRaises(Exception):
+            self.assertEqual(
+                config_dict['player_dash'], '8', msg='expected exception while accessing commented-out config-attribute'
+            )
+
+    def test_global_files_visited_update_works_with_debug_flag(self):
+        sys.argv.append('--debug')
+        _path: Path = self.test_dir / 'test.txt'
+        result: int | None = global_files_visited_update(_path)
+        self.assertIsNotNone(result); self.assertIsInstance(result,int);  # fmt: skip
+        self.assertTrue(len(global_files_visited) > 0)
+        sys.argv.remove('--debug')
 
 
 if __name__ == "__main__":
