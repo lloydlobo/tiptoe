@@ -75,6 +75,7 @@ clean:
 	trash --verbose $(DISTDIR)
 	@echo "  - Finished"
 
+# ❯ python -m doctest src/internal/prelude.py -v
 # ❯ find . -name 'prelude.py' | entr -cprs 'make -j4 doctest'
 doctest:
 	@echo "doctest"
@@ -124,8 +125,10 @@ test:
 	@find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
 	@echo "  - Finished"
 
-# -s starting directory
-# -p pattern
+
+# fd -e py . | entr -cprs 'make -j4 test-discover'
+#	-s starting directory
+#	-p pattern
 test-discover:
 	@echo "test" && echo "[info] $$(date +%s) Testing via python -m unittest discover"
 	@echo "  - Starting"
