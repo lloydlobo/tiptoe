@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools as it
 import json
+import math
 from collections.abc import Iterator
 from copy import deepcopy
 from dataclasses import dataclass
@@ -18,26 +19,37 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypeAlias,
     TypedDict,
     Union,
 )
 
 import pygame as pg
 
+from . import prelude as pre  # from internal import prelude as pre
 
-# Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
-if TYPE_CHECKING:
+
+if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from game import Game
-    from editor import Editor
-
-import internal.prelude as pre
 
 
-def pos_to_loc(x: int | float, y: int | float, offset: Union[tuple[int | float, int | float], None]) -> str:
-    """calc_pos_to_loc convert position with offset to json serialise-able key string for game level map"""
-    # NOTE: The level editor uses this, so cannot change this, without updating the saved map data
+_Number: TypeAlias = pre.Number
 
-    return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}" if offset else f"{int(x)};{int(y)}"
+OVERFLOW_CASES: Set[float] = {-math.inf, math.inf, -math.nan, math.nan}
+
+
+def pos_to_loc(x: _Number, y: _Number, offset: Union[tuple[_Number, _Number], None]) -> str:
+    """Convert position with offset to json serialise-able key string for game level map.
+
+    The level editor uses this, so cannot change this, without updating the saved map data
+
+    Errors::
+
+        Panics if any value is in { -math.inf, math.inf, -math.nan, math.nan }
+    """
+    if offset is not None:
+        return f"{int(x)-int(offset[0])};{int(y)-int(offset[1])}"
+    return f"{int(x)};{int(y)}"
 
 
 pos_to_loc_partial: partial[str] = partial(pos_to_loc)
@@ -434,3 +446,14 @@ class Tilemap:
                         tile.variant = self._autotile_horizontal_map[sorted_ngbrs]
 
                     neighbors.clear()
+
+
+def _test():
+    """$ python -m doctest ./src/internal/tilemap.py --verbose"""
+    import doctest
+
+    doctest.testmod()
+
+
+if __name__ == "__main__":
+    _test()
