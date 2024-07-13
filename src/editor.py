@@ -8,9 +8,9 @@ from typing import Optional
 
 import pygame as pg
 
-import internal.prelude as pre
-from internal.assets import Assets
-from internal.tilemap import TileItem, Tilemap, pos_to_loc
+import src.internal.prelude as pre
+from src.internal.assets import Assets
+from src.internal.tilemap import TileItem, Tilemap, pos_to_loc
 
 
 class Editor:

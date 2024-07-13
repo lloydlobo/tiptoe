@@ -210,6 +210,25 @@ def set_mainscreen(
 # GAME
 # -----------------------------------------------------------------------------
 
+"""
+def init(
+    frequency: int = 44100,
+    size: int = -16,
+    channels: int = 2,
+    buffer: int = 512,
+    devicename: Optional[str] = None,
+    allowedchanges: int = 5,
+) -> None: ...
+def pre_init(
+    frequency: int = 44100,
+    size: int = -16,
+    channels: int = 2,
+    buffer: int = 512,
+    devicename: Optional[str] = None,
+    allowedchanges: int = 5,
+) -> None: ...
+"""
+
 
 class Game:
     # @profile
@@ -2108,5 +2127,20 @@ class Launcher(Game):
         super().__init__()
 
     def start(self) -> None:
+        # Some platforms require the pygame.mixerpygame module for loading and
+        # playing sounds module to be initialized after the display modules
+        # have initialized. The top level pygame.init() takes care of this
+        # automatically, but cannot pass any arguments to the mixer init. To
+        # solve this, mixer has a function pygame.mixer.pre_init() to set the
+        # proper defaults before the toplevel init is used.
+        #
+        # pygame.mixer.init()
+        #   It is safe to call this more than once, but after the mixer is
+        #   initialized you cannot change the playback arguments without first
+        #   calling pygame.mixer.quit().
+        #
+        # See reference: https://www.pygame.org/docs/ref/mixer.html#pygame.mixer.init
+        pg.mixer.pre_init()
+
         startscreen = StartScreen(self)
         set_mainscreen(game=self, scr=startscreen)

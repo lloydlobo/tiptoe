@@ -42,3 +42,8 @@ issues.org
 build/tiptoe
 dist/src
 tiptoe.tar.gz
+
+# TESTS
+.hypothesis/examples
+.hypothesis/unicode_data
+src/internal/test_getting_started_hypothesis.py.txt
