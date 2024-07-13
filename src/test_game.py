@@ -35,6 +35,12 @@ class TestWarmup(unittest.TestCase):
         self.assertEqual(abs(-10), 10)
         self.assertEqual(abs(0), 0)
 
+    def test_even(self):
+        """Test that range between start=0, stop=6, and step of 2 are all even."""
+        for i in range(0, 6, 2):
+            with self.subTest(i=i):
+                self.assertEqual(i % 2, 0)
+
 
 class TestGameEnums(unittest.TestCase):
     def setUp(self) -> None:
@@ -120,6 +126,7 @@ class TestGameSetMainScreen(unittest.TestCase):
     - While initial Launcher loading??
     - At any assertions or exceiptions.. not implemented yet
     """
+
     def test_game_set_main_screen_to_none(self):
         g = game.Game()
         screen = None
