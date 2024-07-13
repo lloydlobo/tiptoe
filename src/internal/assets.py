@@ -60,44 +60,30 @@ class Assets:
 
         spritesheet_bouncepad = Spritesheet(sheets_path / "bouncepad.png", sheets_path / "bouncepad.json")
         spritesheet_enemy = Spritesheet(sheets_path / "enemy.png", sheets_path / "enemy.json")
-        spritesheet_large_decor = Spritesheet(sheets_path / "large_decor.png", sheets_path / "large_decor.json")
         spritesheet_player = Spritesheet(sheets_path / "player.png", sheets_path / "player.json")
         spritesheet_tileset = Spritesheet(sheets_path / "tileset.png", sheets_path / "tileset.json")
         spritesheet_tileset_greenvalley = Spritesheet(
             sheets_path / "tilesetmapdecorations.png", sheets_path / "tilesetmapdecorations.json"
         )
-
         large_decor = [
-            # ===-----------=== #
             sprite
             for group in ["bush_1", "bush_2", "bush_3", "bush_4", "bush_5", "bush_6", "bush_7"]
             for sprite in spritesheet_tileset_greenvalley.load_sprites("large_decor", group)
         ]
         large_decor.extend(pre.load_imgs((pre.IMGS_PATH / "tiles" / "large_decor").__str__(), colorkey=pre.BLACK))
         granites = spritesheet_tileset.load_sprites("tiles", "granite")
-
-        if 0:
-            granite_color = pre.hex_to_rgb("35d450")  # helix starlight green or bright2
         granite_color = pre.hex_to_rgb("597119" or "425238")  # helix starlight green or bright2
-
-        if 0:
-            granite_grid_border_color = pre.hex_to_rgb("616161")
         granite_grid_border_color = pre.hex_to_rgb("384510" or "18260f" or "4c5c1d")
-
         for i, granite in enumerate(granites.copy()):
-            # Grid line illusion
-            granites[i].fill(granite_grid_border_color)
-
+            granites[i].fill(granite_grid_border_color)  # Grid line illusion
             rect_16_0 = granite.get_rect()
+            # rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
+            # if 0:
+            # granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9)
+            # else:
+            # granites[i].fill(color=granite_color, rect=rect_15_9)
+            granites[i].fill(color=granite_color, rect=rect_16_0)
 
-            rect_15_9 = pg.Rect(0.1, 0.1, rect_16_0.w - 0.1, rect_16_0.h - 0.1)
-
-            if 0:
-                granites[i].fill(color=pre.hex_to_rgb("35d450"), rect=rect_15_9)
-            else:
-                granites[i].fill(color=granite_color, rect=rect_15_9)
-
-        background = pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK)
         return cls(
             entity=dict(
                 # enemy=pre.create_surface_partialfn(size=(pre.SIZE.ENEMY), fill_color=pre.COLOR.ENEMY),
@@ -106,10 +92,10 @@ class Assets:
                 # player=pre.create_surface_partialfn(size=pre.SIZE.PLAYER, fill_color=pre.COLOR.PLAYER),
             ),
             misc_surf=dict(
-                background=background,
-                bg1=background.copy(),
-                bg2=pre.load_img(bg_path / f"bg2_{resolution}.png", colorkey=pre.BLACK),
-                bg3=pre.load_img(bg_path / f"bg3_{resolution}.png", colorkey=pre.BLACK),
+                background=None,  # pre.load_img(bg_path / f"bg1_{resolution}.png", colorkey=pre.BLACK),
+                bg1=None,  # background.copy(),
+                bg2=None,  # pre.load_img(bg_path / f"bg2_{resolution}.png", colorkey=pre.BLACK),
+                bg3=None,  # pre.load_img(bg_path / f"bg3_{resolution}.png", colorkey=pre.BLACK),
                 gun=pre.create_surface_partialfn(pre.SIZE.GUN, fill_color=pre.COLOR.GUN),
                 projectile=pre.create_surface_partialfn((5, 3), fill_color=pre.Palette.COLOR0),
             ),

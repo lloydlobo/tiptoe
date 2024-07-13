@@ -13,10 +13,9 @@ from collections import deque
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
-from os import listdir, path
+from os import listdir
 from pathlib import Path
 from random import randint, random, uniform
-from typing import Iterable  # pyright: ignore
 from typing import (
     Counter,
     Final,
@@ -96,12 +95,10 @@ class Background:
     speed: float
 
 
-@dataclass
+@dataclass(slots=True)
 class SFX:
     """Sound Effects"""
 
-    ambienceheartbeatloop: pg.mixer.Sound
-    dash: pg.mixer.Sound
     dashbassy: pg.mixer.Sound
     hit: pg.mixer.Sound
     hitmisc: pg.mixer.Sound
@@ -111,8 +108,10 @@ class SFX:
     playerspawn: pg.mixer.Sound
     portaltouch: pg.mixer.Sound
     shoot: pg.mixer.Sound
-    shootmiss: pg.mixer.Sound
     teleport: pg.mixer.Sound
+
+    dash: Optional[pg.mixer.Sound] = None  # @Unused
+    shootmiss: Optional[pg.mixer.Sound] = None  # @Unused
 
 
 class AppState(Enum):
@@ -258,8 +257,6 @@ class Game:
         _load_sound = pre.load_sound
 
         self.sfx = SFX(
-            ambienceheartbeatloop=_load_sound(_sfx_path / "ambienceheartbeatloop.wav"),
-            dash=_load_sound(_sfx_path / "dash.wav"),
             dashbassy=_load_sound(_sfx_path / "dashbassy.wav"),
             hit=_load_sound(_sfx_path / "hit.wav"),
             hitmisc=_load_sound(_sfx_path / "hitmisc.wav"),
@@ -269,23 +266,25 @@ class Game:
             playerspawn=_load_sound(_sfx_path / "playerspawn.wav"),
             portaltouch=_load_sound(_sfx_path / "portaltouch.wav"),
             shoot=_load_sound(_sfx_path / "shoot.wav"),
-            shootmiss=_load_sound(_sfx_path / "shootmiss.wav"),
             teleport=_load_sound(_sfx_path / "teleport.wav"),
+            dash=None,  # _load_sound(_sfx_path / "dash.wav"),
+            shootmiss=None,  # _load_sound(_sfx_path / "shootmiss.wav"),
         )
 
-        self.sfx.ambienceheartbeatloop.set_volume(0.1)
-        self.sfx.dash.set_volume(0.2)
         self.sfx.dashbassy.set_volume(0.2)
         self.sfx.hit.set_volume(0.2)
-        self.sfx.hitmisc.set_volume(0.2)
+        self.sfx.hitmisc.set_volume(0.2)  # Player looses health but still alive if idle or still
         self.sfx.hitwall.set_volume(0.2)
         self.sfx.jump.set_volume(0.4)
         self.sfx.jumplanding.set_volume(0.3)
         self.sfx.playerspawn.set_volume(0.2)
         self.sfx.portaltouch.set_volume(0.2)
         self.sfx.shoot.set_volume(0.1)
-        self.sfx.shootmiss.set_volume(0.2)
         self.sfx.teleport.set_volume(0.2)
+        if self.sfx.dash:
+            self.sfx.dash.set_volume(0.2)
+        if self.sfx.shootmiss:
+            self.sfx.shootmiss.set_volume(0.2)
 
         self._player_starting_pos: Final = pg.Vector2(50, 50)
         self.player = Player(
@@ -454,6 +453,32 @@ class Game:
             cntr_ = Counter(paths_)
             __import__('pprint').pprint(cntr_)
             """
+            20240713031149UTC
+            Counter({PosixPath('src/config'): 1,
+                     PosixPath('src/data/images/tiles/large_decor/0.png'): 1,
+                     PosixPath('src/data/images/tiles/spawners/flag.png'): 1,
+                     PosixPath('src/data/images/tiles/spawners/flag_start.png'): 1,
+                     PosixPath('src/data/images/tiles/spikes/0.png'): 1,
+                     PosixPath('src/data/images/tiles/spikes/1.png'): 1,
+                     PosixPath('src/data/images/particles/particle/0.png'): 1,
+                     PosixPath('src/data/images/particles/particle/1.png'): 1,
+                     PosixPath('src/data/images/particles/particle/2.png'): 1,
+                     PosixPath('src/data/images/particles/particle/3.png'): 1,
+                     PosixPath('src/data/sfx/dashbassy.wav'): 1,
+                     PosixPath('src/data/sfx/hit.wav'): 1,
+                     PosixPath('src/data/sfx/hitmisc.wav'): 1,
+                     PosixPath('src/data/sfx/hitwall.wav'): 1,
+                     PosixPath('src/data/sfx/jump.wav'): 1,
+                     PosixPath('src/data/sfx/jumplanding.wav'): 1,
+                     PosixPath('src/data/sfx/playerspawn.wav'): 1,
+                     PosixPath('src/data/sfx/portaltouch.wav'): 1,
+                     PosixPath('src/data/sfx/shoot.wav'): 1,
+                     PosixPath('src/data/sfx/teleport.wav'): 1,
+                     PosixPath('src/data/music/level_2.wav'): 1,
+                     PosixPath('src/data/maps/0.json'): 1,
+                     PosixPath('src/data/music/level_0.wav'): 1})
+
+            20240712000000UTC
             Counter({PosixPath('src/config'): 1,
                      PosixPath('src/data/images/tiles/large_decor/0.png'): 1,
                      PosixPath('src/data/images/background/bg1_480x315.png'): 1,
@@ -576,11 +601,16 @@ class Game:
         if self.level in self.levels_space_theme:
             pass
         else:
-            self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
-            self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
-            self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # Wrap around
-            self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
-            self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))  # Wrap around
+            if self.bg_blue_sky_surf:
+                self.display_2.blit(self.bg_blue_sky_surf, (0, 0))
+            if self.bg_cloud_surf:
+                self.display_2.blit(self.bg_cloud_surf, self.bg_cloud.pos)
+            if self.bg_cloud_surf:
+                self.display_2.blit(self.bg_cloud_surf, (self.bg_cloud.pos + (self.bg_display_w, 0)))  # Wrap around
+            if self.bg_mountain_surf:
+                self.display_2.blit(self.bg_mountain_surf, self.bg_mountain.pos)
+            if self.bg_mountain_surf:  # Wrap around
+                self.display_2.blit(self.bg_mountain_surf, (self.bg_mountain.pos + (self.bg_display_w, 0)))
         # ---------------------------------------------------------------------
 
         # Create a transition surface with a circular cutout-------------------
@@ -1070,39 +1100,41 @@ class Game:
         self.hud_enemy_icon_surf: pg.SurfaceType = self.assets.entity["enemy"].copy()
 
         # Add semi-transparent background to HUD.
+        self.hud_bg_surf: Optional[pg.SurfaceType]
         if 0:
             self.hud_bg_surf = pg.Surface(self.hud_size, flags=pg.SRCALPHA).convert_alpha()
-            self.hud_bg_surf.set_colorkey(pg.Color("black"))
-            self.hud_bg_surf.fill(pre.CHARCOAL)
-            self.hud_bg_surf.set_alpha(127)
-            self.hud_surf.blit(self.hud_bg_surf, (0, 0))
+            if self.hud_bg_surf:  # @Redundant
+                self.hud_bg_surf.set_colorkey(pg.Color("black"))
+                self.hud_bg_surf.fill(pre.CHARCOAL)
+                self.hud_bg_surf.set_alpha(127)
+                self.hud_surf.blit(self.hud_bg_surf, (0, 0))
 
-        bg_blue_sky_surf = self.assets.misc_surf["bg1"]
-        bg_blue_sky_surf_yflipped = pg.transform.flip(bg_blue_sky_surf.copy(), 0, 1)
+        # Background parallax layers
+        if skyimg := self.assets.misc_surf.get("bg1"):
+            img_flip_y = pg.transform.flip(skyimg.copy(), 0, 1)
+            self.bg_blue_sky_surf: Optional[pg.SurfaceType] = pg.transform.average_surfaces((skyimg, img_flip_y))
+        if cloudimg := self.assets.misc_surf.get("bg2"):
+            self.bg_cloud_surf: Optional[pg.SurfaceType] = cloudimg
+        if mountainimg := self.assets.misc_surf.get("bg3"):
+            self.bg_mountain_surf: Optional[pg.SurfaceType] = mountainimg
 
-        self.bg_blue_sky_surf = pg.transform.average_surfaces((bg_blue_sky_surf, bg_blue_sky_surf_yflipped))
-
-        bg_cloud_surf = self.assets.misc_surf["bg2"]
-        self.bg_cloud_surf = bg_cloud_surf
-
-        bg_mountain_surf = self.assets.misc_surf["bg3"]
-        self.bg_mountain_surf = bg_mountain_surf
-
-        if self.level in self.levels_space_theme:
-            self.grid_surf = pre.create_surface(
-                self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)
-            ).convert()
-            grid_surf_pixels = (  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
-                pg.surfarray.pixels3d(  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
-                    self.grid_surf
+        self.grid_surf: Optional[pg.SurfaceType] = None
+        if 0:
+            if self.level in self.levels_space_theme:
+                self.grid_surf = pre.create_surface(
+                    self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)
+                ).convert()
+                grid_surf_pixels = (  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+                    pg.surfarray.pixels3d(  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
+                        self.grid_surf
+                    )
                 )
-            )
-            for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
-                grid_surf_pixels[x, :] = (26, 27, 26)
-            for y in range(0, pre.DIMENSIONS_HALF[1], self.tilemap.tilesize):
-                grid_surf_pixels[:, y] = (26, 27, 26)
-            # Convert the pixel array back to a surface
-            del grid_surf_pixels  # Unlock the pixel array
+                for x in range(0, pre.DIMENSIONS_HALF[0], self.tilemap.tilesize):
+                    grid_surf_pixels[x, :] = (26, 27, 26)
+                for y in range(0, pre.DIMENSIONS_HALF[1], self.tilemap.tilesize):
+                    grid_surf_pixels[:, y] = (26, 27, 26)
+                # Convert the pixel array back to a surface
+                del grid_surf_pixels  # Unlock the pixel array
 
         self.bg_display_w = pre.DIMENSIONS_HALF[0]  # 480
         self.bg_cloud = Background(depth=0.1 or 0.2, pos=pg.Vector2(0, 0), speed=0.5)
@@ -1768,8 +1800,6 @@ class SettingsScreen:
                 case SettingsNavitemType.MUTE_SOUND:
                     self.game.settings_handler.sound_muted = not self.game.settings_handler.sound_muted
                     if self.game.settings_handler.sound_muted:
-                        self.game.sfx.ambienceheartbeatloop.set_volume(0)
-                        self.game.sfx.dash.set_volume(0)
                         self.game.sfx.dashbassy.set_volume(0)
                         self.game.sfx.hit.set_volume(0)
                         self.game.sfx.hitmisc.set_volume(0)
@@ -1779,11 +1809,12 @@ class SettingsScreen:
                         self.game.sfx.playerspawn.set_volume(0)
                         self.game.sfx.portaltouch.set_volume(0)
                         self.game.sfx.shoot.set_volume(0)
-                        self.game.sfx.shootmiss.set_volume(0)
                         self.game.sfx.teleport.set_volume(0)
+                        if self.game.sfx.dash:
+                            self.game.sfx.dash.set_volume(0)
+                        if self.game.sfx.shootmiss:
+                            self.game.sfx.shootmiss.set_volume(0)
                     else:
-                        self.game.sfx.ambienceheartbeatloop.set_volume(0.1)
-                        self.game.sfx.dash.set_volume(0.2)
                         self.game.sfx.dashbassy.set_volume(0.2)
                         self.game.sfx.hit.set_volume(0.2)
                         self.game.sfx.hitmisc.set_volume(0.2)
@@ -1793,8 +1824,11 @@ class SettingsScreen:
                         self.game.sfx.playerspawn.set_volume(0.2)
                         self.game.sfx.portaltouch.set_volume(0.2)
                         self.game.sfx.shoot.set_volume(0.1)
-                        self.game.sfx.shootmiss.set_volume(0.2)
                         self.game.sfx.teleport.set_volume(0.2)
+                        if self.game.sfx.dash:
+                            self.game.sfx.dash.set_volume(0.2)
+                        if self.game.sfx.shootmiss:
+                            self.game.sfx.shootmiss.set_volume(0.2)
                 case SettingsNavitemType.DISABLE_SCREENSHAKE:
                     self.game.settings_handler.screenshake = not self.game.settings_handler.screenshake
                 case SettingsNavitemType.GO_BACK:

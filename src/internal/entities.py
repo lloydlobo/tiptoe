@@ -6,6 +6,9 @@ from collections import deque
 from enum import Enum
 from functools import partial
 from random import randint, random, uniform
+from typing import (
+    TYPE_CHECKING,  # Prerequisites: from __future__ import annotations
+)
 from typing import Dict, Final, List, Literal, Optional, Tuple
 
 import pygame as pg
@@ -16,17 +19,11 @@ from internal.spark import Spark
 from internal.tilemap import Tilemap
 
 
-if 1:  # Locality of Behavior hack
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:  # Prerequisites: from __future__ import annotations
-        from game import Game
+if TYPE_CHECKING:
+    from game import Game
 
 
-# TOP
-
-
-_TDeque = deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]]
+# _TDeque = deque[tuple[float, Literal['e-face-left', 'e-face-right'], tuple[str, str]]]
 
 
 class Action(Enum):
@@ -180,7 +177,7 @@ class Enemy(PhysicalEntity):
 
         self.movement_history_x: deque[float] = deque(maxlen=self._maxlen_movement_history)
         self.movement_history_y: deque[float] = deque(maxlen=self._maxlen_movement_history)
-        self.history_contact_with_player: _TDeque = deque(maxlen=pre.FPS_CAP * 2)
+        # self.history_contact_with_player: _TDeque = deque(maxlen=pre.FPS_CAP * 2)
         self.is_collected_by_player = False
 
         self.is_player_close_by = False
@@ -671,4 +668,7 @@ class Player(PhysicalEntity):
             super().render(surf, offset)
 
 
-# BOT
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod()
