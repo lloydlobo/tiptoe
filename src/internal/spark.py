@@ -4,7 +4,7 @@ from typing import Sequence
 
 import pygame as pg
 
-import internal.prelude as pre
+from . import prelude as pre  # from internal import prelude as pre
 
 
 # angle and speed are polar coords for velocity vector

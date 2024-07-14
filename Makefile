@@ -125,6 +125,9 @@ test:
 	@find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
 	@echo "  - Finished"
 
+test-pytest:
+	@pytest -v src/internal/test_{prelude,spark,tilemap}.py
+
 
 # fd -e py . | entr -cprs 'make -j4 test-discover'
 #	-s starting directory
