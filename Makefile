@@ -120,13 +120,17 @@ summary:
 
 # time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
 test:
-	@echo "test" && echo "[info] $$(date +%s) Testing via unittest"
+	@echo "test" && echo "[info] $$(date +%s) NOTE: Test works only for builtin unittest"
 	@echo "  - Starting"
-	@find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
+	find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
 	@echo "  - Finished"
 
+# $ fd -e py . | grep test | entr -crs 'make -j4 test-pytest'
 test-pytest:
-	@pytest -v src/internal/test_{prelude,spark,tilemap}.py
+	@echo "test" && echo "[info] $$(date +%s) Testing via pytest"
+	@echo "  - Starting"
+	pytest -v src/internal/test_{assets,prelude,spark,tilemap}.py
+	@echo "  - Finished"
 
 
 # fd -e py . | entr -cprs 'make -j4 test-discover'

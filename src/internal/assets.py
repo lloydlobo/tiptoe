@@ -7,8 +7,19 @@ from typing import Dict, Final, List
 
 import pygame as pg
 
-import internal.prelude as pre
-from internal.spritesheet import Spritesheet
+
+try:
+    from src.internal.spritesheet import Spritesheet
+
+    from . import prelude as pre  # from internal import prelude as pre
+except ImportError or OSError as e:
+    logging.error(f'something went wrong while importing module(s): {e}')
+    raise e
+else:
+    print(f'imported modules')
+
+
+# from internal.spritesheet import Spritesheet
 
 
 # if 1:  # Locality of Behavior hack
