@@ -1,13 +1,15 @@
 # file: .gitignore
 
 #------------------------------------------------------------------------------
-# ARTIFACTS DEVELOPMENT 
+# ARTIFACTS DEVELOPMENT
 #------------------------------------------------------------------------------
-src/__pycache__
-src/internal/__pycache__
+.venv
+__pycache__
+# Since shell.nix on NixOS is special, we use its copy i.e. shell-example.nix for versioning
+shell.nix
 
 #------------------------------------------------------------------------------
-# ARTIFACTS EDITOR 
+# ARTIFACTS EDITOR
 #------------------------------------------------------------------------------
 *.un~
 *.org~
