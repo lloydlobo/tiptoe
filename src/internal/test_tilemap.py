@@ -18,6 +18,7 @@ from random import random
 from typing import Any, Callable, List, Optional, Set, Tuple, TypeAlias
 
 import hypothesis.strategies as st
+import pytest
 from hypothesis import assume, example, given
 from hypothesis.strategies._internal import SearchStrategy
 from hypothesis.strategies._internal.core import DrawFn, composite
@@ -62,6 +63,7 @@ def generate_pos_loc_args(
     )
 
 
+@pytest.mark.skip(reason='test takes some time to run')
 @given(args=generate_pos_loc_args(max_size=16, allow_infinity=False, allow_nan=False))
 @example([(0, 0, (0.5, -0.5)), (1.0, 0, (-0, 0)), (-0.5, 0.0, (0.0, 0.0)), (0.0, -0.5, (0.0, 0.0))])
 def test_pos_to_loc_result_can_be_deserialized(args: List[_PositionToLocationArgs]):

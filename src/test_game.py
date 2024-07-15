@@ -7,7 +7,7 @@ import inspect
 import logging
 import time
 import unittest
-from typing import Any, Never, NoReturn
+from typing import Any
 from unittest.mock import patch
 
 import game
