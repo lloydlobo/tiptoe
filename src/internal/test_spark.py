@@ -5,7 +5,6 @@
 
 import logging
 import math
-from functools import partial
 
 import pygame as pg
 import pytest
@@ -17,6 +16,12 @@ from hypothesis import strategies as st
 #   LIKE THIS (error):            from internal import prelude as pre
 #   INSTEAD USE THIS (no error):  from . import prelude as pre
 try:
+    from src.internal._testutils import (
+        st_floats_rgb,
+        st_integers_rgb_val,
+        st_tuples_floats_rgb,
+        st_tuples_integers_rgb,
+    )
     from src.internal.prelude import WHITE, ColorValue, Number
     from src.internal.spark import Spark
 except ImportError or OSError as e:
@@ -26,13 +31,6 @@ except ImportError or OSError as e:
 # -----------------------------------------------------------------------------
 # Module Helper Functions Implementation
 # -----------------------------------------------------------------------------
-
-st_integers_rgb, st_floats_rgb = partial(st.integers, 0, 255), partial(st.floats, 0, 255)
-
-st_tuples_integers_rgb, st_tuples_floats_rgb = (
-    partial(st.tuples, st_integers_rgb(), st_integers_rgb(), st_integers_rgb()),
-    partial(st.tuples, st_floats_rgb(), st_floats_rgb(), st_floats_rgb()),
-)
 
 
 def create_spark(pos: pg.Vector2 = pg.Vector2(0, 0), angle: Number = 0, speed: Number = 0, color: ColorValue = WHITE):
@@ -82,16 +80,15 @@ def test_spark_render_modifies_surface_not_full_black(w: int, h: int):
     assert any(surf.get_at((x, y)) != (0, 0, 0, 255) for x in range(100) for y in range(100)), 'Check if the surface has been modified (not completely black)'  # fmt: skip
 
 
+@pytest.mark.skip(reason='I do not understand why this works')
 @given(w=st.integers(min_value=16, max_value=48), h=st.integers(min_value=16, max_value=48))
-@pytest.mark.skip
 def test_spark_render_modifies_surface_is_full_default_white(w: int, h: int):
-    """@skip(reason='I do not understand why this works')"""
     spark, surf = create_spark(), pg.Surface((w, h))
     spark.render(surf)
     assert 4 == sum((surf.get_at((x, y)) == pg.Color(255, 255, 255, 255)) for x in range(w) for y in range(h))
 
 
-@given(c_int=st_tuples_integers_rgb(), c_float=st_tuples_floats_rgb(), c_mix=st.tuples(st_integers_rgb(), st_floats_rgb(), st_integers_rgb()))  # fmt: skip
+@given(c_int=st_tuples_integers_rgb(), c_float=st_tuples_floats_rgb(), c_mix=st.tuples(st_integers_rgb_val(), st_floats_rgb(), st_integers_rgb_val()))  # fmt: skip
 def test_spark_color_assigns(c_int: pg.Color, c_float: pg.Color, c_mix: pg.Color):
     for color in (c_int, c_float, c_mix):
         assert create_spark(color=color).color == color

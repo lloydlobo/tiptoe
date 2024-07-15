@@ -40,8 +40,8 @@ import pygame as pg
 DDEBUG: Final[bool] = "--debug" in sys.argv
 
 # flags for debugging, etc
-DEBUG_EDITOR_ASSERTS = True
-DEBUG_EDITOR_HUD = True
+DEBUG_EDITOR_ASSERTS = False
+DEBUG_EDITOR_HUD = False
 
 DEBUG_GAME_ASSERTS = False
 DEBUG_GAME_CACHEINFO = False
@@ -60,21 +60,29 @@ DEBUG_GAME_UNITTEST = False
 ### TYPES
 ################################################################################
 
+"""
+(class) TypeAlias
+───────────────────────────────────────────────────────────────
+Special form for marking type aliases.
+"""
+Number: TypeAlias = int | float
+
 # This typehint is used when a math function like sin or cos accepts an angle.
 # Ported from math.py via typing.py
 SupportsFloatOrIndex: TypeAlias = SupportsFloat | SupportsIndex
 
 # This typehint is used when a function would return an RGBA table.
+#   Ported from pygame source file: _common.py
+RGBAOutput: TypeAlias = Tuple[int, int, int, int]
+ColorValue: TypeAlias = (
+    pg.Color | Tuple[int, int, int] | RGBAOutput | Sequence[int]
+)  # old: ColorValue: TypeAlias = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
+
 # Ported from pygame source file: _common.py
-RGBAOutput = Tuple[int, int, int, int]
-ColorValue = Union[pg.Color, int, str, Tuple[int, int, int], RGBAOutput, Sequence[int]]
+Coordinate2: TypeAlias = Tuple[Number, Number] | Sequence[Number] | pg.Vector2
 
-
-# Ported from pygame source file: _common.py
-Coordinate = Union[Tuple[float, float], Sequence[float], pg.Vector2]
-Vec2Type = pg.Vector2 | tuple[float, float]  # A = TypeVar("A", pg.Vector2, tuple[float, float])
-
-Number = int | float
+# A = TypeVar("A", pg.Vector2, tuple[float, float])
+# Vec2Type: TypeAlias = pg.Vector2 | tuple[float, float] # @Unused
 
 
 class ColorKind(NamedTuple):

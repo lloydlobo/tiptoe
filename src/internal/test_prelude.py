@@ -1,65 +1,36 @@
 # file: test_prelude.py
 
-"""TODOS
-
-    ### FILE I/O
-
-    TFilesVisitedOpts = Dict[str, (int | Any | None)]
-    TFilesVisitedDict = Dict[int, Tuple[float, (str | Path), str]]
-
-    global_files_visited: TFilesVisitedDict = dict()
-
-    import inspect
-
-    def get_current_line() -> int | Any | None:
-        if (caller_frame := inspect.currentframe()) and caller_frame:
-            if (f_back := caller_frame.f_back) and f_back: return f_back.f_lineno
-        return None
-
-    def global_files_visited_update(path: str | Path, opts: Optional[TFilesVisitedOpts] = None) -> int | None:
-        if "--debug" in sys.argv:
-            count = len(global_files_visited.items())
-            global_files_visited.update({count: (time(), path, f"{opts}" if opts else f"{opts=}")})
-            return count + 1
-        return None
-
-    DONE:
-        _callable_sound = pg.mixer.Sound
-        def load_sound(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> pg.mixer.Sound:
-            global_files_visited_update(path, opts=(opts if opts else dict(file_=__file__, line_=get_current_line())))
-            return _callable_sound(path)  # > Callable[Sound]
-
-    FIXME: !!!!!!!!!
-    _callable_music_load = pg.mixer.music.load
-    def load_music_to_mixer(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> None:
-        global_files_visited_update(path, (opts if opts else dict(file_=__file__, line_=get_current_line())))
-        return _callable_music_load(path)  # > None
-
-    DONE:
-        def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorValue, None] = None) -> pg.Surface:
-            path = Path(path)
-            global_files_visited_update(path, opts=dict(file_=__file__, line_=get_current_line()))
-            img = pg.image.load(path).convert_alpha() if with_alpha else pg.image.load(path).convert()
-            if colorkey is not None: img.set_colorkey(colorkey)
-            return img
-
-    DONE:
-        def load_imgs( path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None) -> list[pg.Surface]:
-            return [ load_img(f"{path}/{img_name}", with_alpha, colorkey) for img_name in sorted(os.listdir(path)) if img_name.endswith(".png")
-        ]
-"""
-
+import math
+import re
 import sys
 import unittest
 import wave  # Stuff to parse WAVE files.
+from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Dict, Final, List, TypeAlias
+from typing import IO, Any, Dict, Final, List, Tuple, TypeAlias
 
 import numpy as np
 import pygame as pg
+import pytest
+from hypothesis import example, given
+from hypothesis import strategies as st
 
+from src.internal import prelude
+from src.internal._testutils import (
+    is_valid_color_value,
+    st_integers_rgb_val,
+    st_list_integers_rgb,
+    st_tuples_integers_rgb,
+    st_tuples_integers_rgba,
+)
 from src.internal.prelude import (
+    DDEBUG,
     DIMENSIONS,
+    ColorValue,
+    Coordinate2,
+    Number,
+    RGBAOutput,
+    SupportsFloatOrIndex,
     UserConfig,
     global_files_visited,
     global_files_visited_update,
@@ -70,9 +41,52 @@ from src.internal.prelude import (
 )
 
 
-_File: TypeAlias = str | IO[bytes]  # Ported private `wave._File` from "pyright/dist/typeshed-fallback/stdlib/wave.pyi"
+# NOTE(Lloyd): Ported private `wave._File` from "pyright/dist/typeshed-fallback/stdlib/wave.pyi"
+_File: TypeAlias = str | IO[bytes]
 _Sound: TypeAlias = pg.mixer.SoundType
 _Surface: TypeAlias = pg.SurfaceType
+
+
+"""
+TODOS::
+
+        ### FILE I/O
+        # ---------------------------------------------------------------------
+
+    TODO:
+
+        DDEBUG: Final[bool] = "--debug" in sys.argv
+
+    TODO:
+
+        def get_current_line() -> int | Any | None:
+            if (caller_frame := inspect.currentframe()) and caller_frame:
+                if (f_back := caller_frame.f_back) and f_back: return f_back.f_lineno
+            return None
+
+    TODO:
+
+        def global_files_visited_update(path: str | Path, opts: Optional[TFilesVisitedOpts] = None) -> int | None:
+            if "--debug" in sys.argv:
+                count = len(global_files_visited.items())
+                global_files_visited.update({count: (time(), path, f"{opts}" if opts else f"{opts=}")})
+                return count + 1
+            return None
+
+    FIXME:
+
+        _callable_music_load = pg.mixer.music.load
+        def load_music_to_mixer(path: Path, opts: Optional[TFilesVisitedOpts] = None) -> None:
+            global_files_visited_update(path, (opts if opts else dict(file_=__file__, line_=get_current_line())))
+            return _callable_music_load(path)  # > None
+
+        # ---------------------------------------------------------------------
+
+"""
+
+# -----------------------------------------------------------------------------
+# Test Drawing Functionality
+# -----------------------------------------------------------------------------
 
 
 # Ported from https://renesd.blogspot.com/2019/11/draft-2-of-lets-write-unit-test.html
@@ -91,10 +105,15 @@ class TestPgDrawEllipse(unittest.TestCase):
         self.assertEqual(surf.get_at(middle_of_ellipse), red)
 
 
+# -----------------------------------------------------------------------------
+# Test File I/O
+# -----------------------------------------------------------------------------
+
+
 class TestFileIO(unittest.TestCase):
     def setUp(self) -> None:
+        pg.mixer.pre_init()
         pg.init()
-        pg.mixer.init()
         self.test_dir = Path("test_assets")
         self.test_dir.mkdir(exist_ok=True)
         return super().setUp()
@@ -198,15 +217,19 @@ class TestFileIO(unittest.TestCase):
         music_volume        0.6
         """
         config_path = self.test_dir / 'config'
-        config_path.write_text(config_content); self.assertTrue(config_path.is_file())  # fmt: skip
-        config_dict = UserConfig.read_user_config(config_path); self.assertIsNotNone(config_dict)  # fmt: skip
+        config_path.write_text(config_content)
+        self.assertTrue(config_path.is_file())
+        config_dict = UserConfig.read_user_config(config_path)
+        self.assertIsNotNone(config_dict)
         if not config_dict:
             self.fail('unreachable')
         self.assertIsInstance(config_dict, Dict)
         self.assertEqual(config_dict['music_volume'], '0.6')
         self.assertEqual(config_dict['star_count'], '18')
-        self.assertEqual(config_dict['screenshake'], 'false'); self.assertEqual(config_dict['sound_muted'], 'true');  # fmt: skip
-        self.assertEqual(config_dict['window_height'], '600'); self.assertEqual(config_dict['window_width'], '800');  # fmt: skip
+        self.assertEqual(config_dict['screenshake'], 'false')
+        self.assertEqual(config_dict['sound_muted'], 'true')
+        self.assertEqual(config_dict['window_height'], '600')
+        self.assertEqual(config_dict['window_width'], '800')
         with self.assertRaises(Exception):
             self.assertEqual(
                 config_dict['player_dash'], '8', msg='expected exception while accessing commented-out config-attribute'
@@ -219,6 +242,126 @@ class TestFileIO(unittest.TestCase):
         self.assertIsNotNone(result); self.assertIsInstance(result,int);  # fmt: skip
         self.assertTrue(len(global_files_visited) > 0)
         sys.argv.remove('--debug')
+
+
+# -----------------------------------------------------------------------------
+# Test Global Flags
+# -----------------------------------------------------------------------------
+
+
+class TestDebugFlags:
+
+    def test_truthy_DDEBUG_if_debug_option_stdin_sys_argv(self):
+        assert DDEBUG if "--debug" in sys.argv else not DDEBUG
+
+    @pytest.mark.skipif(DDEBUG, reason="Expected debug flags in prelude to be set as follows for public build")
+    def test_expect_debug_flags_for_public_build(self):
+        # example lines: "skipif(condition): skip the given test if..."
+        # or "hypothesis: tests which use Hypothesis", so to get the
+        # marker name we split on both `:` and `(`.
+        prelude.DEBUG_EDITOR_ASSERTS = False
+        prelude.DEBUG_EDITOR_HUD = False
+        prelude.DEBUG_GAME_ASSERTS = False
+        prelude.DEBUG_GAME_CACHEINFO = False
+        prelude.DEBUG_GAME_CAMERA = False
+        prelude.DEBUG_GAME_CPROFILE = False
+        prelude.DEBUG_GAME_HUD = False
+        prelude.DEBUG_GAME_LOGGING = False
+        prelude.DEBUG_GAME_PRINTLOG = False
+        prelude.DEBUG_GAME_STRESSTEST = False
+        prelude.DEBUG_GAME_TRACEMALLOC = False
+        prelude.DEBUG_GAME_TRANSITION = False
+        prelude.DEBUG_GAME_UNITTEST = False
+
+
+# -----------------------------------------------------------------------------
+# Test Custom Type Aliases
+# -----------------------------------------------------------------------------
+
+
+class TestTypeAliases:
+
+    # Colors
+    # -----------------------------------------------------------------------------
+    class TestColorValue:
+
+        @given(
+            st.one_of(
+                st.builds(pg.Color, st_integers_rgb_val(), st_integers_rgb_val(), st_integers_rgb_val()),
+                st_tuples_integers_rgb(),
+                st_list_integers_rgb(),
+            )
+        )
+        def test_valid_color_value(self, color: ColorValue):
+            assert is_valid_color_value(color)
+
+        @given(
+            st.one_of(
+                st.tuples(st.integers(0, 255), st.integers(0, 255), st.integers(-255, -1)),
+                st.lists(st.integers(-255, -1), min_size=3, max_size=3),
+                st.tuples(st.integers(0, 255), st.integers(0, 255)),
+                st.tuples(st.integers(0, 255), st.integers(0, 255), st.text()),
+                st.lists(st.integers(0, 255), min_size=4, max_size=6),
+            )
+        )
+        def test_invalid_color_value(self, color: ColorValue):
+            assert not is_valid_color_value(color)
+
+        @given(args=st_tuples_integers_rgba())
+        def test_RGBAOutput(self, args: Tuple[int, int, int, int]):
+            assert len(args) == 4, repr(RGBAOutput)
+            with pytest.raises(TypeError, match=re.escape("Type Tuple cannot be instantiated; use tuple() instead")):
+                RGBAOutput(0, 0, 0, 0)  # pyright: ignore[reportCallIssue,reportGeneralTypeIssues]
+
+    # -----------------------------------------------------------------------------
+
+    # Rest of type aliases
+    # -----------------------------------------------------------------------------
+
+    @given(st.integers(-(1 << 4096), (1 << 4096)), st.floats(-math.inf, math.inf))
+    @example(1, 0.0)
+    def test_Number_and_SupportsFloatOrIndex(self, st_int: int, st_float: float):
+        assert not isinstance(st_int, float)
+        assert not isinstance(st_float, int)
+        for test in (st_int, st_float):
+            assert isinstance(test, Number)
+            assert isinstance(test, SupportsFloatOrIndex)
+        assert isinstance((st_int // st_int) if (st_int != 0) else st_int, int)
+        assert isinstance((st_float / st_float) if (st_float != 0.0) else st_float, float)
+
+    @pytest.mark.parametrize(
+        "c_tuple, c_sequence, c_pygame_vector2",
+        [
+            ((1, 1), [1, 1], pg.Vector2(1, 1)),
+            ((1.11, 1.11), [1.11, 1.11], pg.Vector2(1.11, 1.11)),
+            ((1, 0.1), [1, 0.1], pg.Vector2(1, 0.1)),
+            ((0.0, 0.0), [0.0, 0.0], pg.Vector2(0.0)),
+            (tuple([1, 0.1]), list((1, 0.1)), pg.Vector2(1, 0.1)),
+        ],
+    )
+    def test_coordinate(self,c_tuple: Tuple, c_sequence: Sequence, c_pygame_vector2: pg.Vector2,):  # pyright: ignore[reportMissingTypeArgument,reportUnknownParameterType] # fmt: skip
+        """test_coordinate
+
+        FIXME:
+
+            - Sequence[Number] seems buggy since:
+              - Coordinate2 *must* have only 2 coordinates
+        """
+        for coord in (c_tuple, c_sequence, c_pygame_vector2):  # pyright: ignore[reportUnknownVariableType]
+            assert (
+                isinstance(coord, (tuple, list, pg.Vector2))
+                and len(coord) == 2  # pyright: ignore[reportUnknownArgumentType]
+                and all(
+                    isinstance(x, (int, float, Number)) for x in coord  # pyright: ignore[reportUnknownVariableType]
+                )
+            )
+        assert isinstance(c_tuple, Tuple); assert isinstance(c_sequence, Sequence); assert isinstance(c_pygame_vector2, pg.Vector2);  # fmt: skip
+        assert (len(c_tuple) == len(c_sequence) == len(c_pygame_vector2) == 2)  # pyright: ignore[reportUnknownArgumentType] # fmt: skip
+        assert (c_tuple[0] == c_sequence[0] == c_pygame_vector2[0]); assert (c_tuple[1] == c_sequence[1] == c_pygame_vector2[1]);  # fmt: skip
+        with pytest.raises(TypeError, match=re.escape('Cannot instantiate typing.Union')):
+            Coordinate2(0, 0)  # pyright: ignore[reportCallIssue,reportGeneralTypeIssues]
+
+    # -----------------------------------------------------------------------------
 
 
 if __name__ == "__main__":
