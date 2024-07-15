@@ -1,18 +1,23 @@
 # file: test_assets.py
 
 import logging
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Any, Dict, Final, Iterable, Tuple
 
 import pygame as pg
 import pytest
 from hypothesis import assume
 
-from src.internal.prelude import EntityKind
-
 
 try:
     from src.internal.assets import Assets
-    from src.internal.prelude import COUNT, IMGS_PATH, Animation
+    from src.internal.prelude import (
+        COUNT,
+        IMGS_PATH,
+        SIZE,
+        Animation,
+        EntityKind,
+    )
 except ImportError or OSError as e:
     logging.error(f'something went wrong while importing module(s): {e}')
     raise e
@@ -22,62 +27,47 @@ else:
 
 @pytest.fixture(scope="module")
 def assets() -> Assets:
-    ret: Tuple[int, int] = pg.init()
-    assert assume(ret == (5, 0))
+    assert assume(pg.init() == (5, 0))
     assert isinstance(
         pg.display.set_mode((960, 630), pg.DOUBLEBUF), pg.SurfaceType
     ), 'cannot load the spritesheet: cannot convert without pygame.display initialized'
     return Assets.initialize_assets()
 
 
+def all_surfaces(surfaces: Iterable[Any]):
+    return all(isinstance(surface, pg.Surface) for surface in surfaces)
+
+
 def test_assets_initialization(assets: Assets):
     assert isinstance(assets, Assets)
+    assert all(
+        all(isinstance(category_dict.get(item), pg.Surface) for item in items)
+        for category, items in {'entity': ('enemy', 'player'), 'misc_surf': ('gun', 'projectile')}.items()
+        if (category_dict := getattr(assets, category))
+    )
+    assert all(
+        (tile_type in assets.tiles) and assets.tiles[tile_type] and all_surfaces(assets.tiles[tile_type])
+        for tile_type in ('granite', 'grass')
+    )
+    animation_tests: Final = {
+        'enemy': ('idle', 'run', 'sleeping'),
+        'player': ('idle', 'run', 'jump', 'wallslide'),
+        'particle': ('flame', 'flameglow', 'particle'),
+    }
+    assert all(
+        all(isinstance(anim.get(action), Animation) for action in actions)
+        for (anim_type, actions) in animation_tests.items()
+        if (anim := getattr(assets.animations_entity, anim_type, None) or getattr(assets.animations_misc, anim_type))
+    )
+    for e_kind in (EntityKind.ENEMY, EntityKind.PLAYER):  # Test animation entity property
+        anim_elems = assets.animations_entity.elems[e_kind.value]
+        assert isinstance(anim_elems, Dict) and set(animation_tests[e_kind.value.lower()]) == set(anim_elems.keys())
+    stars = assets.misc_surfs['stars'];  assert all_surfaces(stars);  # fmt: skip
+    assert len(stars) == COUNT.STAR and all(star.get_size() == SIZE.STAR for star in stars);  # fmt: skip
+    editor_assets = assets.editor_view  # vvvv player, enemy, two portal types vvvvv
+    assert editor_assets.tiles.get('spawners') and len(editor_assets.tiles['spawners']) >= 4
 
-    # Test entity surfaces
-    assert all(x in assets.entity for x in ('enemy', 'player'))
-    assert isinstance(assets.entity['enemy'], pg.Surface)
-    assert isinstance(assets.entity['player'], pg.Surface)
 
-    # Test misc surfaces
-    assert all(x in assets.misc_surf for x in ('gun', 'projectile'))
-    assert isinstance(assets.misc_surf['gun'], pg.Surface)
-    assert isinstance(assets.misc_surf['projectile'], pg.Surface)
-
-    # Test tile surfaces
-    assert all(x in assets.tiles for x in ('granite', 'grass'))
-    assert len(assets.tiles['granite']) > 0
-    assert all(isinstance(tile, pg.Surface) for tile in assets.tiles['granite'])
-    assert len(assets.tiles['grass']) > 0
-    assert all(isinstance(tile, pg.Surface) for tile in assets.tiles['grass'])
-
-    # Test animations
-    enemy_actions = ('idle', 'run', 'sleeping')
-    player_actions = ('idle', 'run', 'jump', 'wallslide')
-    particle_animation_kind = ('flame', 'flameglow', 'particle')
-
-    assert all((key in keyval) and isinstance(keyval.get(key), Animation) 
-        for key in enemy_actions if (keyval := assets.animations_entity.enemy))  # fmt: skip
-    assert all((key in keyval) and isinstance(keyval.get(key), Animation) 
-        for key in player_actions if (keyval := assets.animations_entity.player))  # fmt: skip
-    assert all((key in keyval) and isinstance(keyval.get(key), Animation) 
-        for key in particle_animation_kind if (keyval := assets.animations_misc.particle))  # fmt: skip
-
-    # Test animation entity property
-    enemydict = assets.animations_entity.elems[EntityKind.ENEMY.value]
-    playerdict = assets.animations_entity.elems[EntityKind.PLAYER.value]
-    assert isinstance(enemydict, Dict) and isinstance(playerdict, Dict)
-    assert enemy_actions == tuple(assets.animations_entity.elems[EntityKind.ENEMY.value].keys())
-    assert player_actions == tuple(assets.animations_entity.elems[EntityKind.PLAYER.value].keys())
-
-    # Test specific properties
-    assert len(assets.misc_surfs['stars']) == COUNT.STAR
-    assert all(isinstance(star, pg.Surface) and (star.get_size() == (2, 2)) for star in assets.misc_surfs['stars'])
-
-    # Test editor view
-    editor_assets = assets.editor_view
-    assert 'spawners' in editor_assets.tiles
-    assert len(editor_assets.tiles['spawners']) >= 4  # player, enemy, two portal types
-
-    # Test file loading
-    assert (IMGS_PATH / "spritesheets" / "enemy.png").exists()
-    assert (IMGS_PATH / "spritesheets" / "player.png").exists()
+@pytest.mark.parametrize("entity", ['enemy', 'player'])
+def test_file_loading(entity: str):
+    assert Path(IMGS_PATH, "spritesheets", f"{entity}.png").exists()
