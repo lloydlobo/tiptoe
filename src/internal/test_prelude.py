@@ -7,7 +7,7 @@ import unittest
 import wave  # Stuff to parse WAVE files.
 from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Any, Dict, Final, List, Tuple, TypeAlias
+from typing import IO, Any, Dict, Final, List, Tuple, TypeAlias, cast
 
 import numpy as np
 import pygame as pg
@@ -130,57 +130,78 @@ class TestFileIO(unittest.TestCase):
 
     def test_load_img(self):
         IMG_PATH: Path = self.test_dir / 'test_image.png'
+
         surf = pg.Surface((10, 10))
         pg.image.save(surf, IMG_PATH.__str__())
+
         # Set up video mode: In load_img, <Surface>.convert() requires video mode to be set.
         # ----------------------------------------------------------------------------
         self.assertTrue(pg.get_init())
         flags = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # Copied these flags from ../game.py
         screen = pg.display.set_mode(size=DIMENSIONS, flags=flags); self.assertIsInstance(screen, _Surface);  # fmt: skip
         # ----------------------------------------------------------------------------
-        img          = load_img(IMG_PATH); self.assertIsInstance(img, _Surface);  # fmt: skip
-        img_alpha    = load_img(IMG_PATH, with_alpha=True); self.assertIsInstance(img, _Surface);  # fmt: skip
-        alpha        = img_alpha.get_alpha(); self.assertIsNotNone(alpha); self.assertEqual(alpha, 255);  # fmt: skip
-        img_colorkey = load_img(IMG_PATH, colorkey=(255, 0, 255)); self.assertIsInstance(img_colorkey, _Surface);  self.assertEqual(img_colorkey.get_colorkey(), (255, 0, 255, 255));  # fmt: skip
+
+        img = load_img(IMG_PATH)
+        self.assertIsInstance(img, _Surface)
+        img_alpha = load_img(IMG_PATH, with_alpha=True)
+        self.assertIsInstance(img, _Surface)
+        alpha = img_alpha.get_alpha()
+        self.assertIsNotNone(alpha)
+        self.assertEqual(alpha, 255)
+        img_colorkey = load_img(IMG_PATH, colorkey=(255, 0, 255))
+        self.assertIsInstance(img_colorkey, _Surface)
+        self.assertEqual(img_colorkey.get_colorkey(), (255, 0, 255, 255))
 
     def test_load_imgs(self):
-        for i in range(3):
+        img_count: Final = 3
+        for i in range(img_count):
             IMG_PATH: Path = self.test_dir / f'test_image_{i}.png'
-            surf: _Surface = pg.Surface((10, 10)); pg.image.save(surf, IMG_PATH.__str__());  # fmt: skip
+            surf: _Surface = pg.Surface((10, 10))
+            pg.image.save(surf, str(IMG_PATH))
+
         # Set up video mode: In load_img, <Surface>.convert() requires video mode to be set.
         # ----------------------------------------------------------------------------
         self.assertTrue(pg.get_init())
         flags = pg.DOUBLEBUF | pg.RESIZABLE | pg.NOFRAME | pg.HWSURFACE  # Copied these flags from ../game.py
-        screen = pg.display.set_mode(DIMENSIONS, flags); self.assertIsInstance(screen, _Surface);  # fmt: skip
+        screen = pg.display.set_mode(DIMENSIONS, flags)
+        self.assertIsInstance(screen, _Surface)
         # ----------------------------------------------------------------------------
-        images: List[_Surface] = load_imgs(self.test_dir.__str__()); self.assertEqual(len(images), 3);  # fmt: skip
+
+        images: List[_Surface] = load_imgs(str(self.test_dir))
+        self.assertEqual(len(images), img_count)
         for img in images:
             self.assertIsInstance(img, _Surface)
 
     def test_load_sound(self):
         SOUND_PATH: Final[Path] = self.test_dir / 'test_sound.wav'
-        sound_array: _Sound
         SAMPLING_FREQ_FRAMERATE = 44100  # sampe rate
         N_CHANNELS = 2  # 2 for stereo, 1 for mono
         SAMP_WIDTH = 2  # 16-bit
         DURATION_SEC = 1
+        STUTTGART_PITCH = 440  # A440 -> See also https://en.wikipedia.org/wiki/A440_(pitch_standard)
         t = np.linspace(start=0, stop=DURATION_SEC, num=(SAMPLING_FREQ_FRAMERATE * DURATION_SEC), endpoint=False)
-        stuttgart_pitch = 440  # A440 -> See also https://en.wikipedia.org/wiki/A440_(pitch_standard)
-        note_sinewave = np.sin(stuttgart_pitch * (2 * np.pi) * t)
+        note_sinewave = np.sin(STUTTGART_PITCH * (2 * np.pi) * t)
         audio_ensure_highest_16bit_range = note_sinewave * (2**15 - 1) / np.max(np.abs(note_sinewave))
         audio_16bit = audio_ensure_highest_16bit_range.astype(np.int16)
         stereo_audio = np.column_stack((audio_16bit, audio_16bit))  # Duplicate mono channel
         sound_array = pg.sndarray.make_sound(stereo_audio)  # pyright: ignore[reportUnknownMemberType]
+        self.assertIsInstance(sound_array, _Sound)
+
         with wave.open(f=SOUND_PATH.__str__(), mode='w') as sfile:
-            sfile.setframerate(SAMPLING_FREQ_FRAMERATE); sfile.setnchannels(N_CHANNELS); sfile.setsampwidth(SAMP_WIDTH);  # fmt: skip
-            readable_buffer_data: bytes = sound_array.get_raw(); sfile.writeframesraw(readable_buffer_data)  # fmt: skip
-        sound: _Sound = load_sound(SOUND_PATH)
+            sfile.setframerate(SAMPLING_FREQ_FRAMERATE)
+            sfile.setnchannels(N_CHANNELS)
+            sfile.setsampwidth(SAMP_WIDTH)
+            readable_buffer_data: bytes = sound_array.get_raw()
+            sfile.writeframesraw(readable_buffer_data)
+
+        sound = load_sound(SOUND_PATH)
         self.assertIsInstance(sound, _Sound)
 
     @unittest.skip("implementation bug: If no exception is raised, we assume it loaded successfully")
     def test_load_music_to_mixer_handles_exception_gracefully_on_corrupt_stream(self):
         music_path = self.test_dir / 'test_music.mp3'
         music_path.write_bytes(b'dummy music data')
+
         # FIXME: Should not raise exception, but handle error gracefully
         with self.assertRaises(Exception):  # > pygame.error: music_drmp3: corrupt mp3 file (bad stream).
             ret: None = load_music_to_mixer(music_path)
@@ -216,10 +237,10 @@ class TestFileIO(unittest.TestCase):
         music_muted         false
         music_volume        0.6
         """
-        config_path = self.test_dir / 'config'
-        config_path.write_text(config_content)
-        self.assertTrue(config_path.is_file())
-        config_dict = UserConfig.read_user_config(config_path)
+        CONFIG_PATH = self.test_dir / 'config'
+        CONFIG_PATH.write_text(config_content)
+        self.assertTrue(CONFIG_PATH.is_file())
+        config_dict = UserConfig.read_user_config(CONFIG_PATH)
         self.assertIsNotNone(config_dict)
         if not config_dict:
             self.fail('unreachable')
@@ -280,11 +301,7 @@ class TestDebugFlags:
 
 
 class TestTypeAliases:
-
-    # Colors
-    # -----------------------------------------------------------------------------
     class TestColorValue:
-
         @given(
             st.one_of(
                 st.builds(pg.Color, st_integers_rgb_val(), st_integers_rgb_val(), st_integers_rgb_val()),
@@ -307,13 +324,36 @@ class TestTypeAliases:
         def test_invalid_color_value(self, color: ColorValue):
             assert not is_valid_color_value(color)
 
+        @given(st_tuples_integers_rgb())
+        @example((255, 0, 0))
+        def test_rgb_output(self, color: ColorValue):
+            # if is_valid_color_value(color):
+            col: Tuple[int, int, int] = cast(Tuple[int, int, int], color)
+            assert 0 <= col[0] <= 255 and 0 <= col[1] <= 255 and 0 <= col[2] <= 255
+
         @given(args=st_tuples_integers_rgba())
-        def test_RGBAOutput(self, args: Tuple[int, int, int, int]):
+        @example((255, 0, 0, 127))
+        def test_rgba_output(self, args: RGBAOutput):
             assert len(args) == 4, repr(RGBAOutput)
             with pytest.raises(TypeError, match=re.escape("Type Tuple cannot be instantiated; use tuple() instead")):
                 RGBAOutput(0, 0, 0, 0)  # pyright: ignore[reportCallIssue,reportGeneralTypeIssues]
 
-    # -----------------------------------------------------------------------------
+        @pytest.mark.skip(reason='faulty test as conditional assertion while casting is not a solution for rgb to rgba')
+        @pytest.mark.parametrize( "rgb,expected", [ ((255, 0, 0), (255, 0, 0, 255)), ((255, 0, 0, 0), (255, 0, 0, 0)), ((255, 0, 0, 255), (255, 0, 0, 255)), ],)  # fmt: skip
+        def test_alpha_if_present_rgb_output(self, rgb: Tuple[int, int, int], expected: RGBAOutput):
+            output = is_valid_color_value(rgb)
+            if len(rgb) > 3:
+                with pytest.raises(AssertionError):
+                    assert output
+            else:
+                assert output
+            if output:
+                col = cast(Tuple[int, int, int, int], rgb)
+                if len(expected) > 3:
+                    with pytest.raises(AssertionError):
+                        assert col == expected
+                else:
+                    assert col == expected
 
     # Rest of type aliases
     # -----------------------------------------------------------------------------
