@@ -49,3 +49,4 @@ tiptoe.tar.gz
 .hypothesis/examples
 .hypothesis/unicode_data
 src/internal/test_getting_started_hypothesis.py.txt
+test_assets/
