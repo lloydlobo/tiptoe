@@ -1,16 +1,27 @@
 # file: animation.py
 
 import logging
+import re
+import time
 from typing import Any, Final, List, Sequence, Tuple, TypeAlias
 
 import pygame as pg
 import pytest
 from _pytest.python_api import approx
-from hypothesis import assume
+from hypothesis import assume, example, given
+from hypothesis import strategies as st
+from hypothesis.strategies._internal.collections import ListStrategy
 
+from src.internal.prelude import Coordinate2
+
+
+"""class Animation
+
+    Note: if img_dur is not specified then it defaults to 5
+    Note: if loop is not specified then it defaults to True
+"""
 
 _IMAGES_COUNT: Final[int] = 3
-
 
 try:
     from src.internal._testutils import try_assert
@@ -87,10 +98,8 @@ def test_animation_img(default_animation: Animation):
     assert assume(default_animation.update() == None)
     assert default_animation.img() == default_animation.images[0]
     assert default_animation.loop
-
     n_imgs = len(default_animation.images)
     assume(n_imgs == _IMAGES_COUNT)
-
     updates_counter = n_imgs + 1
     assert updates_counter == sum(
         1
@@ -101,70 +110,63 @@ def test_animation_img(default_animation: Animation):
         )
         and assume(anim_updated and anim_pending)
     ), repr(default_animation)
-    assert (
-        default_animation.img() == default_animation.images[1]
-    ), f'should update more till next image frame can be used: {repr(default_animation)}. got: {repr(updates_counter)}'
+    msg = f'should keep updating till next image frame can be used: {repr(default_animation)}. got: {repr(updates_counter)}'
+    assert default_animation.img() == default_animation.images[1], msg
 
 
-@pytest.mark.skip(reason="unimplemented")
-def test_animation_img_extended(default_animation: Animation):
-    raise NotImplementedError
-    assert default_animation.loop
-    index = int(default_animation.frame * (1 / default_animation._img_duration))  # pyright: ignore[reportPrivateUsage])
-    assert index == 0, repr(index)
-    assert default_animation.img() == default_animation.images[index]
-    assert assume(default_animation.update() == None)
-    assert default_animation.img() == default_animation.images[0]
+def test_animation_init_without_images():
+    animation = Animation(images=list(), img_dur=5, loop=True)
 
-    counter_updates: int
-
-    counter_updates = 0
-
-    for i in range((_IMAGES_COUNT + 1)):
-        assert i != (_IMAGES_COUNT + 1)
-        if (default_animation.update() is None) and (not default_animation.done):
-            counter_updates += 1
-
-    assert default_animation.img() == default_animation.images[1]
-
-    for i in range((_IMAGES_COUNT + 1)):
-        assert i != (_IMAGES_COUNT + 1)
-        if (default_animation.update() is None) and (not default_animation.done):
-            counter_updates += 1
-    assert counter_updates == 8
-
-    default_animation.update()
-    counter_updates += 1
-    assert counter_updates == 9
-
-    got_img = default_animation.img()
-    assert got_img != default_animation.images[1]
-    assert got_img == default_animation.images[2]
-
-    default_animation.update()
-    counter_updates += 1
-    default_animation.update()
-    counter_updates += 1
-    default_animation.update()
-    counter_updates += 1
-    assert counter_updates == 12
-    assert default_animation.img() == default_animation.images[2]
-
-    assert default_animation.loop
-    assert len(default_animation.images) == _IMAGES_COUNT
+    with pytest.raises(IndexError, match=re.escape('list index out of range')):
+        _ = animation.images[0]
+        pytest.fail('unreachable')
 
 
-#
-#
-#
+def generate_strategy_dataobject_image(img_size: Coordinate2 = (16, 16)):
+    """NOTE: For 'list' of 'list of _Surface images'
+    Alternatives:
+     - return st.builds(st.lists, result)
+     - return st.lists(result, min_size=min_size)
+    """
+    imgs: Sequence[_Surface] = [pg.Surface(img_size), pg.Surface(img_size)]
+    result: st.SearchStrategy[_Surface] = st.sampled_from(imgs)
+    return result
 
 
-#
-#
-#
-
-
-#
-#
-#
-#
+@given(
+    imgs=st.lists(generate_strategy_dataobject_image(img_size=(32, 32)), min_size=5, max_size=16),
+    img_dur=st.integers(5, 32),
+    loop=st.booleans(),
+)
+@example(
+    imgs=[pg.Surface((32, 32)), pg.Surface((32, 32)), pg.Surface((32, 32)), pg.Surface((32, 32)), pg.Surface((32, 32))],
+    img_dur=12,
+    loop=False,
+)
+def test_animation_init_assume_same_images_dimensions(imgs: List[Any], img_dur: int, loop: bool):
+    anim = Animation(images=imgs, img_dur=img_dur, loop=loop)
+    n_imgs: Final = len(imgs)
+    anim_total_frames: Final = img_dur * n_imgs
+    want: _Surface
+    got: _Surface
+    iteration = 0
+    anim_frame = 0
+    while iteration < (n_imgs - 1):
+        want = anim.images[iteration]
+        # NOTE(Lloyd): Check for off-by-one error when range(img_dur+1)
+        for _ in range(img_dur):
+            assume(anim.update() is None)  # Do the actual work
+            anim_frame += 1
+            assert anim.frame == anim_frame
+        got = anim.img()
+        assert got.get_parent() == want.get_parent()
+        assert got.get_size() == want.get_size()
+        (got_w, got_h) = got.get_size()
+        # FIXME(Lloyd): This does not seem right. Does python zip, cover the
+        # whole 2D grid pixel coordinate or just when x == y?
+        assert all((got.get_at((x, y)) == want.get_at((x, y))) for x, y in zip(range(got_w), range(got_h)))
+        if loop:
+            assert not anim.done
+        else:
+            assert anim.done if (anim.frame >= anim_total_frames) else not anim.done
+        iteration += 1
