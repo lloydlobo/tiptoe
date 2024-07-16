@@ -80,6 +80,36 @@ ColorValue: TypeAlias = (
 
 # Ported from pygame source file: _common.py
 Coordinate2: TypeAlias = Tuple[Number, Number] | Sequence[Number] | pg.Vector2
+"""PERF: To ensure that a Sequence used to alias Coordinate2 has only 2 elements::
+    ```py
+      from typing import Tuple, Sequence, TypeAlias, Union, overload
+      from numbers import Number
+      import pygame as pg
+
+      Coordinate2: TypeAlias = Union[Tuple[Number, Number], Sequence[Number], pg.Vector2]
+
+      @overload
+      def process_coordinate(coord: Tuple[Number, Number]) -> None: ...
+
+      @overload
+      def process_coordinate(coord: pg.Vector2) -> None: ...
+
+      @overload
+      def process_coordinate(coord: Sequence[Number]) -> None: ...
+
+      def process_coordinate(coord: Coordinate2) -> None:
+          if isinstance(coord, Sequence) and not isinstance(coord, (str, bytes, pg.Vector2)):
+              assert len(coord) == 2, "Coordinate2 sequence must have exactly 2 elements"
+          # Process the coordinate...
+
+      # Usage
+      process_coordinate((1, 2))  # OK
+      process_coordinate([1, 2])  # OK
+      process_coordinate(pg.Vector2(1, 2))  # OK
+      process_coordinate([1, 2, 3])  # Type checker will warn about this
+    ```
+
+"""
 
 # A = TypeVar("A", pg.Vector2, tuple[float, float])
 # Vec2Type: TypeAlias = pg.Vector2 | tuple[float, float] # @Unused

@@ -75,14 +75,6 @@ clean:
 	trash --verbose $(DISTDIR)
 	@echo "  - Finished"
 
-# ❯ python -m doctest src/internal/prelude.py -v
-# ❯ find . -name 'prelude.py' | entr -cprs 'make -j4 doctest'
-doctest:
-	@echo "doctest"
-	@echo "  - Starting"
-	# find . -name '*.py' | xargs -I _ python -m doctest _
-	python -m doctest ./src/internal/prelude.py
-	@echo "  - Finished"
 
 edit:
 	@echo "edit"
@@ -116,30 +108,6 @@ summary:
 
 	@echo "  - Show a history of commits:"
 	git log --oneline | head 
-	@echo "  - Finished"
-
-# time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
-test:
-	@echo "test" && echo "[info] $$(date +%s) NOTE: Test works only for builtin unittest"
-	@echo "  - Starting"
-	find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
-	@echo "  - Finished"
-
-# $ fd -e py . | grep test | entr -crs 'make -j4 test-pytest'
-test-pytest:
-	@echo "test" && echo "[info] $$(date +%s) Testing via pytest"
-	@echo "  - Starting"
-	pytest -v src/internal/test_{assets,prelude,spark,tilemap}.py
-	@echo "  - Finished"
-
-
-# fd -e py . | entr -cprs 'make -j4 test-discover'
-#	-s starting directory
-#	-p pattern
-test-discover:
-	@echo "test" && echo "[info] $$(date +%s) Testing via python -m unittest discover"
-	@echo "  - Starting"
-	@python -m unittest discover -s src -p "test*.py"
 	@echo "  - Finished"
 
 strace-binary:
@@ -182,6 +150,43 @@ od_all:
 	@echo "dump"
 	@echo "  - Starting"
 	@fd --extension py . | xargs -I _ cat _ | od | cat
+	@echo "  - Finished"
+
+#------------------------------------------------------------------------------------
+# Tests
+#------------------------------------------------------------------------------------
+
+# ❯ python -m doctest src/internal/prelude.py -v
+# ❯ find . -name 'prelude.py' | entr -cprs 'make -j4 doctest'
+doctest:
+	@echo "doctest"
+	@echo "  - Starting"
+	# find . -name '*.py' | xargs -I _ python -m doctest _
+	python -m doctest ./src/internal/prelude.py
+	@echo "  - Finished"
+
+# time parallel -j4 --bar --eta python ::: $(TESTSRCS) && echo "exit code: $$?"
+test:
+	@echo "test" && echo "[info] $$(date +%s) NOTE: Test works only for builtin unittest"
+	@echo "  - Starting"
+	find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
+	@echo "  - Finished"
+
+# $ fd -e py . | grep test | entr -crs 'make -j4 test-pytest'
+test-pytest:
+	@echo "test" && echo "[info] $$(date +%s) Testing via pytest"
+	@echo "  - Starting"
+	pytest -v src/internal/test_{animation,assets,prelude,spark,tilemap}.py
+	@echo "  - Finished"
+
+
+# fd -e py . | entr -cprs 'make -j4 test-discover'
+#	-s starting directory
+#	-p pattern
+test-discover:
+	@echo "test" && echo "[info] $$(date +%s) Testing via python -m unittest discover"
+	@echo "  - Starting"
+	@python -m unittest discover -s src -p "test*.py"
 	@echo "  - Finished"
 
 #------------------------------------------------------------------------------------

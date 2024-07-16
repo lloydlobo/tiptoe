@@ -37,9 +37,6 @@ try:
 except ImportError or OSError as e:
     logging.error(f'something went wrong while importing module(s): {e}')
     raise e
-else:
-    # print(f'imported {internal}')
-    print(f'imported modules')
 
 
 # tilemap module
