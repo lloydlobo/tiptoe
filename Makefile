@@ -85,8 +85,9 @@ edit:
 	python ${PROG_EDITOR} ${LEVEL}
 	@echo "  - Finished"
 
+# black --quiet $(SRCDIR)
 format:
-	black --quiet $(SRCDIR)
+	black $(SRCDIR)
 
 run:
 	@echo "run"
