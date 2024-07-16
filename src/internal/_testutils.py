@@ -1,5 +1,6 @@
 # file: _testutils.py
 
+import logging
 from collections.abc import Sequence
 from functools import partial
 from typing import Any
@@ -29,3 +30,12 @@ def is_valid_color_value(color: Any) -> bool:
     if isinstance(color, Sequence) and (len(color) == 3) and all(isinstance(c, int) and (0 <= c <= 255) for c in color):
         return True
     return False
+
+
+def try_assert(arg: Any) -> bool:
+    try:
+        assert arg, repr(arg)
+    except AssertionError as e:
+        logging.error(repr((e, arg)))
+        return False
+    return True
