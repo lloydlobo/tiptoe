@@ -12,8 +12,6 @@ from hypothesis import assume, example, given
 from hypothesis import strategies as st
 from hypothesis.strategies._internal.collections import ListStrategy
 
-from src.internal.prelude import Coordinate2
-
 
 """class Animation
 
@@ -24,8 +22,8 @@ from src.internal.prelude import Coordinate2
 _IMAGES_COUNT: Final[int] = 3
 
 try:
-    from src.internal._testutils import try_assert
-    from src.internal.prelude import Animation
+    from internal._testutils import try_assert
+    from internal.prelude import Animation, Coordinate2
 except ImportError or OSError as e:
     logging.error(f'something went wrong while importing module(s): {e}')
     raise

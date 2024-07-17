@@ -30,8 +30,8 @@ ASCII_VOWEL_LETTERS = 'aeiouAEIOU'
 ASCII_LETTERS_SET = set(string.ascii_letters)
 
 try:
-    from src.internal.prelude import Number
-    from src.internal.tilemap import pos_to_loc
+    from internal.prelude import Number
+    from internal.tilemap import pos_to_loc
 
     assert isinstance(pos_to_loc, Callable)
 except ImportError or OSError as e:

@@ -45,7 +45,7 @@ LEVEL = 0
 # Ensure pyinstaller is installed or use inside nix-shell
 # See also: ~
 #   - https://stackoverflow.com/questions/28033003/pyinstaller-with-pygame
-build:
+build: ./src/game.py
 	@echo "Starting build"
 	@pyinstaller --onefile $(PROG) && echo "[info] exit code: $$?"
 
