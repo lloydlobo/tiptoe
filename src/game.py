@@ -178,7 +178,9 @@ def quit_exit(context: str = "") -> NoReturn:
 
 
 def get_user_config(filepath: Path) -> pre.UserConfig:
-    config: Optional[dict[str, str]] = pre.UserConfig.read_user_config(filepath=filepath)
+    """Returns UserConfig default empty stub instead of panicking"""
+    config: Optional[dict[str, str]]
+    config = pre.UserConfig.read_user_config(filepath=filepath)
     if not config:
         print("error while reading configuration file at", repr(filepath))
         return pre.UserConfig.from_dict({})
