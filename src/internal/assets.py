@@ -9,13 +9,9 @@ from typing import Dict, Final, List, TypeAlias
 
 import pygame as pg
 
+from internal import prelude as pre
+from internal import spritesheet
 
-try:
-    from . import prelude as pre
-    from . import spritesheet
-except ImportError or OSError as e:
-    logging.error(f'something went wrong while importing module(s): {e}')
-    raise e
 
 Spritesheet: TypeAlias = spritesheet.Spritesheet  # from src.internal.spritesheet import Spritesheet
 

@@ -31,6 +31,7 @@ PROG_EDITOR = $(SRCDIR)/editor.py
 TESTSRCS = $(SRCDIR)/test_editor.py $(SRCDIR)/test_game.py
 
 DFLAGS=
+DVERBOSE=
 
 #------------------------------------------------------------------------------------
 # Variables
@@ -116,14 +117,13 @@ strace-binary:
 	@strace -c ./dist/$(BINARY)
 
 # make -j4  watch DFLAGS=--debug
-# fd --extension=py | entr -r python ./src/tiptoe.py --debug
 watch:
 	@echo "watch"
 	@echo "  - Starting"
 	@echo "  - Send a `SIGTERM` to any previously spawned python subprocesses before executing 'python tiptoe.py':"
 	@echo "        (TIP: reload: <Space>, exit: <q>)"
 
-	@fd --extension=py | entr -r python ${PROG} $(DFLAGS)
+	@find src -name '*.py' -not -name 'test_*.py' | entr -r python ${PROG} $(DFLAGS)
 	@echo "  - Finished"
 
 targzip:
@@ -173,11 +173,18 @@ test:
 	find src -name "test_*.py" | parallel -j 4 --bar --eta python {}
 	@echo "  - Finished"
 
-# $ fd -e py . | grep test | entr -crs 'make -j4 test-pytest'
-test-pytest:
-	@echo "test" && echo "[info] $$(date +%s) Testing via pytest"
+# find src -name 'test_*.py' | entr -cprs 'make -j4 pytest'
+#
+#to raise errors on warnings:
+#	make pytest DVERBOSE='-W error::UserWarning'
+#or ignore warnings:
+#	make -j4 pytest DVERBOSE='-W ignore::DeprecationWarning'
+# time find src -name 'test_*.py' | xargs -I _ pytest $(DVERBOSE) -W ignore::DeprecationWarning _
+# time find src -name 'test_*.py' | xargs -I _ pytest $(DVERBOSE) -W ignore::DeprecationWarning _
+watch-pytest: 
+	@echo "pytest" && echo "[info] $$(date +%s) Testing via pytest"
 	@echo "  - Starting"
-	pytest -v src/internal/test_{animation,assets,prelude,spark,tilemap}.py
+	find src -name 'test_*.py' | entr -cprs 'pytest -W ignore::DeprecationWarning $(DVERBOSE) src'
 	@echo "  - Finished"
 
 
