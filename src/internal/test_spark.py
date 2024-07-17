@@ -16,14 +16,14 @@ from hypothesis import strategies as st
 #   LIKE THIS (error):            from internal import prelude as pre
 #   INSTEAD USE THIS (no error):  from . import prelude as pre
 try:
-    from src.internal._testutils import (
+    from internal._testutils import (
         st_floats_rgb,
         st_integers_rgb_val,
         st_tuples_floats_rgb,
         st_tuples_integers_rgb,
     )
-    from src.internal.prelude import WHITE, ColorValue, Number
-    from src.internal.spark import Spark
+    from internal.prelude import WHITE, ColorValue, Number
+    from internal.spark import Spark
 except ImportError or OSError as e:
     logging.error(f'Import error: {e}')
     raise

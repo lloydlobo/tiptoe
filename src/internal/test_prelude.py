@@ -15,15 +15,15 @@ import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from src.internal import prelude
-from src.internal._testutils import (
+from internal import prelude
+from internal._testutils import (
     is_valid_color_value,
     st_integers_rgb_val,
     st_list_integers_rgb,
     st_tuples_integers_rgb,
     st_tuples_integers_rgba,
 )
-from src.internal.prelude import (
+from internal.prelude import (
     DDEBUG,
     DIMENSIONS,
     ColorValue,

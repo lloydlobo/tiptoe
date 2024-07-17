@@ -10,8 +10,8 @@ from hypothesis import assume
 
 
 try:
-    from src.internal.assets import Assets
-    from src.internal.prelude import (
+    from internal.assets import Assets
+    from internal.prelude import (
         COUNT,
         IMGS_PATH,
         SIZE,
