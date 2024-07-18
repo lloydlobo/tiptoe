@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import pygame as pg
 
 from internal import prelude as pre
-
 
 if TYPE_CHECKING:
     from game import Game
@@ -42,7 +41,7 @@ class Particle:
 
         return kill_animation
 
-    def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
+    def render(self, surf: pg.SurfaceType, offset: Tuple[int, int] = (0, 0)) -> None:
         img = self.animation.img()
         surf.blit(
             img,

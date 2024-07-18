@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, List
 
 import pygame as pg
 
-import internal.prelude as pre
+from internal import prelude as pre
 
 
 if TYPE_CHECKING:
-    from tiptoe import Game
+    from game import Game
 
 
 class Spawner:
@@ -24,7 +24,7 @@ class Spawner:
 
         self.spawner_kind: Final = skind
         self.entity_kind: Final = ekind
-        self.assets: Final[list[pg.Surface]] = self.game.assets.tiles[self.entity_kind.value]
+        self.assets: Final[List[pg.Surface]] = self.game.assets.tiles[self.entity_kind.value]
 
     def rect(self) -> pg.Rect:
         return pg.Rect(self.pos.x, self.pos.y, self.size.x, self.size.y)

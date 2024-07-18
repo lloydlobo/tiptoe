@@ -2,15 +2,12 @@
 
 import logging
 import re
-import time
 from typing import Any, Final, List, Sequence, Tuple, TypeAlias
 
 import pygame as pg
 import pytest
-from _pytest.python_api import approx
 from hypothesis import assume, example, given
 from hypothesis import strategies as st
-from hypothesis.strategies._internal.collections import ListStrategy
 
 
 """class Animation

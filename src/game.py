@@ -1,9 +1,7 @@
 # file: game.py
 
-# from __future__ import annotations
 
 import itertools as it
-import logging
 import math
 import queue
 import sys
@@ -212,26 +210,6 @@ def set_mainscreen(
 # -----------------------------------------------------------------------------
 # GAME
 # -----------------------------------------------------------------------------
-
-"""
-def init(
-    frequency: int = 44100,
-    size: int = -16,
-    channels: int = 2,
-    buffer: int = 512,
-    devicename: Optional[str] = None,
-    allowedchanges: int = 5,
-) -> None: ...
-def pre_init(
-    frequency: int = 44100,
-    size: int = -16,
-    channels: int = 2,
-    buffer: int = 512,
-    devicename: Optional[str] = None,
-    allowedchanges: int = 5,
-) -> None: ...
-"""
-
 
 class Game:
     # @profile
@@ -484,64 +462,7 @@ class Game:
             paths_: Generator[str | Path, None, None] = (values[1] for values in pre.global_files_visited.values())
             cntr_ = Counter(paths_)
             __import__('pprint').pprint(cntr_)
-            """
-            20240713031149UTC
-            Counter({PosixPath('src/config'): 1,
-                     PosixPath('src/data/images/tiles/large_decor/0.png'): 1,
-                     PosixPath('src/data/images/tiles/spawners/flag.png'): 1,
-                     PosixPath('src/data/images/tiles/spawners/flag_start.png'): 1,
-                     PosixPath('src/data/images/tiles/spikes/0.png'): 1,
-                     PosixPath('src/data/images/tiles/spikes/1.png'): 1,
-                     PosixPath('src/data/images/particles/particle/0.png'): 1,
-                     PosixPath('src/data/images/particles/particle/1.png'): 1,
-                     PosixPath('src/data/images/particles/particle/2.png'): 1,
-                     PosixPath('src/data/images/particles/particle/3.png'): 1,
-                     PosixPath('src/data/sfx/dashbassy.wav'): 1,
-                     PosixPath('src/data/sfx/hit.wav'): 1,
-                     PosixPath('src/data/sfx/hitmisc.wav'): 1,
-                     PosixPath('src/data/sfx/hitwall.wav'): 1,
-                     PosixPath('src/data/sfx/jump.wav'): 1,
-                     PosixPath('src/data/sfx/jumplanding.wav'): 1,
-                     PosixPath('src/data/sfx/playerspawn.wav'): 1,
-                     PosixPath('src/data/sfx/portaltouch.wav'): 1,
-                     PosixPath('src/data/sfx/shoot.wav'): 1,
-                     PosixPath('src/data/sfx/teleport.wav'): 1,
-                     PosixPath('src/data/music/level_2.wav'): 1,
-                     PosixPath('src/data/maps/0.json'): 1,
-                     PosixPath('src/data/music/level_0.wav'): 1})
-
-            20240712000000UTC
-            Counter({PosixPath('src/config'): 1,
-                     PosixPath('src/data/images/tiles/large_decor/0.png'): 1,
-                     PosixPath('src/data/images/background/bg1_480x315.png'): 1,
-                     PosixPath('src/data/images/background/bg2_480x315.png'): 1,
-                     PosixPath('src/data/images/background/bg3_480x315.png'): 1,
-                     PosixPath('src/data/images/tiles/spawners/flag.png'): 1,
-                     PosixPath('src/data/images/tiles/spawners/flag_start.png'): 1,
-                     PosixPath('src/data/images/tiles/spikes/0.png'): 1,
-                     PosixPath('src/data/images/tiles/spikes/1.png'): 1,
-                     PosixPath('src/data/images/particles/particle/0.png'): 1,
-                     PosixPath('src/data/images/particles/particle/1.png'): 1,
-                     PosixPath('src/data/images/particles/particle/2.png'): 1,
-                     PosixPath('src/data/images/particles/particle/3.png'): 1,
-                     PosixPath('src/data/sfx/ambienceheartbeatloop.wav'): 1,
-                     PosixPath('src/data/sfx/dash.wav'): 1,
-                     PosixPath('src/data/sfx/dashbassy.wav'): 1,
-                     PosixPath('src/data/sfx/hit.wav'): 1,
-                     PosixPath('src/data/sfx/hitmisc.wav'): 1,
-                     PosixPath('src/data/sfx/hitwall.wav'): 1,
-                     PosixPath('src/data/sfx/jump.wav'): 1,
-                     PosixPath('src/data/sfx/jumplanding.wav'): 1,
-                     PosixPath('src/data/sfx/playerspawn.wav'): 1,
-                     PosixPath('src/data/sfx/portaltouch.wav'): 1,
-                     PosixPath('src/data/sfx/shoot.wav'): 1,
-                     PosixPath('src/data/sfx/shootmiss.wav'): 1,
-                     PosixPath('src/data/sfx/teleport.wav'): 1,
-                     PosixPath('src/data/music/level_2.wav'): 1,
-                     PosixPath('src/data/maps/0.json'): 1,
-                     PosixPath('src/data/music/level_0.wav'): 1})
-            """
-
+         
         # On __init__ running is False. Ensure ..load(self,...) and
         # ..reset(self,...) also set it to False
         self.running = True

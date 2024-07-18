@@ -50,10 +50,9 @@ class Assets:
     def initialize_assets(cls) -> "Assets":
         logging.basicConfig(level=logging.DEBUG)
 
-        resolution = f"{pre.SCREEN_WIDTH//2}x{pre.SCREEN_HEIGHT//2}"
-        resolution = f"480x315"
-
-        bg_path: Final = pre.IMGS_PATH / "background"
+        # resolution = f"{pre.SCREEN_WIDTH//2}x{pre.SCREEN_HEIGHT//2}"
+        # resolution = f"480x315"
+        # bg_path: Final = pre.IMGS_PATH / "background"
         sheets_path: Final = pre.IMGS_PATH / "spritesheets"
 
         spritesheet_bouncepad = Spritesheet(sheets_path / "bouncepad.png", sheets_path / "bouncepad.json")
@@ -118,7 +117,6 @@ class Assets:
                 # offgrid decoration
                 # decor=list(it.chain.from_iterable(it.starmap(pre.create_surfaces_partialfn, ((2, pre.Palette.COLOR2, (4, 8)), (2, pre.COLOR.FLAMETORCH, pre.SIZE.FLAMETORCH), (2, pre.COLOR.FLAMETORCH, (4, 5)))))),
                 decor=[
-                    # ===-----------=== #
                     sprite
                     for group in ["white_plant", "red_plant", "yellow_plant", "cyan_plant"]
                     for sprite in spritesheet_tileset_greenvalley.load_sprites("decor", group)

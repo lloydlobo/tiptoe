@@ -28,7 +28,7 @@
 
 <!-- GIF preview /archive/screenrec001.gif -->
 
-![tmp placeholder](docs/1716381163_screenshot.png)
+![temporary GIF placeholder](docs/1721299952_screenshot.png)
 
 ## Build Prerequisites
 
@@ -87,6 +87,7 @@ Built in support for either `pip 23.2.1` or `nix-shell (Nix) 2.18.1`
 - See [/resources/LICENSE.md](./src/data/LICENSE.md)
 - DaFluffyPotato for introduction and course on building a platformer using Pygame
 - Raylib examples for inspiring the menu screen navigation
+- Pygame for it's simple to use library APIs
 
 ## Links
 

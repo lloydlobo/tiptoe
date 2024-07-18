@@ -51,3 +51,4 @@ tiptoe.tar.gz
 src/internal/test_getting_started_hypothesis.py.txt
 test_assets/
 tmp
+.vscode
