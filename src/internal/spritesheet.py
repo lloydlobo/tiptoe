@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 import pygame as pg
 
@@ -59,7 +59,7 @@ class Spritesheet:
             logger.error(f"error loading metadata: {e}")
             raise
 
-    def load_sprites(self, s_category: str, s_group: str) -> list[pg.SurfaceType]:
+    def load_sprites(self, s_category: str, s_group: str) -> List[pg.SurfaceType]:
         """Load sprites from the spritesheet based on the provided category and group.
 
         Args:

@@ -19,9 +19,11 @@ from typing import (
     Any,
     Dict,
     Final,
+    List,
     Generator,
     NamedTuple,
     Optional,
+    Set,
     Sequence,
     SupportsFloat,
     SupportsIndex,
@@ -412,9 +414,10 @@ def load_img(path: str | Path, with_alpha: bool = False, colorkey: Union[ColorVa
     return img
 
 
+# TODO(Lloyd): Replace path type str wsith Path
 def load_imgs(
-    path: str, with_alpha: bool = False, colorkey: Union[tuple[int, int, int], None] = None
-) -> list[pg.Surface]:
+    path: str, with_alpha: bool = False, colorkey: Union[Tuple[int, int, int], None] = None
+) -> List[pg.Surface]:
     """Lists all image filenames in path directory and loads_img over each and
     returns list of pg.Surfaces.
 
@@ -446,7 +449,6 @@ class UserConfig:
             return AppConfig.from_dict(config)
         ```
     """
-
     blur_enabled: bool
     blur_passes: int
     blur_size: int
@@ -469,7 +471,7 @@ class UserConfig:
     window_width: int
 
     @classmethod
-    def from_dict(cls, config_dict: dict[str, str]):
+    def from_dict(cls, config_dict: Dict[str, str]):
         """Create an AppConfig instance from a dictionary.
 
         Handles converting string values to appropriate data types and setting
@@ -516,7 +518,7 @@ class UserConfig:
         )
 
     @staticmethod
-    def read_user_config(filepath: Path) -> Optional[dict[str, str]]:
+    def read_user_config(filepath: Path) -> Optional[Dict[str, str]]:
         """Read configuration file and return a dictionary.
 
         Skips comments, empty lines, and returns None if file doesn't exist.
@@ -540,7 +542,7 @@ class UserConfig:
 
 
 @lru_cache(maxsize=32)
-def hex_to_rgb(s: str) -> tuple[int, int, int]:
+def hex_to_rgb(s: str) -> Tuple[int, int, int]:
     """Convert hex color code to RGB color code.
 
     Args:
@@ -993,16 +995,13 @@ class Math:
 ################################################################################
 
 
-def surfaces_get_outline_mask_from_surf(
-    surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: tuple[int, int]
+def surfaces_get_outline_mask_from_surf( surf: pg.SurfaceType, color: ColorValue | ColorKind, width: int, loc: Tuple[int, int]
 ):
     """Create thick outer outlines for surface using masks."""
     m = pg.mask.from_surface(surf)
-    m_outline: list[tuple[int, int]] = m.outline()
-
+    m_outline: List[Tuple[int, int]] = m.outline()
     for i, point in enumerate(m_outline):
         m_outline[i] = (point[0] + loc[0], point[1] + loc[1])
-
     outlinesurf = surf.copy().convert()
     outlinesurf.fill(TRANSPARENT)
     pg.draw.polygon(outlinesurf, color, m_outline, width=width)
@@ -1014,7 +1013,7 @@ def surfaces_vfx_outline_offsets_animation_frames(
     color: ColorKind | ColorValue = (255, 255, 255),
     width: int = 1,
     iterations: int = 32,
-    offsets: set[tuple[int, int]] = NEIGHBOR_OFFSETS,  # pyright: ignore
+    offsets: Set[Tuple[int, int]] = NEIGHBOR_OFFSETS,  # pyright: ignore
 ):
     """Returns a Generator for a sequence of surfaces snake chasing it's tail
     effect in clockwise motion.
@@ -1041,7 +1040,7 @@ def rects_collidepoint(pos: pg.Vector2, sprites: Sequence[pg.Rect]):
 
 
 def create_surface(
-    size: tuple[int, int], colorkey: tuple[int, int, int] | ColorValue, fill_color: tuple[int, int, int] | ColorValue
+    size: tuple[int, int], colorkey: Tuple[int, int, int] | ColorValue, fill_color: Tuple[int, int, int] | ColorValue
 ) -> pg.SurfaceType:
     surf = pg.Surface(size).convert()
     surf.set_colorkey(colorkey)
@@ -1071,9 +1070,9 @@ Returns:
 
 
 def create_surface_withalpha(
-    size: tuple[int, int],
-    colorkey: tuple[int, int, int] | ColorValue,
-    fill_color: tuple[int, int, int] | ColorValue,
+    size: Tuple[int, int],
+    colorkey: Tuple[int, int, int] | ColorValue,
+    fill_color: Tuple[int, int, int] | ColorValue,
     alpha: int,
 ) -> pg.SurfaceType:
     surf = pg.Surface(size).convert_alpha()
@@ -1095,8 +1094,8 @@ New create_surface_withalpha function with partial application of colorkey argum
 
 def create_surfaces(
     count: int,
-    fill_color: ColorKind | ColorValue | tuple[int, int, int] = BLACK,
-    size: tuple[int, int] = (TILE_SIZE, TILE_SIZE),
+    fill_color: ColorKind | ColorValue | Tuple[int, int, int] = BLACK,
+    size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE),
     colorkey: ColorValue = BLACK,
 ) -> Generator[pg.SurfaceType, None, None]:
     if colorkey:
@@ -1110,7 +1109,7 @@ create_surfaces_partialfn.__doc__ = (
 )
 
 
-def create_circle_surf(size: tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
+def create_circle_surf(size: Tuple[int, int], fill_color: ColorValue, colorkey: ColorValue = BLACK) -> pg.SurfaceType:
     """Special case for flameglow particle and should not be used here for
     general circle creation.
     """
@@ -1127,6 +1126,7 @@ create_circle_surf_partialfn = partial(create_circle_surf, colorkey=BLACK)
 create_circle_surf_partialfn.__doc__ = (
     """New create_circle_surf_partialfn function with partial application of colorkey argument and or other keywords."""
 )
+
 
 if __name__ == "__main__":
     import doctest

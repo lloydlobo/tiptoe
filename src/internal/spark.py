@@ -1,6 +1,6 @@
 import math
 from random import randint
-from typing import Sequence
+from typing import Sequence, Tuple
 
 import pygame as pg
 
@@ -46,7 +46,7 @@ class Spark:
         """Prints detailed information about the Spark."""
         print(f"Spark: {self.__dict__}")
 
-    def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
+    def render(self, surf: pg.SurfaceType, offset: Tuple[int, int] = (0, 0)) -> None:
         if (_tmp_simple_spark := 0) and _tmp_simple_spark:
             img = pg.Surface(pre.SIZE.STAR).convert()
             img.set_colorkey(pre.BLACK)

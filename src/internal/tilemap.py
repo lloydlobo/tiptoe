@@ -26,11 +26,12 @@ from typing import (
 
 import pygame as pg
 
-from . import prelude as pre  # from internal import prelude as pre
+from internal import prelude as pre # from . import prelude as pre  
 
 
 if TYPE_CHECKING:  # Thanks for the tip: adamj.eu/tech/2021/05/13/python-type-hints-how-to-fix-circular-imports/
     from game import Game
+    from editor import Editor
 
 
 _Number: TypeAlias = pre.Number
@@ -231,10 +232,10 @@ class Tilemap:
 
         disp_w, disp_h = pre.DIMENSIONS_HALF  # see if it is in multiples after adjusting.
 
-        if (map_dimension := map_data.get("map_dimension", None)) and isinstance(map_dimension, Dict):
-            map_w_, map_h_ = map_dimension.get("w"), map_dimension.get("h")
-
-            if isinstance(map_w_, int) and isinstance(map_h_, int):
+        if (map_dimension := map_data.get("map_dimension", None)) and map_dimension and isinstance(map_dimension, Dict):
+            map_w_ = map_dimension.get("w", 0.0)
+            map_h_ = map_dimension.get("h", 0.0)
+            if (map_w_ and map_h_) and isinstance(map_w_, int) and isinstance(map_h_, int):
                 self.cur_level_map_dimension = max(disp_w, map_w_), max(disp_h, map_h_)
                 return
 

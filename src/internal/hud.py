@@ -7,6 +7,7 @@ from typing import (
     Any,
     Dict,
     Generator,
+    Tuple,
     LiteralString,
     Optional,
 )
@@ -15,11 +16,8 @@ import pygame as pg
 
 import internal.prelude as pre
 
-
 if TYPE_CHECKING:
     from game import Game
-
-# TOP
 
 
 def draw_text(
@@ -40,7 +38,7 @@ def draw_text(
 def render_debug_hud(
     game: Game,
     surface: Optional[pg.SurfaceType] = None,
-    render_scroll: tuple[int, int] = (0, 0),
+    render_scroll: Tuple[int, int] = (0, 0),
     mouse_pos: Optional[tuple[int, int]] = None,
 ) -> None:
     # Since non-monospace fonts look uneven vertically in tables
@@ -98,29 +96,13 @@ def render_debug_hud(
     # Draw HUD
     # -------------------------------------------------------------------------
     rowstart, colstart = (16 * 4), (16 // 2)
-    rowstart = surface.get_width() - rowstart
-    colstart = surface.get_height() - colstart - (13 * lineheight)  # 13 items
 
     if surface is not None:
+        rowstart = surface.get_width() - rowstart
+        colstart = surface.get_height() - colstart - (13 * lineheight)  # 13 items
         for index, text in enumerate(huditems_iter):
-            draw_text(
-                surface,
-                int(rowstart),
-                int(colstart + index * lineheight),
-                game.font_hud,
-                textcolor,
-                text,
-            )
+            draw_text(surface, int(rowstart), int(colstart + index * lineheight), game.font_hud, textcolor, text)
     else:
         for index, text in enumerate(huditems_iter):
-            game.draw_text(
-                int(rowstart),
-                int(colstart + index * lineheight),
-                game.font_hud,
-                textcolor,
-                text,
-            )
+            game.draw_text(int(rowstart), int(colstart + index * lineheight), game.font_hud, textcolor, text)
     # -------------------------------------------------------------------------
-
-
-# BOT

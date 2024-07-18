@@ -2,7 +2,7 @@ import itertools as it
 import math
 import random
 from time import time
-from typing import Final
+from typing import Final, List, Tuple
 
 import pygame as pg
 
@@ -67,7 +67,7 @@ class Star:
 
 
 class Stars:
-    def __init__(self, star_imgs: list[pg.SurfaceType], count: int = 16) -> None:
+    def __init__(self, star_imgs: List[pg.SurfaceType], count: int = 16) -> None:
         # fibs: Final = (2, 3, 5, 8, 13)
         fibs: Final = (3, 5, 8, 13)
         fib_sumavg: Final = sum(fibs) / len(fibs)
@@ -75,7 +75,7 @@ class Stars:
         fibs_cycle: Final = it.cycle(fibs)
         speed_multiplier: Final = 0.5  # Star.speed==approx range(0.05:0.10) when 1==speed_multiplier
 
-        self._mut_stars: list[Star] = [
+        self._mut_stars: List[Star] = [
             Star(
                 img=random.choice(star_imgs),
                 pos=pg.Vector2(random.random() * 99999, random.random() * 99999),
@@ -89,6 +89,6 @@ class Stars:
         for cl in self._mut_stars:
             cl.update()
 
-    def render(self, surf: pg.SurfaceType, offset: tuple[int, int] = (0, 0)) -> None:
+    def render(self, surf: pg.SurfaceType, offset: Tuple[int, int] = (0, 0)) -> None:
         for cl in self._mut_stars:
             cl.render(surf, offset)
