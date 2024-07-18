@@ -358,7 +358,17 @@ class Game:
         ## Edit level manually for quick feedback gameplay iterations
         ##{#############################################################################
         self.level = 0
-        self.levels_space_theme = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
+        self.levelids = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
+        self.levelnames = {
+            0: "WHERE AM I",
+            1: "IS THAT IT",
+            2: "WHAT GOES UP COMES DOWN",
+            3: "BOXED IN",
+            4: "WHAT AM I",
+            5: "AM I",
+            6: "I",
+            7: "END OF THE BEGINNING",
+        }
         ###############################################################################}
 
         # NOTE(Lloyd): Possible to farm this by dying repeatedly but that's alright for now
@@ -391,7 +401,7 @@ class Game:
         self.camera.reset()
         self.movement = pre.Movement(False, False, False, False)
 
-        if self.level in self.levels_space_theme:
+        if self.level in self.levelids:
             self.player = Player(
                 self,  # pyright: ignore [reportArgumentType]
                 self._player_starting_pos.copy(),
@@ -540,7 +550,7 @@ class Game:
 
             self.dt = self.clock.tick(pre.FPS_CAP) * 0.001
             self.display.fill((0, 0, 0, 0))
-            if self.level in self.levels_space_theme:
+            if self.level in self.levelids:
                 self.display_2.fill(game_level_bg_color)  # B.I.Y. theme
             self.events()
             self.update()
@@ -620,7 +630,7 @@ class Game:
 
         # Create background buffer---------------------------------------------
         # ---------------------------------------------------------------------
-        if self.level in self.levels_space_theme:
+        if self.level in self.levelids:
             pass
         else:
             if self.bg_blue_sky_surf:
@@ -763,7 +773,7 @@ class Game:
             self.respawn_death_last_checkpoint = False
 
         # Stars: Backdrop update and render
-        if self.level in self.levels_space_theme:
+        if self.level in self.levelids:
             # Stars drawn behind everything else
             self.stars.update()
             # Blitting display_2 avoids masks depth
@@ -999,7 +1009,7 @@ class Game:
 
             match particle.kind:
                 case pre.ParticleKind.PARTICLE:
-                    if not (self.level in self.levels_space_theme):
+                    if not (self.level in self.levelids):
                         self.particles.remove(particle)
                     else:
                         # NOTE(Lloyd): Frame count is static after kill_animation
@@ -1142,7 +1152,7 @@ class Game:
 
         self.grid_surf: Optional[pg.SurfaceType] = None
         if 0:
-            if self.level in self.levels_space_theme:
+            if self.level in self.levelids:
                 self.grid_surf = pre.create_surface(
                     self.display.get_size(), colorkey=(0, 0, 0), fill_color=(0, 0, 0)
                 ).convert()
@@ -1391,8 +1401,14 @@ class LoadingScreen:
         self.clock = pg.time.Clock()  # Or use game's clock?
 
         self.w, self.h = pre.DIMENSIONS_HALF
+
         self.fontsize = 18  # 9*2: Font author suggest multiples of 9
-        self.font = self.game.font_sm
+
+        self.font_sm = self.game.font_sm
+        self.font_xs = self.game.font_xs
+
+        self.font_sm_linesize = self.font_sm.get_linesize()
+        self.font_xs_linesize = self.font_xs.get_linesize()
 
         self.queue: queue.Queue[int] = queue.Queue()
         self.queue.put(0)
@@ -1473,12 +1489,21 @@ class LoadingScreen:
         pg.draw.rect(self.game.display, pre.WHITE, pbar_outline_rect, 1)
 
         # Draw text
+        textlevel = f"STAGE {self.game.level}"
+        rect_level_text: pg.Rect = self.game.draw_text(
+            self.w // 2 - self.font_sm_linesize // 2,
+            self.h // 2 - self.font_sm_linesize // 2 - pbar_h - 50,
+            self.font_sm,
+            pg.Color('maroon'),
+            textlevel,
+        )
+        textlevelname= f"{self.game.levelnames.get(self.game.level, '...')}"
         self.game.draw_text(
-            self.w // 2 - self.fontsize // 2,
-            self.h // 2 - self.fontsize // 2 - pbar_h - 50,
-            self.font,
+            self.w // 2 - self.font_xs_linesize//2,
+            (rect_level_text.y + (2 * self.font_xs_linesize)),
+            self.font_xs,
             pre.WHITE,
-            f"World {self.game.level}",
+            textlevelname,
         )
 
         dispmask: pg.Mask = pg.mask.from_surface(self.game.display)
