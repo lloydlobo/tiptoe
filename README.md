@@ -2,26 +2,27 @@
 
 **Early preview**...
 
-![preview](docs/1716381163_screenshot.png)
+![preview](docs/1721291908_screenshot.png)
 
 ## Features
 
-- first
-- second
-- third
+- 2D Platformer
+- 8 stages (levels)
+- Speedrun timer _just-for-display_
 
 ## Controls
 
 ### Keyboard
 
-- WASD and Arrow keys: Move in direction (Up Left Down Right)
-- SPACE: Float up
-- X-`<direction>`: Dash
-- ESCAPE:
-- Access menu
-- Return to previous menu
-- Toggle gameplay/menu
-- ENTER: Confirm actions
+- z: go to last checkpoint
+- x: save position as checkpoint
+- c: jump
+- v: dash
+- v-`<direction>` c: double jump dash
+- b: delete last checkpoint
+- space: jump
+- enter(RET): Confirm actions
+- wasd and arrow keys: move in direction (up left down right)
 
 ## Screenshots
 
@@ -31,13 +32,13 @@
 
 ## Build Prerequisites
 
-NOTE: Built with python 3.11.8
+NOTE: Last built with python 3.11.8
 
 ### Environment
 
 Built in support for either `pip 23.2.1` or `nix-shell (Nix) 2.18.1`
 
-### Dependencies
+### Requirements
 
 - pygame
 
@@ -81,7 +82,11 @@ Built in support for either `pip 23.2.1` or `nix-shell (Nix) 2.18.1`
 
 ## Credits
 
-- Resources /resources/LICENSE.md
+<!-- TODO -->
+
+- See [/resources/LICENSE.md](./src/data/LICENSE.md)
+- DaFluffyPotato for introduction and course on building a platformer using Pygame
+- Raylib examples for inspiring the menu screen navigation
 
 ## Links
 
