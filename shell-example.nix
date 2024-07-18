@@ -1,4 +1,4 @@
-# file: shell.nix
+# file: shell-example.nix
 #=========================================================================#
 #
 # To create shell environment and install packages run in project directory
@@ -13,10 +13,15 @@ let
 
   python-with-packages = pkgs.python3.withPackages (ps:
     with ps; [
+      # public
       pygame
+
+      # internal
+      hypothesis
       line_profiler
       memory_profiler
       pip
+      pytest
     ]);
 
   altgraph = pkgs.python3Packages.buildPythonPackage rec {
@@ -63,39 +68,3 @@ in
       pyinstaller --version
     '';
   }
-/*
-20240708064749UTC
-
-# shell.nix
-#=========================================================================#
-#
-# To create shell environment and install packages run in project directory
-# where this file is located:
-#
-#   $ nix-shell
-#
-#=========================================================================#
-let
-  pkgs = import <nixpkgs> {};
-in
-  pkgs.mkShell {
-    packages = [
-      (pkgs.python3.withPackages (py: [
-        # select Python packages here
-
-        # [dependencies]
-        py.pygame
-        # py.noise
-
-        py.numpy
-
-        # [dev_dependencies]
-        py.line_profiler
-        py.memory_profiler
-        # python-pkgs.pandas
-        # python-pkgs.requests
-      ]))
-    ];
-  }
-*/
-
