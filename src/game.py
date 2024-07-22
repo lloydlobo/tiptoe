@@ -336,7 +336,7 @@ class Game:
 
         ## Edit level manually for quick feedback gameplay iterations
         ##{#############################################################################
-        self.level:int = 5
+        self.level: int = 5
         self.levelids = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
         self.levelnames = {
             0: "WHERE AM I",
@@ -496,12 +496,12 @@ class Game:
                     self.movement.left = True
                 if event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = True
-                if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keydown and manually reset if jump keyup did occur.
+                if event.key in (pg.K_SPACE, pg.K_v):  # Check jump keydown and manually reset if jump keyup did occur.
                     self.player.time_jump_keyup = None if self.player.time_jump_keyup else self.player.time_jump_keyup
                     self.player.time_jump_keydown = time.time()
                     if (isjump := self.player.jump()) and isjump:
                         self.sfx.jump.play()
-                if event.key in (pg.K_v, pg.K_k):
+                if event.key in (pg.K_c, pg.K_k):
                     self.player.dash()
                 if event.key in (pg.K_x, pg.K_f):
                     self.gcs_record_checkpoint()
@@ -516,7 +516,7 @@ class Game:
                     self.movement.left = False
                 if event.key in (pg.K_RIGHT, pg.K_d):
                     self.movement.right = False
-                if event.key in (pg.K_SPACE, pg.K_c):  # Check jump keyup
+                if event.key in (pg.K_SPACE, pg.K_v):  # Check jump keyup
                     if self.player.time_jump_keydown and not self.player.time_jump_keyup:
                         self.player.time_jump_keyup = time.time()
                         self.player.deltatime_jump_keydownup = (
