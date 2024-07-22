@@ -16,11 +16,10 @@
 
 - z: go to last checkpoint
 - x: save position as checkpoint
-- c: jump
-- v: dash
+- c | k: dash
+- v | space: jump
 - v-`<direction>` c: double jump dash
 - b: delete last checkpoint
-- space: jump
 - enter(RET): Confirm actions
 - wasd and arrow keys: move in direction (up left down right)
 
