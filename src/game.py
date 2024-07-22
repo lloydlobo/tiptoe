@@ -211,6 +211,7 @@ def set_mainscreen(
 # GAME
 # -----------------------------------------------------------------------------
 
+
 class Game:
     # @profile
     def __init__(self) -> None:
@@ -335,7 +336,7 @@ class Game:
 
         ## Edit level manually for quick feedback gameplay iterations
         ##{#############################################################################
-        self.level = 0
+        self.level:int = 5
         self.levelids = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
         self.levelnames = {
             0: "WHERE AM I",
@@ -343,7 +344,7 @@ class Game:
             2: "WHAT GOES UP COMES DOWN",
             3: "BOXED IN",
             4: "WHAT AM I",
-            5: "AM I",
+            5: "I USH GN EF",
             6: "I",
             7: "END OF THE BEGINNING",
         }
@@ -462,7 +463,7 @@ class Game:
             paths_: Generator[str | Path, None, None] = (values[1] for values in pre.global_files_visited.values())
             cntr_ = Counter(paths_)
             __import__('pprint').pprint(cntr_)
-         
+
         # On __init__ running is False. Ensure ..load(self,...) and
         # ..reset(self,...) also set it to False
         self.running = True
@@ -971,23 +972,21 @@ class Game:
             else:
                 pg.draw.circle(self.hud_surf, (255, 255, 255), status_center, icon_status_radius, 1)
 
+        def _is_last_framecountdown_for_interval(timediff: int, interval: int = 10, framecount: int = 4) -> bool:
+            """framecount should not be less than interval. for a period of 10 seconds, expect the last 4 count 7.8.9.10"""
+            return True if interval <= framecount else any(((timediff + i) % interval) == 0 for i in range(framecount))
+
         # Draw timer
-        if (
-            self.gameleveltimer.start
-            and (
-                telapsed := math.floor(self.gameleveltimer.current - self.gameleveltimer.start),
-                tperiod := 10,
-            )
-            and (
-                ((telapsed + 3) % tperiod == 0)
-                or ((telapsed + 2) % tperiod == 0)
-                or ((telapsed + 1) % tperiod == 0)
-                or (telapsed % tperiod == 0)
-            )
+        if self.gameleveltimer.start and (
+            elapsed_time := math.floor(self.gameleveltimer.current - self.gameleveltimer.start)
         ):
-            tlabel = f"{telapsed}"
+            tlabel = f"{elapsed_time}"
             self.draw_text(
-                int(hud_dest[0] + self.bg_display_w // 2), int(hud_dest[1] + 32), self.font_xs, (255, 255, 255), tlabel
+                int(hud_dest[0] + self.bg_display_w // 2),
+                int(hud_dest[1] + 32),
+                self.font_xs,
+                (255, 255, 255),
+                tlabel,
             )
 
         # Draw HUD with pre-rendered buffer on display.
@@ -1418,9 +1417,9 @@ class LoadingScreen:
             pg.Color('maroon'),
             textlevel,
         )
-        textlevelname= f"{self.game.levelnames.get(self.game.level, '...')}"
+        textlevelname = f"{self.game.levelnames.get(self.game.level, '...')}"
         self.game.draw_text(
-            self.w // 2 - self.font_xs_linesize//2,
+            self.w // 2 - self.font_xs_linesize // 2,
             (rect_level_text.y + (2 * self.font_xs_linesize)),
             self.font_xs,
             pre.WHITE,
