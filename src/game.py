@@ -728,10 +728,6 @@ class Game:
                     if enemy not in self.collected_enemies_seen:
                         self.collected_enemies_seen.add(enemy)
                         enemy.is_collected_by_player = True  # This flag is used to indicate success capture in the HUD.
-            ###################################################################
-            # TODO: REMEMBER TO CLEAR THIS AT END OF LEVEL
-            # self.collected_enemies_seen.clear()
-            ###################################################################
 
             # Flag win condition
             self.collected_all_enemies = len(self.collected_enemies_seen) == len(self.enemies)
@@ -1046,6 +1042,7 @@ class Game:
         if pre.DEBUG_GAME_PRINTLOG:  # FIX: Dual loading at game over
             print(f"{Path(__file__).name}: [{time.time():0.4f}] {self.level_map_dimension = }")
 
+        self.movement = pre.Movement(False, False, False, False)
         progress += 5
         if progressbar:
             progressbar.put(progress)
