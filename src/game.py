@@ -336,7 +336,7 @@ class Game:
 
         ## Edit level manually for quick feedback gameplay iterations
         ##{#############################################################################
-        self.level: int = 5
+        self.level: int = 0
         self.levelids = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
         self.levelnames = {
             0: "WHERE AM I",
@@ -662,7 +662,7 @@ class Game:
 
         # Check for game level transitions
         # ---------------------------------------------------------------------
-        if self.collected_enemies and self.touched_portal:  # Win condition
+        if self.collected_all_enemies and self.touched_portal:  # Win condition
             self.transition += 1
             if self.transition > self._transition_hi:  # Check if transition to the next level is required
                 lvl_no_more_levels_left: bool = (self.level + 1) >= self._level_map_count
@@ -718,20 +718,24 @@ class Game:
             # On victory, draw spark lines around flags to signify SUCCESS state.
             # This lets the player realize to go to flag_end
             # ---------------------------------------------------------------------
-            enemy_count = len(self.enemies)
             for enemy in self.enemies:
+                if enemy.is_collected_by_player and enemy in self.collected_enemies_seen:
+                    if not abs(enemy.pos.y - self.player_spawner_pos.y) < 32:
+                        self.collected_enemies_seen.remove(enemy)
+                        enemy.is_collected_by_player = False
+
                 if abs(enemy.pos.y - self.player_spawner_pos.y) < 32:
-                    enemy_count -= 1
                     if enemy not in self.collected_enemies_seen:
-                        self.collected_enemies_counter += 1
                         self.collected_enemies_seen.add(enemy)
-                        # This flag is used to indicate success capture in the HUD.
-                        enemy.is_collected_by_player = True
+                        enemy.is_collected_by_player = True  # This flag is used to indicate success capture in the HUD.
+            ###################################################################
+            # TODO: REMEMBER TO CLEAR THIS AT END OF LEVEL
+            # self.collected_enemies_seen.clear()
+            ###################################################################
 
             # Flag win condition
-            if enemy_count == 0:
-                self.collected_enemies = True
-
+            self.collected_all_enemies = len(self.collected_enemies_seen) == len(self.enemies)
+            if self.collected_all_enemies:
                 # Draw flag success sparks
                 if pre.DDEBUG:
                     MAX_DY = math.ceil(surf_h // 1.618)
@@ -759,7 +763,7 @@ class Game:
         if not self.touched_portal:
             # NOTE(Lloyd): This disappears very fast
             for i, portal in enumerate(self.portal_spawners):
-                if self.collected_enemies and self.player.rect.colliderect(portal.rect()):
+                if self.collected_all_enemies and self.player.rect.colliderect(portal.rect()):
                     self.touched_portal = True
                     if self.level != self._level_map_count:
                         self.sfx.portaltouch.play()
@@ -967,6 +971,9 @@ class Game:
             accum_x -= accum_offset_x
             # Draw status indicator.
             status_center: Tuple[int, int] = (rec.x, (rec.y + (rec.h // 2) + int(icon_status_radius)))
+
+            # First clear circle. to avoid barely visible outlined circle on top of solid circle
+            pg.draw.circle(self.hud_surf, (0, 0, 0, 0), status_center, icon_status_radius, 0)
             if enemy.is_collected_by_player:
                 pg.draw.circle(self.hud_surf, (222, 222, 222), status_center, icon_status_radius, 0)
             else:
@@ -1190,9 +1197,9 @@ class Game:
         # ---------------------------------------------------------------------
         self.touched_portal = False
 
-        self.collected_enemies = False
+        self.collected_all_enemies = False
         self.collected_enemies_seen: Set[Enemy] = set()
-        self.collected_enemies_counter = 0
+        # self.collected_enemies_counter = 0
         # ---------------------------------------------------------------------
 
         self.transition = self._transition_lo
