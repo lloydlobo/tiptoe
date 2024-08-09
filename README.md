@@ -1,13 +1,15 @@
 # tiptoe
 
+Game inspired by the Summoning theme for the 55th ludum dare jam
+
 **Early preview**...
 
-![preview](docs/1721291908_screenshot.png)
+![Stage 0 sneak peek](docs/tiptoe_preview_stage_0.gif)
 
 ## Features
 
 - 2D Platformer
-- 8 stages (levels)
+- 9 stages (levels)
 - Speedrun timer _just-for-display_
 
 ## Controls
@@ -26,6 +28,8 @@
 ## Screenshots
 
 <!-- GIF preview /archive/screenrec001.gif -->
+
+![preview](docs/1721291908_screenshot.png)
 
 ![temporary GIF placeholder](docs/1721299952_screenshot.png)
 
