@@ -24,6 +24,8 @@ except ImportError or OSError as e:
 else:
     print(f'imported modules')
 
+# TODO: Test: <map_level>.json should have valid spawners, pre-"complile" time
+
 
 @pytest.fixture(scope="module")
 def assets() -> Assets:
