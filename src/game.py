@@ -1,3 +1,4 @@
+
 # file: game.py
 
 
@@ -337,16 +338,17 @@ class Game:
         ## Edit level manually for quick feedback gameplay iterations
         ##{#############################################################################
         self.level: int = 0
-        self.levelids = {0, 1, 2, 3, 4, 5, 6, 7}  # ^_^ so all levels??!!!
+        self.levelids = {0, 1, 2, 3, 4, 5, 6, 7, 8}  # ^_^ so all levels??!!!
         self.levelnames = {
             0: "WHERE AM I",
             1: "IS THAT IT",
             2: "WHAT GOES UP COMES DOWN",
             3: "BOXED IN",
             4: "WHAT AM I",
-            5: "I USH GN EF",
+            5: "I UHS GN EF",
             6: "I",
             7: "END OF THE BEGINNING",
+            8: "GLAMOUR FORTUNE AND FAME",
         }
         ###############################################################################}
 
