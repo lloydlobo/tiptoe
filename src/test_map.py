@@ -135,3 +135,4 @@ def test_first_draft():
 #     enabled = False
 #     if enabled:
 #         assert len(spawner_positions) == 1, f"There should be exactly one spawner of variant {variant}"
+
